@@ -1,0 +1,1439 @@
+{
+ "version": 1,
+ "program": {
+  "name": "The 1% Planner",
+  "year": 2027,
+  "tagline_en": "Better every week",
+  "tagline_vi": "Mỗi tuần tốt hơn một chút",
+  "baseline": {
+   "wave": "2026-11",
+   "open_from": "2026-11-16",
+   "open_to": "2026-11-27"
+  },
+  "retest": {
+   "wave": "2027-12",
+   "open_from": "2027-11-29",
+   "open_to": "2027-12-10"
+  },
+  "pitch_day": "2027-06-22",
+  "capstone_day": "2027-12-21"
+ },
+ "scale": [
+  {
+   "level": 0,
+   "en": "Not yet",
+   "vi": "Chưa có",
+   "abbr": "",
+   "desc_en": "New to this",
+   "desc_vi": "Mới tiếp cận"
+  },
+  {
+   "level": 1,
+   "en": "Basic",
+   "vi": "Cơ bản",
+   "abbr": "BA",
+   "desc_en": "Understands it, knows where to get help",
+   "desc_vi": "Hiểu khái niệm, biết hỏi ai khi cần"
+  },
+  {
+   "level": 2,
+   "en": "Working knowledge",
+   "vi": "Nắm vững",
+   "abbr": "WK",
+   "desc_en": "Diagnoses issues, challenges specialists",
+   "desc_vi": "Chẩn đoán được vấn đề, phản biện được chuyên gia"
+  },
+  {
+   "level": 3,
+   "en": "Fully operational",
+   "vi": "Thành thạo",
+   "abbr": "FO",
+   "desc_en": "Does it alone, improves it, is the go-to person",
+   "desc_vi": "Tự làm, tự cải tiến, là người mọi người tìm đến"
+  },
+  {
+   "level": 4,
+   "en": "Leading edge",
+   "vi": "Dẫn dắt",
+   "abbr": "LE",
+   "desc_en": "Sets the standard and teaches it",
+   "desc_vi": "Đặt chuẩn và dạy lại cho người khác"
+  }
+ ],
+ "courses": [
+  {
+   "code": "A2",
+   "family": "A",
+   "priority": 1,
+   "name_en": "Data to Decisions",
+   "name_vi": "Từ dữ liệu đến quyết định",
+   "promise_en": "From a raw SAP extract to a report that refreshes itself.",
+   "promise_vi": "",
+   "problem_en": "Planners spend hours each week copying SAP extracts into Excel by hand; reports break, versions multiply and numbers disagree in S&OP meetings.",
+   "problem_vi": "",
+   "used_at_en": "Weekly reports; S&OE and DSR packs (every gate that uses a report).",
+   "used_at_vi": "",
+   "self_en": "I turn raw SAP or Excel extracts into clean tables and reports that refresh themselves (Power Query, PivotTable, Power BI).",
+   "self_vi": "Tôi biến dữ liệu thô từ SAP hoặc Excel thành bảng sạch và báo cáo tự làm mới (Power Query, PivotTable, Power BI).",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Shape data as a clean table: one row per record, one column per field, no merged cells or subtotals",
+     "vi": "Tổ chức dữ liệu thành bảng sạch: mỗi dòng một bản ghi, mỗi cột một trường, không gộp ô, không dòng tổng phụ",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Look up and summarise with XLOOKUP, SUMIFS/COUNTIFS and a PivotTable",
+     "vi": "Tra cứu và tổng hợp bằng XLOOKUP, SUMIFS/COUNTIFS và PivotTable",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Build a Power Query that imports, cleans, merges or appends, unpivots and refreshes",
+     "vi": "Xây Power Query để nhập, làm sạch, ghép (merge/append), unpivot và làm mới dữ liệu",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Choose the chart that answers the question and avoid misleading axes",
+     "vi": "Chọn biểu đồ trả lời đúng câu hỏi và tránh trục gây hiểu nhầm",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Read a Power BI page: slicers, filters and measures",
+     "vi": "Đọc một trang Power BI: slicer, bộ lọc và measure",
+     "episodes": []
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "The Monday Copy-Paste",
+     "title_vi": "",
+     "ideas_en": "Cold open: Linh's Monday starts at 7:30 with the same SAP extract and 12 manual steps; at 10:15 Anh Minh asks for the number. Misconception: 'Excel skill = more formulas'. Idea: the clean-table rule.",
+     "ideas_vi": "",
+     "try_en": "Spot three rule-breakers in a real-looking extract.",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "One Row, One Truth",
+     "title_vi": "",
+     "ideas_en": "Data types, dates stored as text, merged headers, totals inside data; why Power BI and PivotTables need tidy data.",
+     "ideas_vi": "",
+     "try_en": "Fix a table in four moves.",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "Find It Fast",
+     "title_vi": "",
+     "ideas_en": "XLOOKUP, SUMIFS, COUNTIFS; the #N/A trailing-space trap; lookup keys.",
+     "ideas_vi": "",
+     "try_en": "Which formula answers which question?",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "The Pivot That Answers",
+     "title_vi": "",
+     "ideas_en": "PivotTables for share, mix and trend; percent vs percentage points; error % of actual.",
+     "ideas_vi": "",
+     "try_en": "Is 60% → 66% a 6% or a 10% rise?",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Record Once, Refresh Forever",
+     "title_vi": "",
+     "ideas_en": "Power Query: import, clean, refresh; the applied-steps list as a recipe.",
+     "ideas_vi": "",
+     "try_en": "Order the steps of a weekly clean-up.",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "Stack, Join, Unpivot",
+     "title_vi": "",
+     "ideas_en": "Append vs Merge vs Unpivot with SKU, customer and week data.",
+     "ideas_vi": "",
+     "try_en": "Pick the operation for three data puzzles.",
+     "try_vi": ""
+    },
+    {
+     "ep": 7,
+     "title_en": "Charts That Tell the Truth",
+     "title_vi": "",
+     "ideas_en": "Chart choice by comparison type; truncated axes; one message per chart (link to C1).",
+     "ideas_vi": "",
+     "try_en": "Redraw a misleading bar chart.",
+     "try_vi": ""
+    },
+    {
+     "ep": 8,
+     "title_en": "Your First Power BI Page",
+     "title_vi": "",
+     "ideas_en": "Slicers, filters, one measure, one page for S&OE; refresh from the Power Query.",
+     "ideas_vi": "",
+     "try_en": "What happens when you click this slicer?",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "Kick-off + Data & AI Lab",
+    "title_vi": "",
+    "summary_en": "Data & AI Lab (with A3). Teams rebuild the same messy weekly report from a raw extract with Power Query; race to a 5-minute refresh; then Copilot drafts the commentary and the team fact-checks it. Show-and-tell slot opens the program (kick-off).",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Rebuild one weekly report you own in Power Query; prove it refreshes in under 5 minutes; log hours saved.",
+    "vi": "",
+    "evidence_en": "Before/after screenshots, refresh time, hours saved a week, manager sign-off with the rubric.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "Hours saved per week (team target ≥ 10 h/week by Dec 2027); report refresh errors.",
+   "kpi_vi": "",
+   "order": 1,
+   "cycle": 1,
+   "online_from": "2027-01-04",
+   "online_to": "2027-01-22",
+   "checkpoint_close": "2027-01-22",
+   "forum_date": "2027-01-26",
+   "field_until": "2027-02-26"
+  },
+  {
+   "code": "A3",
+   "family": "A",
+   "priority": 1,
+   "name_en": "AI at Work",
+   "name_vi": "AI trong công việc",
+   "promise_en": "Copilot as your planning analyst, inside the guardrails.",
+   "promise_vi": "",
+   "problem_en": "Microsoft 365 Copilot is available but used rarely or unsafely; people do not know what it is good for in planning, and some paste company data into public tools.",
+   "problem_vi": "",
+   "used_at_en": "Daily work around every gate: S&OE emails and actions, Demand Review narrative, DSR gap notes, packs.",
+   "used_at_vi": "",
+   "self_en": "I use Microsoft 365 Copilot safely every week to save time, and I check everything it produces.",
+   "self_vi": "Tôi dùng Microsoft 365 Copilot an toàn mỗi tuần để tiết kiệm thời gian, và tôi kiểm tra mọi thứ nó tạo ra.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Use AI inside the company guideline: Microsoft 365 Copilot with the Marico account; no sensitive data in prompts unless IT confirms; never paste company data into public tools",
+     "vi": "Dùng AI đúng hướng dẫn công ty: Microsoft 365 Copilot với tài khoản Marico; không đưa dữ liệu nhạy cảm vào prompt khi IT chưa xác nhận; không dán dữ liệu công ty vào công cụ công cộng",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Write prompts with role, task, context and format",
+     "vi": "Viết prompt có vai trò, nhiệm vụ, bối cảnh và định dạng",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Use Copilot in Outlook, Teams, Excel and PowerPoint for three or more own tasks",
+     "vi": "Dùng Copilot trong Outlook, Teams, Excel và PowerPoint cho từ ba việc của mình",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Verify every number and fact AI produces against the source",
+     "vi": "Kiểm chứng mọi con số và dữ kiện AI đưa ra với nguồn gốc",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Know when not to use AI: decisions, approvals, anything you cannot check",
+     "vi": "Biết khi nào không dùng AI: quyết định, phê duyệt, điều bạn không kiểm chứng được",
+     "episodes": []
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "The Intern Who Never Sleeps",
+     "title_vi": "",
+     "ideas_en": "Cold open: Copilot writes a perfect customer email in 20 seconds, with one wrong number. What Copilot is and is not.",
+     "ideas_vi": "",
+     "try_en": "Find the wrong number.",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "The Guardrails",
+     "title_vi": "",
+     "ideas_en": "Our guideline: Microsoft 365 Copilot with the Marico account only; what never goes in a prompt; why public tools are out.",
+     "ideas_vi": "",
+     "try_en": "Allowed or not? Five fast cases.",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "Prompt Like a Planner",
+     "title_vi": "",
+     "ideas_en": "Role, task, context, format; before/after prompts for S&OE, DSR and Demand Review.",
+     "ideas_vi": "",
+     "try_en": "Rewrite a weak prompt.",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "Copilot Across Your Week",
+     "title_vi": "",
+     "ideas_en": "Outlook, Teams, Excel, PowerPoint: ten planner use cases from the team playbook.",
+     "ideas_vi": "",
+     "try_en": "Match the task to the app.",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Trust, but Verify",
+     "title_vi": "",
+     "ideas_en": "Confident wrong answers; tracing numbers to the source; saying when AI drafted.",
+     "ideas_vi": "",
+     "try_en": "Check this summary against the table.",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "Where People Decide",
+     "title_vi": "",
+     "ideas_en": "Decisions, approvals and allocations stay with people; how this differs from the ML forecast (teaser for P4).",
+     "ideas_vi": "",
+     "try_en": "Human or AI? Sort six tasks.",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "Kick-off + Data & AI Lab",
+    "title_vi": "",
+    "summary_en": "Shared with A2 (Data & AI Lab): Copilot drafts the commentary for the rebuilt report; teams verify every number, then present.",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Three Copilot use cases in your own job; save your best prompt to the team library; log minutes saved for 4 weeks.",
+    "vi": "",
+    "evidence_en": "Prompt library entries, time log, one before/after example, manager sign-off.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "100% weekly Copilot users; hours saved; zero guideline breaches.",
+   "kpi_vi": "",
+   "order": 2,
+   "cycle": 1,
+   "online_from": "2027-01-04",
+   "online_to": "2027-01-22",
+   "checkpoint_close": "2027-01-22",
+   "forum_date": "2027-01-26",
+   "field_until": "2027-02-26"
+  },
+  {
+   "code": "A1",
+   "family": "A",
+   "priority": 2,
+   "name_en": "The Right Question",
+   "name_vi": "Câu hỏi đúng",
+   "promise_en": "Define the problem before you solve it.",
+   "promise_vi": "",
+   "problem_en": "The team jumps to solutions without structure, does not think MECE, and answers questions nobody asked (forty charts, wrong question).",
+   "problem_vi": "",
+   "used_at_en": "S&OE loss-tree root cause; any issue raised at S&OE, DSR or S&OP (one-page problem statement rule from April 2027).",
+   "used_at_vi": "",
+   "self_en": "I define a problem as a gap with numbers, break it into a MECE tree, and plan the analysis before I build charts.",
+   "self_vi": "Tôi định nghĩa vấn đề như một khoảng cách bằng con số, chia nó thành cây MECE và lập kế hoạch phân tích trước khi làm biểu đồ.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Write a problem as a gap: current and desired condition in numbers, with a date",
+     "vi": "Viết vấn đề như một khoảng cách: tình trạng hiện tại và mong muốn bằng con số, có thời hạn",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Test a problem statement against the six characteristics (specific and measurable, time-bound, a question not a fact, debatable, actionable, what the decision-maker needs)",
+     "vi": "Kiểm tra phát biểu vấn đề theo sáu đặc điểm (cụ thể và đo lường được, có thời hạn, là câu hỏi không phải sự thật, có thể tranh luận, có thể hành động, đáp ứng điều người quyết định cần)",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Break a problem into a MECE logic tree and choose the right type of tree",
+     "vi": "Chia vấn đề thành cây logic MECE và chọn đúng loại cây",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Eliminate non key issues with 80:20 and the Size of Prize × Easy to capture matrix",
+     "vi": "Loại bỏ vấn đề không trọng yếu bằng 80:20 và ma trận Độ lớn giá trị × Mức dễ đạt",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Turn the issue analysis into a 2–4-week work plan with owners and end products",
+     "vi": "Biến phân tích vấn đề thành kế hoạch 2–4 tuần có người phụ trách và sản phẩm đầu ra",
+     "episodes": []
+    },
+    {
+     "n": 6,
+     "en": "Conduct work items with sufficient precision, check the five biases, and iterate",
+     "vi": "Thực hiện công việc với độ chính xác vừa đủ, kiểm tra năm thiên kiến và lặp lại",
+     "episodes": []
+    }
+   ],
+   "has_trailer": true,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "Forty Charts, Wrong Question",
+     "title_vi": "",
+     "ideas_en": "Problem = gap; four questions; the problem statement worksheet.",
+     "ideas_vi": "",
+     "try_en": "Which one is a problem?",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "Spot the Weak Statement",
+     "title_vi": "",
+     "ideas_en": "Six characteristics (scanners); question vs hypothesis.",
+     "ideas_vi": "",
+     "try_en": "Scan and rewrite a statement.",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "Ask Why, Then Ask Your Boss",
+     "title_vi": "",
+     "ideas_en": "Defining is a loop: brief, playback in 24 h, stakeholders, trade-off and sign-off; ask-why ladder.",
+     "ideas_vi": "",
+     "try_en": "Five questions before you start.",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "How Do You Eat an Elephant?",
+     "title_vi": "",
+     "ideas_en": "Logic trees and MECE; four rules.",
+     "ideas_vi": "",
+     "try_en": "Find the overlap and the gap.",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Five Trees for Five Jobs",
+     "title_vi": "",
+     "ideas_en": "Component, deductive, inductive, hypothesis and decision trees.",
+     "ideas_vi": "",
+     "try_en": "Build a deductive tree for line output.",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "Cut Without Guilt",
+     "title_vi": "",
+     "ideas_en": "80:20; Size of Prize × Easy to capture; ten sticky notes.",
+     "ideas_vi": "",
+     "try_en": "Place five branches on the matrix.",
+     "try_vi": ""
+    },
+    {
+     "ep": 7,
+     "title_en": "The Plan That Survives Monday",
+     "title_vi": "",
+     "ideas_en": "Issue analysis → work plan; 2–4 weeks of detail.",
+     "ideas_vi": "",
+     "try_en": "Write one work-plan line.",
+     "try_vi": ""
+    },
+    {
+     "ep": 8,
+     "title_en": "Just Do It, Smartly",
+     "title_vi": "",
+     "ideas_en": "Team norms, five biases, sufficient precision.",
+     "ideas_vi": "",
+     "try_en": "Envelope check and name the bias.",
+     "try_vi": ""
+    },
+    {
+     "ep": 9,
+     "title_en": "Loop Back Before You Lock In",
+     "title_vi": "",
+     "ideas_en": "ITERATE; one-day answer as SOI; reflections.",
+     "ideas_vi": "",
+     "try_en": "Write Linh's one-day answer.",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "The Right Question",
+    "title_vi": "",
+    "summary_en": "Forum as designed in the A1 forum deck (4 h): solve the Plant B cold case, then a topic Quân chooses; MECE race 'How do you get into BCG?' and the petrol-station estimate. Each team project is chartered as a one-day answer (SOI) with an issue tree.",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Charter your team project: problem statement passing the six characteristics, issue tree, prioritised branches, 2–4-week work plan; play it back to the sponsor manager within 24 h.",
+    "vi": "",
+    "evidence_en": "Signed charter (one page) and issue tree; manager sign-off with the rubric.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "% of issues at S&OE/DSR/S&OP that arrive with a one-page problem statement (from Apr 2027); charters signed by 16 Apr.",
+   "kpi_vi": "",
+   "order": 3,
+   "cycle": 2,
+   "prework_from": "2027-02-01",
+   "online_from": "2027-02-15",
+   "online_to": "2027-03-12",
+   "checkpoint_close": "2027-03-19",
+   "forum_date": "2027-03-23",
+   "field_until": "2027-04-16"
+  },
+  {
+   "code": "P1",
+   "family": "P",
+   "priority": 3,
+   "name_en": "Line of Sight · Capacity Planning",
+   "name_vi": "Line of Sight · Hoạch định năng lực",
+   "promise_en": "See the factory behind every plan.",
+   "promise_vi": "",
+   "problem_en": "Planners do not see how their plans create factory losses; capacity is checked late or not at all; the DSR cannot cost a supply gap.",
+   "problem_vi": "",
+   "used_at_en": "G6 DSR: capacity check and supply-gap costing; weekly planning–factory meeting.",
+   "used_at_vi": "",
+   "self_en": "I can calculate what a line can make, check a plan against capacity, and sequence orders so my plan does not create factory losses.",
+   "self_vi": "Tôi tính được năng lực một dây chuyền, kiểm tra kế hoạch với năng lực và sắp xếp đơn hàng để kế hoạch không tạo ra tổn thất cho nhà máy.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Speak factory: site, line, bottleneck and buffers",
+     "vi": "Hiểu ngôn ngữ nhà máy: nhà máy, dây chuyền, điểm nghẽn và vùng đệm",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Convert cases, consumer units and pallets through the BOM levels (DU, CU, CUc), including scrap",
+     "vi": "Quy đổi thùng, đơn vị tiêu dùng và pallet qua các cấp BOM (DU, CU, CUc), có tính hao hụt",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Walk the time ladder from 8,760 hours to valuable operating time and compute OEE correctly",
+     "vi": "Đi qua thang thời gian từ 8.760 giờ đến thời gian vận hành có giá trị và tính OEE đúng",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Run a rough-cut capacity check and list the levers for overload",
+     "vi": "Kiểm tra năng lực sơ bộ (RCCP) và liệt kê đòn bẩy khi quá tải",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "See how sequencing, frozen-zone changes and small lots create factory losses",
+     "vi": "Thấy được trình tự sản xuất, thay đổi trong vùng đóng băng và lô nhỏ tạo ra tổn thất nhà máy thế nào",
+     "episodes": []
+    }
+   ],
+   "has_trailer": true,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "Speak Factory",
+     "title_vi": "",
+     "ideas_en": "Site, line, buffers, bottleneck; map the Shampoo X flow.",
+     "ideas_vi": "",
+     "try_en": "Where is the bottleneck?",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "From Consumer Unit to Pallet",
+     "title_vi": "",
+     "ideas_en": "DU, CU, CUc; Ti-Hi; scrap.",
+     "ideas_vi": "",
+     "try_en": "Cases → bottles → pallets.",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "The Planning DNA",
+     "title_vi": "",
+     "ideas_en": "Recipe, production version, lot size, standard hours.",
+     "ideas_vi": "",
+     "try_en": "Design vs standard hours.",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "Where Did the 8,760 Hours Go?",
+     "title_vi": "",
+     "ideas_en": "The time ladder; OEE, CCU, AU.",
+     "ideas_vi": "",
+     "try_en": "Read the ladder.",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "OEE Done Right",
+     "title_vi": "",
+     "ideas_en": "VOT ÷ loading time; the common trap; MP × SP.",
+     "ideas_vi": "",
+     "try_en": "Spot the trap.",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "How Much Can This Line Make?",
+     "title_vi": "",
+     "ideas_en": "Rough-cut capacity; mix effect; options when overloaded.",
+     "ideas_vi": "",
+     "try_en": "Is next month feasible?",
+     "try_vi": ""
+    },
+    {
+     "ep": 7,
+     "title_en": "How Our Plans Create Factory Losses",
+     "title_vi": "",
+     "ideas_en": "Changeover matrix; frozen-zone rush orders; small lots; unstaged materials.",
+     "ideas_vi": "",
+     "try_en": "Plan A vs Plan B.",
+     "try_vi": ""
+    },
+    {
+     "ep": 8,
+     "title_en": "Standards and the Weekly Rhythm",
+     "title_vi": "",
+     "ideas_en": "Standards; output reliability both ways; the weekly planning–factory meeting.",
+     "ideas_vi": "",
+     "try_en": "Which loss is ours?",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "Capacity lab + charter clinic",
+    "title_vi": "",
+    "summary_en": "Capacity lab: teams re-sequence a real (anonymised) week with the changeover matrix, run an RCCP for next month and cost the gap; factory walk or video walk; 45-minute A1 charter clinic at the start.",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Re-sequence one real week for your line or category with the changeover matrix; RCCP for next month; cost one supply gap for the DSR.",
+    "vi": "",
+    "evidence_en": "Sequence before/after (minutes saved), RCCP sheet, DSR gap note; manager sign-off.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "Output reliability; changeover minutes per week; DSR supply gaps costed.",
+   "kpi_vi": "",
+   "order": 4,
+   "cycle": 3,
+   "online_from": "2027-03-29",
+   "online_to": "2027-04-16",
+   "checkpoint_close": "2027-04-23",
+   "forum_date": "2027-04-27",
+   "field_until": "2027-05-21"
+  },
+  {
+   "code": "C1",
+   "family": "C",
+   "priority": 2,
+   "name_en": "Effective Communication",
+   "name_vi": "Giao tiếp hiệu quả",
+   "promise_en": "Answer first.",
+   "promise_vi": "",
+   "problem_en": "Packs and emails are bottom-up: data first, message last; senior readers cannot find the answer or the ask.",
+   "problem_vi": "",
+   "used_at_en": "S&OP and DSR packs; escalation emails; the Pitch Day itself.",
+   "used_at_vi": "",
+   "self_en": "I lead with the answer: my emails and packs open with the conclusion and the ask, with action titles on every slide.",
+   "self_vi": "Tôi nói kết luận trước: email và tài liệu của tôi mở đầu bằng kết luận và đề nghị, mỗi slide có tiêu đề hành động.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Synthesise: ask \"so what\" three times to move from finding to meaning to action",
+     "vi": "Tổng hợp: hỏi \"thì sao\" ba lần để đi từ phát hiện đến ý nghĩa đến hành động",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Write the one-day answer as SOI: Situation, Observation (complication and question), Implication",
+     "vi": "Viết câu trả lời một ngày theo SOI: Tình huống, Quan sát (vấn đề và câu hỏi), Hàm ý",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Build a pyramid with vertical and horizontal logic",
+     "vi": "Xây kim tự tháp với logic dọc và logic ngang",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Write top-down emails and action titles",
+     "vi": "Viết email theo lối kết luận trước và tiêu đề hành động",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Choose the chart for the comparison: component, item, time series, frequency, correlation",
+     "vi": "Chọn biểu đồ theo loại so sánh: thành phần, hạng mục, chuỗi thời gian, tần suất, tương quan",
+     "episodes": []
+    }
+   ],
+   "has_trailer": true,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "So What, Three Times",
+     "title_vi": "",
+     "ideas_en": "Synthesis: from forty charts to one message.",
+     "ideas_vi": "",
+     "try_en": "Ask so what three times.",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "The Clapper Board",
+     "title_vi": "",
+     "ideas_en": "One-day answer SOI; seven complication types.",
+     "ideas_vi": "",
+     "try_en": "Write the S, O and I.",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "Build the Pyramid",
+     "title_vi": "",
+     "ideas_en": "Pyramid with question and hypothesis trees; vertical and horizontal logic.",
+     "ideas_vi": "",
+     "try_en": "Fix a broken pyramid.",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "Answer First",
+     "title_vi": "",
+     "ideas_en": "Top-down vs bottom-up; CEO in the lift; polite top-down in Vietnamese.",
+     "ideas_vi": "",
+     "try_en": "Rewrite an email top-down.",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Know Your Room",
+     "title_vi": "",
+     "ideas_en": "Communication triangle; document types; presentation styles.",
+     "ideas_vi": "",
+     "try_en": "Pick the format for the reader.",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "Titles That Tell the Story",
+     "title_vi": "",
+     "ideas_en": "Action titles; storylining; storyboards.",
+     "ideas_vi": "",
+     "try_en": "Turn five labels into action titles.",
+     "try_vi": ""
+    },
+    {
+     "ep": 7,
+     "title_en": "Slides That Survive the Boardroom",
+     "title_vi": "",
+     "ideas_en": "Five elements of a consulting slide; chart choice; presenting set-up.",
+     "ideas_vi": "",
+     "try_en": "Choose the chart for the comparison.",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "Pitch Day (VPSC panel, project mid-point)",
+    "title_vi": "",
+    "summary_en": "Pitch Day (replaces the cycle forum; C1 Forum 1 'Build the pyramid' is folded into its first hour as a storyline clinic per team): each team pitches its project charter and mid-point results in ≤ 8 slides with action titles; VPSC and managers on the panel; scored with the capstone rubric (communication-weighted).",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Three real emails rewritten top-down; one recurring pack with a one-page executive summary and action titles; charter deck ≤ 8 slides.",
+    "vi": "",
+    "evidence_en": "Before/after emails and pack; manager sign-off; Pitch Day scores.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "VPSC/S&OP chair pack-clarity rating ≥ 4/5 by Dec; ≥ 90% of S&OP/DSR slides with action titles from Aug; rule from Jul 2027: every pack opens with a one-page executive summary.",
+   "kpi_vi": "",
+   "order": 5,
+   "cycle": 4,
+   "online_from": "2027-05-10",
+   "online_to": "2027-05-28",
+   "checkpoint_close": "2027-06-04",
+   "forum_date": "2027-06-22",
+   "field_until": "2027-06-30"
+  },
+  {
+   "code": "P2",
+   "family": "P",
+   "priority": 3,
+   "name_en": "Master Production Scheduling",
+   "name_vi": "Lập lịch sản xuất tổng thể (MPS)",
+   "promise_en": "Turn demand into a plan the factory can keep.",
+   "promise_vi": "",
+   "problem_en": "Plans change late, lot sizes and campaigns are set by habit, Tết builds are improvised, and our MPS tool is not yet used to its potential.",
+   "problem_vi": "",
+   "used_at_en": "Weekly MPS release; G6 DSR; Tết build plan.",
+   "used_at_vi": "",
+   "self_en": "I build a master production schedule that respects capacity, lot sizes and time fences, and I plan the Tết build without wasting cash.",
+   "self_vi": "Tôi lập lịch sản xuất tổng thể tôn trọng năng lực, cỡ lô và các mốc thời gian, và lập kế hoạch hàng Tết mà không lãng phí tiền.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Explain MPS level, horizon and time fences (frozen, slushy, liquid)",
+     "vi": "Giải thích cấp độ, tầm nhìn và các mốc thời gian của MPS (đóng băng, bán linh hoạt, linh hoạt)",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Set lot sizes and campaigns: MOQ, EOQ and the batch that respects both",
+     "vi": "Xác định cỡ lô và chiến dịch sản xuất: MOQ, EOQ và cỡ lô thỏa cả hai",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Sequence to cut changeovers using the changeover matrix",
+     "vi": "Sắp xếp trình tự để giảm chuyển đổi bằng ma trận chuyển đổi",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Plan seasonal prebuild (Tết) against capacity and cash",
+     "vi": "Lập kế hoạch sản xuất trước mùa vụ (Tết) theo năng lực và dòng tiền",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Protect plan stability and read output reliability in both directions",
+     "vi": "Giữ kế hoạch ổn định và đọc độ tin cậy sản lượng theo cả hai chiều",
+     "episodes": []
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "The Plan the Factory Can Keep",
+     "title_vi": "",
+     "ideas_en": "Cold open: Monday's plan is dead by Wednesday. What an MPS is: level, horizon, release.",
+     "ideas_vi": "",
+     "try_en": "Which level should this decision sit at?",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "Frozen, Slushy, Liquid",
+     "title_vi": "",
+     "ideas_en": "Time fences and the exception rule; cost of breaking the frozen zone.",
+     "ideas_vi": "",
+     "try_en": "Allowed in which zone?",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "How Big Is a Batch?",
+     "title_vi": "",
+     "ideas_en": "MOQ, EOQ, campaigns; the batch that respects both.",
+     "ideas_vi": "",
+     "try_en": "Size the campaign.",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "The Sequence Game",
+     "title_vi": "",
+     "ideas_en": "Changeover matrix (links P1); size first, then light to dark.",
+     "ideas_vi": "",
+     "try_en": "Find the cheaper sequence.",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Building for Tết",
+     "title_vi": "",
+     "ideas_en": "Prebuild against capacity and cash; phase it late.",
+     "ideas_vi": "",
+     "try_en": "How short are we after prebuild?",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "When One Line Is Not Enough",
+     "title_vi": "",
+     "ideas_en": "Second lines and co-packers; costed options for overload.",
+     "ideas_vi": "",
+     "try_en": "Rank three options by cost.",
+     "try_vi": ""
+    },
+    {
+     "ep": 7,
+     "title_en": "Reliability Both Ways",
+     "title_vi": "",
+     "ideas_en": "Output reliability under and over; plan stability; the weekly meeting; our MPS tool.",
+     "ideas_vi": "",
+     "try_en": "Is 115% good?",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "Plan the line, feed the line",
+    "title_vi": "",
+    "summary_en": "Plan the line, feed the line (with P3): one Tết-style scenario run end to end from MPS to purchase orders in our MPS/MRP tool; teams defend their plan's cost, stock and service.",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Build next month's MPS for one line in our MPS tool; count and cost frozen-zone changes for 4 weeks.",
+    "vi": "",
+    "evidence_en": "MPS file, change log with costs, manager sign-off.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "Output reliability; frozen-zone changes per week; schedule adherence.",
+   "kpi_vi": "",
+   "order": 6,
+   "cycle": 5,
+   "online_from": "2027-06-28",
+   "online_to": "2027-07-16",
+   "checkpoint_close": "2027-07-23",
+   "forum_date": "2027-07-27",
+   "field_until": "2027-09-10"
+  },
+  {
+   "code": "P3",
+   "family": "P",
+   "priority": 3,
+   "name_en": "Material Requirements Planning",
+   "name_vi": "Hoạch định nhu cầu vật tư (MRP)",
+   "promise_en": "Feed the line without feeding the warehouse.",
+   "promise_vi": "",
+   "problem_en": "Lines stop for missing materials while other materials pile up; MRP master data (lead times, MOQ, rounding, safety stock) is not trusted, and phase-outs leave stock behind.",
+   "problem_vi": "",
+   "used_at_en": "Weekly MRP run and purchasing; RPM phase-in/phase-out; step 15a inventory health.",
+   "used_at_vi": "",
+   "self_en": "I net requirements, set lot sizes and safety buffers, and manage material changes so the line never stops and nothing becomes obsolete.",
+   "self_vi": "Tôi tính nhu cầu ròng, đặt cỡ lô và vùng đệm an toàn, và quản lý thay đổi vật tư để dây chuyền không dừng và không có hàng lỗi thời.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Net gross requirements: net = gross + safety stock − on hand − firm receipts",
+     "vi": "Tính nhu cầu ròng: ròng = gộp + tồn kho an toàn − tồn hiện có − hàng chắc chắn về",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Apply MOQ and rounding to a planned order; set reorder points",
+     "vi": "Áp dụng MOQ và làm tròn cho đơn đặt hàng dự kiến; xác định điểm đặt hàng lại",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Choose safety stock or safety time from demand vs supply variability",
+     "vi": "Chọn tồn kho an toàn hay thời gian an toàn dựa trên biến động cầu và cung",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Read MRP exception messages and act on them",
+     "vi": "Đọc các thông báo ngoại lệ của MRP và xử lý",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Manage RPM phase-in and phase-out with a stock overview, including supplier feedstock",
+     "vi": "Quản lý chuyển đổi vật tư (RPM) bằng bảng tổng quan tồn kho, gồm cả nguyên liệu tại nhà cung cấp",
+     "episodes": []
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "The Line Stopped for a Cap",
+     "title_vi": "",
+     "ideas_en": "Cold open: a line stops for a cap that was 'in the system'. BOM explosion and lead-time offset.",
+     "ideas_vi": "",
+     "try_en": "When should we have ordered?",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "Net It Out",
+     "title_vi": "",
+     "ideas_en": "Gross to net: safety stock, on hand, firm receipts.",
+     "ideas_vi": "",
+     "try_en": "Calculate the net requirement.",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "The Order You Actually Place",
+     "title_vi": "",
+     "ideas_en": "MOQ and rounding; reorder points.",
+     "ideas_vi": "",
+     "try_en": "What quantity goes on the PO?",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "Buffers: Stock or Time?",
+     "title_vi": "",
+     "ideas_en": "Safety stock vs safety time; what drives buffer size.",
+     "ideas_vi": "",
+     "try_en": "Pick the buffer.",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Reading the Exception List",
+     "title_vi": "",
+     "ideas_en": "Reschedule in/out, past due, inside lead time.",
+     "ideas_vi": "",
+     "try_en": "What does this message ask you to do?",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "Master Data Is the Plan",
+     "title_vi": "",
+     "ideas_en": "Wrong lead time or MOQ = wrong plan; the health check.",
+     "ideas_vi": "",
+     "try_en": "Find the data error.",
+     "try_vi": ""
+    },
+    {
+     "ep": 7,
+     "title_en": "Phase-in, Phase-out",
+     "title_vi": "",
+     "ideas_en": "Stock overview incl. supplier feedstock; last lot; link to P5.",
+     "ideas_vi": "",
+     "try_en": "How many labels go to waste?",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "Plan the line, feed the line",
+    "title_vi": "",
+    "summary_en": "Shared with P2 (plan the line, feed the line): teams turn the MPS into purchase orders, find the exceptions and avoid both a line stop and an obsolete label.",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Master-data health check for your top 20 RPMs (lead time, MOQ, rounding, safety stock); one phase-out stock overview.",
+    "vi": "",
+    "evidence_en": "Health-check sheet with fixes made, stock overview; manager sign-off.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "Line stops for materials (target 0); RPM cover days; MRP exception count.",
+   "kpi_vi": "",
+   "order": 7,
+   "cycle": 5,
+   "online_from": "2027-06-28",
+   "online_to": "2027-07-16",
+   "checkpoint_close": "2027-07-23",
+   "forum_date": "2027-07-27",
+   "field_until": "2027-09-10"
+  },
+  {
+   "code": "P4",
+   "family": "P",
+   "priority": 3,
+   "name_en": "Demand & the Business",
+   "name_vi": "Nhu cầu và hiệu quả kinh doanh",
+   "promise_en": "The forecast is a business plan in units.",
+   "promise_vi": "",
+   "problem_en": "Forecasts are judged in cases, not in money; drivers are not logged; bias persists; overrides to the ML forecast are frequent, small and unmeasured.",
+   "problem_vi": "",
+   "used_at_en": "G1 MAM, G2 Driver Lock, G3 ML Review, G5 Demand Review; step 11 FVA attribution; step 16 volume-to-value reconciliation.",
+   "used_at_vi": "",
+   "self_en": "I explain what our forecast means in money, find the drivers behind bias, and only override the ML forecast with logged evidence.",
+   "self_vi": "Tôi giải thích dự báo có ý nghĩa gì bằng tiền, tìm ra yếu tố gây lệch, và chỉ điều chỉnh dự báo ML khi có bằng chứng được ghi lại.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Turn volume into value (NSV, gross margin, trade spend) and trace a forecast miss to P&L, cash and service",
+     "vi": "Quy đổi sản lượng ra giá trị (doanh thu thuần, lãi gộp, chi phí thương mại) và truy tác động của sai số dự báo lên P&L, dòng tiền và dịch vụ",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Name the drivers of our demand and keep a driver log",
+     "vi": "Gọi tên các yếu tố tác động đến nhu cầu và duy trì nhật ký yếu tố",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Measure accuracy and bias: lag-1 wMAPE, bias, tracking signal",
+     "vi": "Đo độ chính xác và độ lệch: wMAPE lag-1, độ lệch, tracking signal",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Read what the ML forecast can and cannot see",
+     "vi": "Hiểu dự báo ML thấy được gì và không thấy gì",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Apply FVA and the five override rules",
+     "vi": "Áp dụng FVA và năm nguyên tắc điều chỉnh",
+     "episodes": []
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "A Forecast Is a Promise in Money",
+     "title_vi": "",
+     "ideas_en": "Cold open: 5,000 cases short is 800M VND of margin. Why demand planners must speak P&L.",
+     "ideas_vi": "",
+     "try_en": "What is this miss worth?",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "From Volume to Value",
+     "title_vi": "",
+     "ideas_en": "NSV, gross margin, trade spend; how a miss hits P&L, cash and service.",
+     "ideas_vi": "",
+     "try_en": "Volume to value in two steps.",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "What Moves Our Demand",
+     "title_vi": "",
+     "ideas_en": "Price, promotion, distribution, seasonality and Tết, channels, launches; the driver log.",
+     "ideas_vi": "",
+     "try_en": "Which driver explains this spike?",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "Accurate or Just Lucky?",
+     "title_vi": "",
+     "ideas_en": "Lag-1 wMAPE, bias, tracking signal; aggregation.",
+     "ideas_vi": "",
+     "try_en": "Bias or noise?",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Inside the Machine",
+     "title_vi": "",
+     "ideas_en": "What the ML forecast sees and cannot see; feeding it drivers.",
+     "ideas_vi": "",
+     "try_en": "Can the model see this?",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "Five Rules for Touching the Forecast",
+     "title_vi": "",
+     "ideas_en": "FVA; no small tweaks, careful going up, one owner, reason first, review without blame.",
+     "ideas_vi": "",
+     "try_en": "Which override is allowed?",
+     "try_vi": ""
+    },
+    {
+     "ep": 7,
+     "title_en": "Tết, Launches and Other Shocks",
+     "title_vi": "",
+     "ideas_en": "Events and new portfolio (including Candid); moving peaks.",
+     "ideas_vi": "",
+     "try_en": "Move the peak.",
+     "try_vi": ""
+    },
+    {
+     "ep": 8,
+     "title_en": "The Demand Review That Decides",
+     "title_vi": "",
+     "ideas_en": "Consensus in money; the forecast story told answer-first.",
+     "ideas_vi": "",
+     "try_en": "Write the Demand Review headline.",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "Demand & the Business",
+    "title_vi": "",
+    "summary_en": "Demand & the Business: teams take one category's forecast, rebuild it as a business plan in VND, find the bias drivers, decide which overrides survive the five rules, and present the Demand Review headline answer-first.",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Bias root cause on your top 10 SKUs with a driver log; one full cycle of override log with FVA.",
+    "vi": "",
+    "evidence_en": "Driver log, override log with FVA, bias chart; manager sign-off.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "Bias; lag-1 wMAPE; FVA ≥ 0; ≥ 80% of overrides logged with a reason.",
+   "kpi_vi": "",
+   "order": 8,
+   "cycle": 6,
+   "online_from": "2027-08-16",
+   "online_to": "2027-09-17",
+   "checkpoint_close": "2027-09-24",
+   "forum_date": "2027-09-28",
+   "field_until": "2027-10-22"
+  },
+  {
+   "code": "P5",
+   "family": "P",
+   "priority": 3,
+   "name_en": "SLOB & Inventory Health",
+   "name_vi": "SLOB và sức khỏe tồn kho",
+   "promise_en": "Stop write-offs before they are born.",
+   "promise_vi": "",
+   "problem_en": "Write-offs and slow-moving stock are found at year-end, when most of the cost is already sunk; phase-outs and MOQs create them months earlier.",
+   "problem_vi": "",
+   "used_at_en": "Step 15a inventory health (S&OE); phase-out approvals; year-end and Tết 2028 build.",
+   "used_at_vi": "",
+   "self_en": "I find slow and obsolete stock early, fix its root cause, and run phase-outs so we do not write anything off.",
+   "self_vi": "Tôi phát hiện sớm hàng chậm luân chuyển và lỗi thời, xử lý nguyên nhân gốc, và vận hành việc ngừng mã để không phải hủy hàng.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Read inventory health: cover days, ageing, SLOB, provision vs write-off",
+     "vi": "Đọc sức khỏe tồn kho: số ngày tồn, tuổi tồn kho, SLOB, dự phòng và hủy hàng",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Trace SLOB to its root causes",
+     "vi": "Truy SLOB đến nguyên nhân gốc",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Run the phase-out and last-lot process with a stock overview months ahead",
+     "vi": "Vận hành quy trình ngừng mã và lô cuối với bảng tổng quan tồn kho trước nhiều tháng",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Choose the right lever: cut orders, rework, re-allocate, liquidate, negotiate MOQ",
+     "vi": "Chọn đúng đòn bẩy: cắt đơn, tái chế, phân bổ lại, thanh lý, đàm phán MOQ",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Set prevention rules that stop SLOB at the source",
+     "vi": "Đặt quy tắc phòng ngừa để chặn SLOB từ gốc",
+     "episodes": []
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "The Write-off Was Born in March",
+     "title_vi": "",
+     "ideas_en": "Cold open: a December write-off traced back to a March PO.",
+     "ideas_vi": "",
+     "try_en": "When was this SLOB born?",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "Reading Inventory Health",
+     "title_vi": "",
+     "ideas_en": "Cover days, ageing, SLOB rules, provision vs write-off.",
+     "ideas_vi": "",
+     "try_en": "Healthy or not?",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "Five Whys of a Dead Label",
+     "title_vi": "",
+     "ideas_en": "Root causes: over-buying, MOQ, phase-outs, bias, last-lot misses.",
+     "ideas_vi": "",
+     "try_en": "Find the root cause.",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "The Last Lot",
+     "title_vi": "",
+     "ideas_en": "Phase-out and last-lot process; stock overview months ahead incl. feedstock.",
+     "ideas_vi": "",
+     "try_en": "Plan the run-out.",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Rescue Options",
+     "title_vi": "",
+     "ideas_en": "Cut POs, rework, re-allocate, liquidate, negotiate MOQ: value recovered vs cost.",
+     "ideas_vi": "",
+     "try_en": "Which lever first?",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "Rules That Stop SLOB",
+     "title_vi": "",
+     "ideas_en": "Prevention rules; build limits for year-end and Tết.",
+     "ideas_vi": "",
+     "try_en": "Write one rule.",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "SLOB war game",
+    "title_vi": "",
+    "summary_en": "SLOB war game: teams receive a category's stock, ageing and change calendar, choose levers under a cash target, and write two prevention rules.",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "SLOB root-cause and action plan for your category; one phase-out stock overview.",
+    "vi": "",
+    "evidence_en": "Action plan with values, stock overview; manager sign-off.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "SLOB value; write-offs; cover days.",
+   "kpi_vi": "",
+   "order": 9,
+   "cycle": 7,
+   "online_from": "2027-09-27",
+   "online_to": "2027-10-15",
+   "checkpoint_close": "2027-10-22",
+   "forum_date": "2027-10-26",
+   "field_until": "2027-11-19"
+  },
+  {
+   "code": "P6",
+   "family": "P",
+   "priority": 3,
+   "name_en": "Fill Rate & Customer Service",
+   "name_vi": "Tỷ lệ đáp ứng và dịch vụ khách hàng",
+   "promise_en": "Every lost case has an owner.",
+   "promise_vi": "",
+   "problem_en": "Most lost sales sit in Modern Trade; losses are discussed as one percentage instead of owned branches with values and actions to closure.",
+   "problem_vi": "",
+   "used_at_en": "S&OE: Wednesday loss-tree review and Thursday S&OE; allocation in shortage.",
+   "used_at_vi": "",
+   "self_en": "I measure fill rate correctly, find the loss and its owner in the loss tree, and close S&OE actions so the loss does not come back.",
+   "self_vi": "Tôi đo tỷ lệ đáp ứng đúng, tìm tổn thất và người phụ trách trong cây tổn thất, và đóng các hành động S&OE để tổn thất không quay lại.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Define fill rate, OTIF and case fill correctly (line, case, value; on time AND in full)",
+     "vi": "Định nghĩa đúng tỷ lệ đáp ứng, OTIF và tỷ lệ thùng (theo dòng, thùng, giá trị; đúng giờ VÀ đủ hàng)",
+     "episodes": []
+    },
+    {
+     "n": 2,
+     "en": "Build the fill-rate loss tree and give each loss one owner",
+     "vi": "Xây cây tổn thất tỷ lệ đáp ứng và giao mỗi tổn thất cho một người phụ trách",
+     "episodes": []
+    },
+    {
+     "n": 3,
+     "en": "Allocate in shortage with an agreed rule and tell customers early",
+     "vi": "Phân bổ khi thiếu hàng theo quy tắc đã thống nhất và báo khách hàng sớm",
+     "episodes": []
+    },
+    {
+     "n": 4,
+     "en": "Run the S&OE rhythm with actions to closure",
+     "vi": "Vận hành nhịp S&OE với các hành động đến khi hoàn tất",
+     "episodes": []
+    },
+    {
+     "n": 5,
+     "en": "Explain why MT carries most lost sales and where the fixes are",
+     "vi": "Giải thích vì sao MT chiếm phần lớn doanh số bị mất và giải pháp nằm ở đâu",
+     "episodes": []
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "Every Lost Case Has an Owner",
+     "title_vi": "",
+     "ideas_en": "Cold open: a lost-sales number that nobody owns; where does it go?",
+     "ideas_vi": "",
+     "try_en": "Guess the biggest branch.",
+     "try_vi": ""
+    },
+    {
+     "ep": 2,
+     "title_en": "Fill Rate, OTIF, Case Fill",
+     "title_vi": "",
+     "ideas_en": "Line, case and value; on time AND in full.",
+     "ideas_vi": "",
+     "try_en": "Calculate OTIF.",
+     "try_vi": ""
+    },
+    {
+     "ep": 3,
+     "title_en": "The Loss Tree",
+     "title_vi": "",
+     "ideas_en": "Branches and owners; one loss, one owner.",
+     "ideas_vi": "",
+     "try_en": "Place each loss in the tree.",
+     "try_vi": ""
+    },
+    {
+     "ep": 4,
+     "title_en": "When There Isn't Enough",
+     "title_vi": "",
+     "ideas_en": "Allocation rules: fair share vs priority.",
+     "ideas_vi": "",
+     "try_en": "Allocate 700 cases.",
+     "try_vi": ""
+    },
+    {
+     "ep": 5,
+     "title_en": "Talk Early",
+     "title_vi": "",
+     "ideas_en": "Customer communication; cut-offs; recovery dates.",
+     "ideas_vi": "",
+     "try_en": "Write the shortage message.",
+     "try_vi": ""
+    },
+    {
+     "ep": 6,
+     "title_en": "The S&OE Rhythm",
+     "title_vi": "",
+     "ideas_en": "Wednesday loss tree, Thursday S&OE, actions to closure.",
+     "ideas_vi": "",
+     "try_en": "Is this action closed?",
+     "try_vi": ""
+    },
+    {
+     "ep": 7,
+     "title_en": "Why MT Hurts",
+     "title_vi": "",
+     "ideas_en": "Promotions, slots and penalties; where the fixes are; our loss-tree dashboard.",
+     "ideas_vi": "",
+     "try_en": "Which fix moves MT most?",
+     "try_vi": ""
+    }
+   ],
+   "forum": {
+    "title_en": "Fill-rate loss-tree clinic",
+    "title_vi": "",
+    "summary_en": "Fill-rate loss-tree clinic: teams run the loss tree for the top MT accounts in our Fill-rate & Service Loss-tree dashboard, pick the fixes worth most, and set owners and dates.",
+    "summary_vi": ""
+   },
+   "field": {
+    "en": "Loss tree for your top MT accounts with one fix and an owner; S&OE action log for 4 weeks.",
+    "vi": "",
+    "evidence_en": "Loss-tree extract, fix with value, action log; manager sign-off.",
+    "evidence_vi": ""
+   },
+   "kpi_en": "MT fill rate; lost sales value.",
+   "kpi_vi": "",
+   "order": 10,
+   "cycle": 8,
+   "online_from": "2027-10-25",
+   "online_to": "2027-11-12",
+   "checkpoint_close": "2027-11-19",
+   "forum_date": "2027-11-23",
+   "field_until": "2027-12-10"
+  }
+ ]
+}

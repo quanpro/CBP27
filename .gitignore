@@ -1,0 +1,10 @@
+# Private content: item banks with answer keys, rosters, exports. Never commit.
+content-private/
+*.csv
+*.xlsx
+roster*
+exports/
+# Tooling
+node_modules/
+.DS_Store
+tests/.tmp/

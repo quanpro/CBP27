@@ -1,0 +1,703 @@
+<!-- Reference only: the Claude-hosted baseline prototype (Oct 2026). Reuse layout and patterns; replace window.claude calls with docs/js/api.js. -->
+<title>1% Planner Baseline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F6F8;--paper:#FFFFFF;--ink:#051C2C;--text:#1E2B36;--muted:#5E6A75;--line:#D9E0E6;
+  --blue:#014FA1;--blue-soft:#E6EEF7;--green:#96C61C;--green-ink:#4E6B00;--warn:#B45309;--bad:#B42318;
+  --h0:#EEF2F6;--h1:#C9DAEC;--h2:#8FB3DA;--h3:#3F7DC0;--h4:#014FA1;--h3t:#FFFFFF;
+  --g0:#E5F0D3;--g1:#FBE7B5;--g2:#F6B48A;--g3:#E06C5A;
+  --focus:#014FA1;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0B1620;--paper:#12202C;--ink:#EEF3F8;--text:#D5DEE6;--muted:#93A2B0;--line:#24384A;
+  --blue:#5EA2EE;--blue-soft:#15304A;--green:#A8D63A;--green-ink:#C4E77A;--warn:#F2B35B;--bad:#F08A7E;
+  --h0:#17283A;--h1:#1D3E62;--h2:#2B5E95;--h3:#3F7DC0;--h4:#7DB4F0;--h3t:#FFFFFF;
+  --g0:#24401E;--g1:#5A4A16;--g2:#7A3E22;--g3:#9A2E26;--focus:#7DB4F0;
+}}
+:root[data-theme="dark"]{
+  --bg:#0B1620;--paper:#12202C;--ink:#EEF3F8;--text:#D5DEE6;--muted:#93A2B0;--line:#24384A;
+  --blue:#5EA2EE;--blue-soft:#15304A;--green:#A8D63A;--green-ink:#C4E77A;--warn:#F2B35B;--bad:#F08A7E;
+  --h0:#17283A;--h1:#1D3E62;--h2:#2B5E95;--h3:#3F7DC0;--h4:#7DB4F0;--h3t:#FFFFFF;
+  --g0:#24401E;--g1:#5A4A16;--g2:#7A3E22;--g3:#9A2E26;--focus:#7DB4F0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 "Source Sans 3",Arial,sans-serif}
+h1,h2,h3{color:var(--ink);margin:0}
+h1{font:600 30px/1.2 "Source Serif 4",Georgia,serif}
+h2{font:600 24px/1.25 "Source Serif 4",Georgia,serif}
+h3{font-size:17px;font-weight:700}
+p{margin:0}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+header{background:var(--paper);border-bottom:1px solid var(--line)}
+.hd{display:flex;align-items:center;gap:14px;padding:12px 16px;max-width:1040px;margin:0 auto}
+.hd img{width:46px;height:40px}
+.brand{flex:1;min-width:0}
+.brand b{display:block;color:var(--ink);font-size:16px}
+.brand span{color:var(--muted);font-size:13px}
+.lang{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.lang button{border:0;background:transparent;color:var(--muted);padding:6px 10px;font-weight:600;font-size:13px}
+.lang button[aria-pressed="true"]{background:var(--blue);color:#fff}
+nav.tabs{display:flex;gap:4px;max-width:1040px;margin:0 auto;padding:0 16px;overflow-x:auto}
+nav.tabs button{border:0;background:none;color:var(--muted);padding:10px 12px;font-weight:600;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--green)}
+main.wrap{padding:24px 16px 64px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:22px}
+.stack{display:flex;flex-direction:column;gap:16px}
+.eyebrow{color:var(--blue);font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.banner{border-left:4px solid var(--warn);background:var(--paper);padding:12px 16px;border-radius:4px}
+.priv{border-left:4px solid var(--blue);background:var(--blue-soft);padding:12px 16px;border-radius:4px;color:var(--ink)}
+.parts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.parts div{border:1px solid var(--line);border-radius:6px;padding:12px}
+.parts b{display:block;color:var(--ink)}
+.btn{background:var(--blue);color:#fff;border:0;border-radius:6px;padding:11px 18px;font-weight:700}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.spacer{flex:1}
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600;color:var(--ink)}
+input[type=text],select,textarea{font:inherit;color:var(--text);background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:9px 10px}
+textarea{min-height:70px;resize:vertical}
+.chk{display:flex;gap:8px;align-items:flex-start;font-weight:400;color:var(--text)}
+.prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--green);transition:width .3s}
+.stepper{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted)}
+.skill{border-top:1px solid var(--line);padding:14px 0;display:grid;grid-template-columns:1fr;gap:8px}
+.skill:first-of-type{border-top:0}
+.skill b{color:var(--ink)}
+.lv{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.lv button{border:1px solid var(--line);background:var(--paper);color:var(--text);border-radius:6px;padding:8px 4px;font-size:13px;line-height:1.2}
+.lv button b{display:block;font-size:14px}
+.lv button[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.lv button[aria-pressed="true"] b{color:#fff}
+.scale{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;font-size:14px}
+.scale div{background:var(--bg);border-radius:6px;padding:8px 10px}
+.pill{display:inline-block;font-size:12px;font-weight:700;border-radius:10px;padding:1px 8px;background:var(--blue-soft);color:var(--blue)}
+.q{border-top:1px solid var(--line);padding:16px 0}
+.q:first-of-type{border-top:0}
+.q p.stem{color:var(--ink);font-weight:600;margin-bottom:10px}
+.opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:9px 12px;margin-top:6px;cursor:pointer}
+.opt input{margin-top:4px}
+.opt.sel{border-color:var(--blue);background:var(--blue-soft)}
+.save{font-size:13px;color:var(--muted)}
+table{border-collapse:collapse;width:100%}
+.res td,.res th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;font-size:14px}
+.res th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:1px}
+.dots{display:flex;gap:4px}
+.dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--h2);display:inline-block}
+.dots i.on{background:var(--blue);border-color:var(--blue)}
+.dots i.t{box-shadow:0 0 0 2px var(--green)}
+.gapc{font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{border:1px solid var(--line);border-radius:6px;padding:12px;background:var(--paper)}
+.kpi b{display:block;font-size:26px;color:var(--ink);line-height:1.1}
+.kpi span{font-size:13px;color:var(--muted)}
+.hmwrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
+table.hm{font-size:13px;min-width:820px}
+table.hm th,table.hm td{padding:0;border:1px solid var(--paper);text-align:center}
+table.hm thead th{background:var(--paper);color:var(--muted);font-weight:600;padding:6px 4px;font-size:12px;vertical-align:bottom}
+table.hm thead tr.pil th{color:var(--ink);font-size:12px;text-align:left;padding-left:6px;border-bottom:2px solid var(--line)}
+table.hm tbody th{text-align:left;padding:6px 8px;font-weight:600;color:var(--ink);white-space:nowrap;background:var(--paper);position:sticky;left:0;z-index:1}
+table.hm td{width:42px;height:32px;font-variant-numeric:tabular-nums;color:var(--ink)}
+table.hm tr.avg th,table.hm tr.avg td{border-top:2px solid var(--line)}
+.c0{background:var(--h0)}.c1{background:var(--h1)}.c2{background:var(--h2)}.c3{background:var(--h3);color:var(--h3t)!important}.c4{background:var(--h4);color:#fff!important}
+.d0{background:var(--g0)}.d1{background:var(--g1)}.d2{background:var(--g2)}.d3{background:var(--g3);color:#fff!important}
+.cn{background:transparent;color:var(--muted)!important}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:16px;height:12px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--paper);color:var(--muted);padding:7px 11px;font-size:13px;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+ul.clean{margin:0;padding-left:18px}
+ul.clean li{margin:4px 0}
+.focus3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.focus3 div{border:1px solid var(--line);border-left:4px solid var(--green);border-radius:6px;padding:12px}
+.hide{display:none!important}
+@media (max-width:640px){h1{font-size:24px}.lv{grid-template-columns:repeat(5,1fr)}.lv button{font-size:11px;padding:6px 2px}.card{padding:16px}}
+</style>
+
+<header>
+  <div class="hd">
+    <img src="../docs/assets/marico-logo.png" alt="Marico">
+    <div class="brand"><b>The 1% Planner</b><span data-t="tagline"></span></div>
+    <div class="lang" role="group" aria-label="Language">
+      <button data-lang="en" aria-pressed="true">EN</button><button data-lang="vi" aria-pressed="false">VI</button>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="me" aria-selected="true" data-t="tabMe"></button>
+    <button role="tab" data-tab="team" aria-selected="false" data-t="tabTeam"></button>
+    <button role="tab" data-tab="admin" aria-selected="false" class="hide" data-t="tabAdmin"></button>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div id="banner" class="banner hide" style="margin-bottom:16px"></div>
+  <section id="v-me"></section>
+  <section id="v-team" class="hide"></section>
+  <section id="v-admin" class="hide"></section>
+</main>
+
+<script>
+const BANK = [] /* item texts removed: items are served by the backend */;
+const WAVE = "2026-11";
+const LV = [
+  {k:"NY",en:"Not yet",vi:"Chưa có",den:"New to this",dvi:"Mới tiếp cận"},
+  {k:"BA",en:"Basic",vi:"Cơ bản",den:"Understands it, knows where to get help",dvi:"Hiểu khái niệm, biết hỏi ai khi cần"},
+  {k:"WK",en:"Working",vi:"Nắm vững",den:"Diagnoses issues, challenges specialists",dvi:"Chẩn đoán được vấn đề, phản biện được chuyên gia"},
+  {k:"FO",en:"Fully operational",vi:"Thành thạo",den:"Does it alone, improves it, is the go-to person",dvi:"Tự làm, tự cải tiến, là người mọi người tìm đến"},
+  {k:"LE",en:"Leading edge",vi:"Dẫn dắt",den:"Sets the standard and teaches it",dvi:"Đặt chuẩn và dạy lại cho người khác"}
+];
+const PILLARS = [
+  {id:"A",en:"1 · Analytics & AI",vi:"1 · Phân tích & AI"},
+  {id:"B",en:"2 · Core planning",vi:"2 · Hoạch định cốt lõi"},
+  {id:"C",en:"3 · Business & stakeholders",vi:"3 · Kinh doanh & đối tác"},
+  {id:"D",en:"4 · Mindset",vi:"4 · Tư duy"}
+];
+// t = draft targets by role [demand, supply, materials, cs]; managers add +1 on the skills marked m
+const SKILLS = [
+  {id:"A1",p:"A",t:[3,3,3,3],en:"Structured problem solving",vi:"Giải quyết vấn đề có cấu trúc",den:"Frame the problem, split it MECE, test hypotheses, land a recommendation",dvi:"Xác định vấn đề, chia MECE, kiểm chứng giả thuyết, đưa ra đề xuất"},
+  {id:"A2",p:"A",t:[3,3,3,2],en:"Excel, Power Query and Power BI",vi:"Excel, Power Query và Power BI",den:"Clean, join and model data; build reports that refresh themselves",dvi:"Làm sạch, kết nối, mô hình hóa dữ liệu; làm báo cáo tự cập nhật"},
+  {id:"A3",p:"A",t:[3,2,2,2],en:"ML forecasts, FVA and overrides",vi:"Dự báo ML, FVA và điều chỉnh",den:"Know what the model sees, judge it with evidence, measure the value of each change",dvi:"Hiểu mô hình thấy gì, đánh giá bằng bằng chứng, đo giá trị của từng điều chỉnh"},
+  {id:"A4",p:"A",t:[2,2,2,2],en:"Copilot and AI in daily work",vi:"Copilot và AI trong công việc",den:"Use Microsoft 365 Copilot safely to save time every week",dvi:"Dùng Microsoft 365 Copilot an toàn để tiết kiệm thời gian mỗi tuần"},
+  {id:"B1",p:"B",t:[3,2,2,2],en:"Demand planning and S&OP",vi:"Hoạch định nhu cầu và S&OP",den:"Baseline, events, drivers and bias; the monthly S&OP inputs",dvi:"Dự báo nền, sự kiện, yếu tố tác động, độ lệch; đầu vào S&OP hằng tháng"},
+  {id:"B2",p:"B",t:[2,3,2,1],en:"Supply and production planning",vi:"Hoạch định cung ứng và sản xuất",den:"Capacity, MPS, sequencing, frozen zones, OEE",dvi:"Năng lực, MPS, trình tự sản xuất, vùng đóng băng, OEE"},
+  {id:"B3",p:"B",t:[1,2,3,1],en:"Materials (RPM, MSO) and inventory",vi:"Vật tư (RPM, MSO) và tồn kho",den:"MRP, MOQ, safety stock, SLOB and phase-outs",dvi:"MRP, MOQ, tồn kho an toàn, SLOB và hàng ngừng sản xuất"},
+  {id:"B4",p:"B",t:[2,2,1,3],en:"Customer service and order-to-delivery",vi:"Dịch vụ khách hàng và giao hàng",den:"Orders, allocation, OTIF and its loss tree",dvi:"Đơn hàng, phân bổ, OTIF và cây tổn thất OTIF"},
+  {id:"C1",p:"C",t:[3,2,2,3],m:1,en:"Communication and storytelling",vi:"Giao tiếp và kể chuyện bằng số liệu",den:"Answer first, pyramid structure, clear charts",dvi:"Kết luận trước, cấu trúc kim tự tháp, biểu đồ rõ ràng"},
+  {id:"C2",p:"C",t:[2,2,2,2],en:"Business acumen",vi:"Hiểu biết kinh doanh",den:"Turn volume into value: NSV, gross margin, cost to serve, working capital",dvi:"Quy sản lượng ra giá trị: doanh thu thuần, lãi gộp, chi phí phục vụ, vốn lưu động"},
+  {id:"C3",p:"C",t:[2,2,2,2],m:1,en:"Stakeholder influence",vi:"Tác động đến các bên liên quan",den:"Prepare hard conversations, negotiate, agree trade-offs",dvi:"Chuẩn bị cuộc trao đổi khó, đàm phán, thống nhất đánh đổi"},
+  {id:"C4",p:"C",t:[2,2,2,2],en:"Running S&OP meetings",vi:"Điều phối họp S&OP",den:"Clear agenda, decisions and owners; follow-up to closure",dvi:"Chương trình rõ ràng, quyết định và người chịu trách nhiệm; theo dõi đến cùng"},
+  {id:"D1",p:"D",t:[2,2,2,2],m:1,en:"Ownership",vi:"Tinh thần làm chủ",den:"Own outcomes end to end; raise risks early",dvi:"Chịu trách nhiệm kết quả từ đầu đến cuối; báo rủi ro sớm"},
+  {id:"D2",p:"D",t:[2,2,2,2],en:"Learning agility",vi:"Khả năng học hỏi nhanh",den:"Learn fast, apply it in the job, keep a weekly 1% habit",dvi:"Học nhanh, áp dụng vào việc, duy trì thói quen 1% mỗi tuần"},
+  {id:"D3",p:"D",t:[2,2,2,2],m:1,en:"Coaching others",vi:"Kèm cặp người khác",den:"Share know-how, give feedback, help peers grow",dvi:"Chia sẻ kinh nghiệm, góp ý, giúp đồng nghiệp tiến bộ"},
+  {id:"D4",p:"D",t:[2,2,2,2],en:"Continuous improvement",vi:"Cải tiến liên tục",den:"Spot waste, fix root causes, make the fix stick",dvi:"Nhận ra lãng phí, xử lý nguyên nhân gốc, duy trì cải tiến"}
+];
+const ROLES = [
+  {id:"demand",i:0,en:"Demand planning",vi:"Hoạch định nhu cầu",skill:"B1"},
+  {id:"supply",i:1,en:"Supply and production planning",vi:"Hoạch định cung ứng và sản xuất",skill:"B2"},
+  {id:"materials",i:2,en:"Materials planning (RPM, MSO)",vi:"Hoạch định vật tư (RPM, MSO)",skill:"B3"},
+  {id:"cs",i:3,en:"Customer service",vi:"Dịch vụ khách hàng",skill:"B4"}
+];
+const PARTS = [
+  {id:"skills",en:"Skill self-rating",vi:"Tự đánh giá kỹ năng",min:8,den:"16 skills on the 5-step scale",dvi:"16 kỹ năng theo thang 5 bậc"},
+  {id:"ana",en:"Analytics and reasoning",vi:"Phân tích và lập luận",min:10,den:"Numbers, logic, problem framing",dvi:"Con số, logic, xác định vấn đề"},
+  {id:"ai",en:"AI and data",vi:"AI và dữ liệu",min:7,den:"ML forecasts, FVA, overrides, safe Copilot use",dvi:"Dự báo ML, FVA, điều chỉnh, dùng Copilot an toàn"},
+  {id:"core",en:"Core planning for your role",vi:"Hoạch định theo vai trò",min:10,den:"S&OP basics plus four questions for your area",dvi:"Cơ bản S&OP và bốn câu cho mảng của bạn"},
+  {id:"biz",en:"Business and stakeholders",vi:"Kinh doanh và đối tác",min:7,den:"Answer-first communication, value, trade-offs",dvi:"Giao tiếp kết luận trước, giá trị, đánh đổi"}
+];
+const PART_SKILLS = {ana:["A1","A2"],ai:["A3","A4"],biz:["C1","C2","C3"]};
+
+const T = {
+ tagline:{en:"Baseline diagnostic · November 2026",vi:"Đánh giá đầu kỳ · Tháng 11/2026"},
+ tabMe:{en:"My diagnostic",vi:"Bài đánh giá của tôi"},
+ tabTeam:{en:"Team view",vi:"Bức tranh cả nhóm"},
+ tabAdmin:{en:"Director & HR",vi:"Giám đốc & HR"},
+ introH:{en:"Where are we starting from?",vi:"Chúng ta đang bắt đầu từ đâu?"},
+ introP:{en:"This 40-minute diagnostic sets your starting point for The 1% Planner. It is not a performance test. Your answers set your 2027 development plan (IDP) and show the team where to focus first. We run the same diagnostic again in November 2027 to see how far everyone has come.",
+         vi:"Bài đánh giá 40 phút này xác định điểm xuất phát của bạn trong chương trình The 1% Planner. Đây không phải bài đánh giá hiệu suất. Kết quả dùng để xây kế hoạch phát triển cá nhân (IDP) năm 2027 và cho cả nhóm biết nên tập trung vào đâu trước. Tháng 11/2027 chúng ta làm lại bài này để thấy mỗi người đã tiến bộ thế nào."},
+ privacy:{en:"Privacy: only the Planning Director and HR L&D see individual answers. Everyone else, including VPSC, sees team averages only, never names or scores. Managers' results are kept out of team views.",
+          vi:"Bảo mật: chỉ Giám đốc Hoạch định và HR L&D xem được câu trả lời của từng người. Những người khác, kể cả VPSC, chỉ thấy số trung bình của nhóm, không có tên hay điểm cá nhân. Kết quả của các quản lý không đưa vào bức tranh chung của nhóm."},
+ howH:{en:"How it works",vi:"Cách làm bài"},
+ how:{en:["Answer alone, without searching or asking others. 'I don't know' is a useful answer.","Your answers save as you go. You can stop and come back later on the same link.","Rate yourself honestly. A high rating with a low test score is worth less than an honest 'Working'.","Once you submit, you see your skill gaps straight away. Test scores are released after everyone has finished."],
+      vi:["Tự làm, không tra cứu hay hỏi người khác. 'Chưa biết' cũng là một câu trả lời có ích.","Câu trả lời được lưu tự động. Bạn có thể dừng và quay lại sau bằng cùng đường link.","Hãy tự đánh giá trung thực. Tự chấm cao mà điểm kiểm tra thấp có giá trị thấp hơn một mức 'Nắm vững' trung thực.","Sau khi nộp bài, bạn thấy ngay khoảng trống kỹ năng của mình. Điểm phần kiểm tra được công bố khi cả nhóm làm xong."]},
+ start:{en:"Start the diagnostic",vi:"Bắt đầu làm bài"},
+ resume:{en:"Continue where you left off",vi:"Tiếp tục phần đang làm"},
+ aboutH:{en:"About you",vi:"Thông tin của bạn"},
+ code:{en:"Employee code",vi:"Mã nhân viên"},
+ codeHelp:{en:"Used only by HR to link your results to your IDP. No names are stored.",vi:"Chỉ HR dùng để gắn kết quả với IDP của bạn. Hệ thống không lưu tên."},
+ role:{en:"Your main area",vi:"Mảng công việc chính"},
+ choose:{en:"Choose one",vi:"Chọn một"},
+ mgr:{en:"I manage a team (Lead the Line track)",vi:"Tôi quản lý một nhóm (lộ trình Lead the Line)"},
+ next:{en:"Next",vi:"Tiếp"},
+ back:{en:"Back",vi:"Quay lại"},
+ review:{en:"Review and submit",vi:"Xem lại và nộp bài"},
+ submit:{en:"Submit my diagnostic",vi:"Nộp bài đánh giá"},
+ submitNote:{en:"After you submit, answers are locked so the baseline stays fair.",vi:"Sau khi nộp, câu trả lời sẽ bị khóa để kết quả đầu kỳ công bằng."},
+ scaleH:{en:"The scale",vi:"Thang đánh giá"},
+ skillsIntro:{en:"Rate where you are today, not where you want to be. Your target for your role is marked after you submit.",vi:"Hãy chấm mức hiện tại của bạn, không phải mức mong muốn. Mục tiêu theo vai trò sẽ hiện ra sau khi bạn nộp bài."},
+ qIntro:{en:"Choose one answer per question. Skip a question if you truly don't know; a skipped question counts as wrong.",vi:"Chọn một đáp án cho mỗi câu. Nếu thật sự chưa biết, bạn có thể bỏ qua; câu bỏ qua tính là sai."},
+ noteL:{en:"Optional: one skill you most want to build in 2027, and why",vi:"Không bắt buộc: một kỹ năng bạn muốn phát triển nhất trong năm 2027, và lý do"},
+ answered:{en:"answered",vi:"đã trả lời"},
+ rated:{en:"rated",vi:"đã chấm"},
+ saved:{en:"Saved",vi:"Đã lưu"},
+ saving:{en:"Saving…",vi:"Đang lưu…"},
+ saveErr:{en:"Not saved — check your connection; we'll retry on your next answer",vi:"Chưa lưu được — kiểm tra kết nối; hệ thống sẽ thử lại ở câu tiếp theo"},
+ preview:{en:"Preview only: answers on this page are not saved. Open the shared link in Claude, signed in with your Marico account, to take the diagnostic.",vi:"Chế độ xem thử: câu trả lời không được lưu. Hãy mở đường link được chia sẻ trong Claude, đăng nhập bằng tài khoản Marico, để làm bài."},
+ doneH:{en:"Your starting point",vi:"Điểm xuất phát của bạn"},
+ doneP:{en:"Thank you. Here is your self-rating against the draft target for your role. Bring this to your IDP conversation in December.",vi:"Cảm ơn bạn. Đây là mức tự đánh giá so với mục tiêu (dự thảo) của vai trò. Hãy mang kết quả này đến buổi trao đổi IDP vào tháng 12."},
+ focusH:{en:"Your three focus skills for 2027",vi:"Ba kỹ năng trọng tâm của bạn năm 2027"},
+ scoresH:{en:"Test scores",vi:"Điểm phần kiểm tra"},
+ scoresWait:{en:"Scores are released once the whole team has finished. We don't show the answers, so the same test can measure your progress in November 2027.",vi:"Điểm sẽ được công bố khi cả nhóm làm xong. Chúng tôi không công bố đáp án để bài kiểm tra này đo được sự tiến bộ của bạn vào tháng 11/2027."},
+ thSkill:{en:"Skill",vi:"Kỹ năng"},
+ thYou:{en:"You today",vi:"Hiện tại"},
+ thTarget:{en:"Target",vi:"Mục tiêu"},
+ thGap:{en:"Gap",vi:"Khoảng cách"},
+ legendDots:{en:"Filled dots: your rating. Green ring: draft target for your role, calibrated with team leads in December.",vi:"Chấm đặc: mức bạn tự chấm. Viền xanh lá: mục tiêu (dự thảo) theo vai trò, sẽ hiệu chỉnh cùng trưởng nhóm vào tháng 12."},
+ total:{en:"Total",vi:"Tổng"},
+ teamH:{en:"Team starting point",vi:"Điểm xuất phát của cả nhóm"},
+ teamP:{en:"Average gap to target for each skill, by role group. Groups with fewer than three people are folded into the team total. Managers are not included.",vi:"Khoảng cách trung bình so với mục tiêu theo từng kỹ năng và nhóm vai trò. Nhóm dưới ba người được gộp vào tổng của cả nhóm. Không bao gồm các quản lý."},
+ teamNone:{en:"The team picture appears here once the Planning Director publishes it after the diagnostic closes.",vi:"Bức tranh cả nhóm sẽ hiện ở đây sau khi Giám đốc Hoạch định công bố, khi bài đánh giá kết thúc."},
+ updated:{en:"Updated",vi:"Cập nhật"},
+ people:{en:"people",vi:"người"},
+ allTeam:{en:"Whole team",vi:"Cả nhóm"},
+ avgScore:{en:"Average test score",vi:"Điểm kiểm tra trung bình"},
+ topGaps:{en:"Biggest team gaps",vi:"Khoảng trống lớn nhất của nhóm"},
+ legGap:{en:"Gap to target",vi:"Khoảng cách tới mục tiêu"},
+ legLv:{en:"Self-rating",vi:"Tự đánh giá"},
+ legScore:{en:"Test score",vi:"Điểm kiểm tra"},
+ onTarget:{en:"On or above",vi:"Đạt/vượt"},
+ noData:{en:"No data",vi:"Chưa có"},
+ adminH:{en:"Individual results",vi:"Kết quả từng người"},
+ adminP:{en:"Visible to you and to people with edit access (HR L&D). Use it for IDP conversations, never in shared material.",vi:"Chỉ bạn và người có quyền chỉnh sửa (HR L&D) xem được. Dùng cho trao đổi IDP, không đưa vào tài liệu chia sẻ."},
+ kSub:{en:"Submitted",vi:"Đã nộp"},
+ kDraft:{en:"In progress",vi:"Đang làm"},
+ kScored:{en:"Scored",vi:"Đã chấm"},
+ kMin:{en:"Median minutes",vi:"Số phút (trung vị)"},
+ mSelf:{en:"Self-rating",vi:"Tự đánh giá"},
+ mGap:{en:"Gap to target",vi:"Khoảng cách"},
+ showNames:{en:"Show names",vi:"Hiện tên"},
+ scoreBtn:{en:"Score and release",vi:"Chấm điểm và công bố"},
+ publishBtn:{en:"Publish team view",vi:"Công bố bức tranh nhóm"},
+ exportBtn:{en:"Export CSV for HR",vi:"Xuất CSV cho HR"},
+ noKey:{en:"The answer key is not loaded yet, so scoring is unavailable.",vi:"Chưa có đáp án nên chưa chấm điểm được."},
+ scoredN:{en:"submissions scored and released",vi:"bài đã được chấm và công bố"},
+ published:{en:"Team view published",vi:"Đã công bố bức tranh nhóm"},
+ calH:{en:"Calibration notes for 1:1s",vi:"Ghi chú hiệu chỉnh cho trao đổi 1:1"},
+ calP:{en:"Self-rating and test score point in different directions. Use these as questions, not verdicts.",vi:"Mức tự đánh giá và điểm kiểm tra không khớp nhau. Hãy dùng để đặt câu hỏi, không phải để kết luận."},
+ calHi:{en:"rates themselves high, scored under 50% in",vi:"tự đánh giá cao nhưng đạt dưới 50% ở phần"},
+ calLo:{en:"rates themselves low, scored 80%+ in",vi:"tự đánh giá thấp nhưng đạt từ 80% ở phần"},
+ noneYet:{en:"No submissions yet.",vi:"Chưa có bài nộp."},
+ mgrTag:{en:"Mgr",vi:"QL"},
+ teamAvg:{en:"Team avg (excl. managers)",vi:"TB nhóm (không gồm QL)"},
+ minGroup:{en:"Role groups need at least three people to show separately.",vi:"Nhóm vai trò cần ít nhất ba người mới hiển thị riêng."},
+ needSub:{en:"Answer every self-rating and the profile questions to submit. Unanswered test questions count as wrong.",vi:"Cần chấm đủ các kỹ năng và điền thông tin cá nhân để nộp. Câu kiểm tra chưa trả lời tính là sai."},
+ adminOnly:{en:"This view is only for the artifact owner and people with edit access.",vi:"Phần này chỉ dành cho chủ sở hữu và người có quyền chỉnh sửa."}
+};
+
+let lang = "en";
+try{ const s = localStorage.getItem("p1diag.lang"); if(s==="vi"||s==="en") lang=s; }catch(e){}
+const L = (o)=> (o && (o[lang] ?? o.en)) ?? "";
+const t = (k)=> L(T[k]);
+const esc = (s)=> String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $ = (s,r=document)=> r.querySelector(s);
+
+let db=null, user=null, uid=null, isAdmin=false, live=false;
+let ref=null;
+let st = {v:1,wave:WAVE,status:"new",code:"",role:"",manager:false,ratings:{},answers:{},note:"",startedAt:null,updatedAt:null,submittedAt:null};
+let step = 0;   // 0 intro,1 about,2 skills,3 ana,4 ai,5 core,6 biz,7 review, 8 done
+let saveState = "";
+let tab = "me";
+
+function roleOf(id){ return ROLES.find(r=>r.id===id); }
+function target(skill, role, mgr){
+  const r = roleOf(role); if(!r) return null;
+  let v = skill.t[r.i]; if(mgr && skill.m) v = Math.min(4, v+1); return v;
+}
+function qsFor(part, role){
+  return BANK.filter(q=> q.part===part && (part!=="core" || !q.role || q.role===role));
+}
+
+/* ---------- saving ---------- */
+let saveTimer=null;
+function queueSave(){
+  st.updatedAt = new Date().toISOString();
+  if(!live){ return; }
+  saveState = "saving"; paintSave();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 900);
+}
+async function doSave(){
+  try{
+    await ref.set(JSON.parse(JSON.stringify(st)));
+    saveState="saved";
+  }catch(e){
+    if(e && e.code==="unavailable"){ try{ await new Promise(r=>setTimeout(r,800+Math.random()*800)); await ref.set(JSON.parse(JSON.stringify(st))); saveState="saved"; }catch(e2){ saveState="err"; } }
+    else saveState="err";
+  }
+  paintSave();
+}
+function paintSave(){
+  const el = $("#savestate"); if(!el) return;
+  el.textContent = saveState==="saving"?t("saving"):saveState==="saved"?t("saved"):saveState==="err"?t("saveErr"):"";
+}
+
+/* ---------- my diagnostic ---------- */
+const STEPS = ["intro","about","skills","ana","ai","core","biz","review"];
+function renderMe(){
+  const v = $("#v-me");
+  if(st.status==="submitted"){ v.innerHTML = myResults(); return; }
+  const s = STEPS[step];
+  if(s==="intro") v.innerHTML = introHTML();
+  else if(s==="about") v.innerHTML = aboutHTML();
+  else if(s==="skills") v.innerHTML = skillsHTML();
+  else if(s==="review") v.innerHTML = reviewHTML();
+  else v.innerHTML = quizHTML(s);
+  paintSave();
+}
+function progressHTML(){
+  const pct = Math.round(step/(STEPS.length-1)*100);
+  const p = PARTS.map((x,i)=>`<span ${step===i+2?'style="color:var(--ink);font-weight:700"':''}>${esc(L(x))}</span>`).join("");
+  return `<div class="stack" style="gap:8px;margin-bottom:16px"><div class="prog" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><div class="stepper">${p}</div></div>`;
+}
+function navHTML(nextLabel, nextDisabled){
+  return `<div class="row" style="margin-top:8px"><button class="btn ghost" data-act="back">${t("back")}</button><span class="spacer"></span><span class="save" id="savestate" aria-live="polite"></span><button class="btn" data-act="next" ${nextDisabled?"disabled":""}>${nextLabel||t("next")}</button></div>`;
+}
+function introHTML(){
+  const parts = PARTS.map(p=>`<div><b>${esc(L(p))}</b><span class="small muted">${esc(lang==="vi"?p.dvi:p.den)} · ~${p.min}'</span></div>`).join("");
+  const how = L(T.how).map(x=>`<li>${esc(x)}</li>`).join("");
+  const started = st.status==="draft";
+  return `<div class="stack">
+    <div class="card stack">
+      <p class="eyebrow">The 1% Planner · ${esc(t("tagline"))}</p>
+      <h1>${t("introH")}</h1>
+      <p>${t("introP")}</p>
+      <div class="parts">${parts}</div>
+      <p class="priv small">${t("privacy")}</p>
+      <h3>${t("howH")}</h3>
+      <ul class="clean">${how}</ul>
+      <div class="row"><button class="btn" data-act="start">${started?t("resume"):t("start")}</button></div>
+    </div></div>`;
+}
+function aboutHTML(){
+  const opts = ROLES.map(r=>`<option value="${r.id}" ${st.role===r.id?"selected":""}>${esc(L(r))}</option>`).join("");
+  const ok = st.role;
+  return `${progressHTML()}<div class="card stack">
+    <h2>${t("aboutH")}</h2>
+    <label class="f">${t("code")}<input type="text" id="f-code" maxlength="20" autocomplete="off" value="${esc(st.code)}"><span class="small muted" style="font-weight:400">${t("codeHelp")}</span></label>
+    <label class="f">${t("role")}<select id="f-role"><option value="">${t("choose")}</option>${opts}</select></label>
+    <label class="chk"><input type="checkbox" id="f-mgr" ${st.manager?"checked":""}> ${t("mgr")}</label>
+    ${navHTML(null, !ok)}
+  </div>`;
+}
+function scaleHTML(){
+  return `<div class="scale">${LV.map((l,i)=>`<div><b>${i} · ${esc(L(l))}</b><br><span class="muted">${esc(lang==="vi"?l.dvi:l.den)}</span></div>`).join("")}</div>`;
+}
+function skillsHTML(){
+  const n = SKILLS.filter(s=> st.ratings[s.id]!=null).length;
+  let html = `${progressHTML()}<div class="card stack"><div class="row"><h2>${esc(L(PARTS[0]))}</h2><span class="spacer"></span><span class="pill">${n}/16 ${t("rated")}</span></div>
+    <p>${t("skillsIntro")}</p><details><summary class="small" style="cursor:pointer;color:var(--blue);font-weight:600">${t("scaleH")}</summary><div style="margin-top:8px">${scaleHTML()}</div></details>`;
+  for(const p of PILLARS){
+    html += `<h3 style="margin-top:8px;color:var(--blue)">${esc(L(p))}</h3><div>`;
+    for(const s of SKILLS.filter(x=>x.p===p.id)){
+      const cur = st.ratings[s.id];
+      html += `<div class="skill"><div><b>${esc(L(s))}</b><br><span class="small muted">${esc(lang==="vi"?s.dvi:s.den)}</span></div>
+        <div class="lv" role="group" aria-label="${esc(L(s))}">${LV.map((l,i)=>`<button data-rate="${s.id}" data-v="${i}" aria-pressed="${cur===i}" title="${esc(lang==="vi"?l.dvi:l.den)}"><b>${i}</b>${esc(L(l))}</button>`).join("")}</div></div>`;
+    }
+    html += `</div>`;
+  }
+  html += navHTML(null,false) + `</div>`;
+  return html;
+}
+function quizHTML(part){
+  const P = PARTS.find(p=>p.id===part);
+  const qs = qsFor(part, st.role);
+  const n = qs.filter(q=>st.answers[q.id]).length;
+  let html = `${progressHTML()}<div class="card stack"><div class="row"><h2>${esc(L(P))}</h2><span class="spacer"></span><span class="pill">${n}/${qs.length} ${t("answered")}</span></div><p class="muted small">${t("qIntro")}</p><div>`;
+  qs.forEach((q,i)=>{
+    html += `<fieldset class="q" style="border:0;margin:0;padding:16px 0"><legend class="stem" style="padding:0"><p class="stem">${i+1}. ${esc(L(q))}</p></legend>`;
+    for(const o of q.o){
+      const sel = st.answers[q.id]===o.k;
+      html += `<label class="opt ${sel?"sel":""}"><input type="radio" name="${q.id}" value="${o.k}" ${sel?"checked":""} data-q="${q.id}"><span>${esc(L(o))}</span></label>`;
+    }
+    html += `</fieldset>`;
+  });
+  html += `</div>`;
+  if(part==="biz") html += `<label class="f">${t("noteL")}<textarea id="f-note" maxlength="600">${esc(st.note)}</textarea></label>`;
+  html += navHTML(part==="biz"?t("review"):null,false) + `</div>`;
+  return html;
+}
+function reviewHTML(){
+  const rated = SKILLS.filter(s=>st.ratings[s.id]!=null).length;
+  const rows = PARTS.map(p=>{
+    if(p.id==="skills") return `<tr><td>${esc(L(p))}</td><td>${rated}/16</td></tr>`;
+    const qs = qsFor(p.id, st.role); return `<tr><td>${esc(L(p))}</td><td>${qs.filter(q=>st.answers[q.id]).length}/${qs.length}</td></tr>`;
+  }).join("");
+  const ok = rated===16 && st.role;
+  return `${progressHTML()}<div class="card stack"><h2>${t("review")}</h2>
+    <table class="res"><tbody>${rows}</tbody></table>
+    <p class="small muted">${t("needSub")}</p>
+    <p class="small">${t("submitNote")}</p>
+    <div class="row"><button class="btn ghost" data-act="back">${t("back")}</button><span class="spacer"></span><span class="save" id="savestate"></span><button class="btn" data-act="submit" ${ok?"":"disabled"}>${t("submit")}</button></div></div>`;
+}
+function dots(v, tg){
+  let h=""; for(let i=1;i<=4;i++){ h+=`<i class="${i<=v?"on":""} ${i===tg?"t":""}"></i>`; } return `<span class="dots" aria-hidden="true">${h}</span>`;
+}
+function gapClass(g){ if(g==null) return "cn"; if(g<=0) return "d0"; if(g<1.5) return "d1"; if(g<2.5) return "d2"; return "d3"; }
+function myResults(){
+  const role = st.role, mgr = st.manager;
+  const rows = SKILLS.map(s=>{
+    const v = st.ratings[s.id] ?? 0, tg = target(s, role, mgr), g = tg - v;
+    return {s,v,tg,g};
+  });
+  const pillarOrder = {A:0,B:1,C:2,D:3};
+  const focus = rows.filter(r=>r.g>0).sort((a,b)=> b.g-a.g || pillarOrder[a.s.p]-pillarOrder[b.s.p]).slice(0,3);
+  let table = "";
+  for(const p of PILLARS){
+    table += `<tr><th colspan="4" style="color:var(--blue);padding-top:14px">${esc(L(p))}</th></tr>`;
+    for(const r of rows.filter(x=>x.s.p===p.id)){
+      table += `<tr><td>${esc(L(r.s))}</td><td>${dots(r.v,r.tg)} <span class="sr-only small muted">${r.v}/${r.tg}</span></td><td>${esc(LV[r.tg].k)}</td><td><span class="gapc">${r.g>0?"+"+r.g:"✓"}</span></td></tr>`;
+    }
+  }
+  const sc = st.score;
+  let scores;
+  if(sc){
+    scores = `<div class="kpis">${["ana","ai","core","biz"].map(k=>`<div class="kpi"><b>${sc[k]}%</b><span>${esc(L(PARTS.find(p=>p.id===k)))}</span></div>`).join("")}<div class="kpi"><b>${sc.total}%</b><span>${t("total")}</span></div></div>`;
+  } else scores = `<p class="muted">${t("scoresWait")}</p>`;
+  const f = focus.length? focus.map(r=>`<div><b>${esc(L(r.s))}</b><br><span class="small muted">${esc(LV[r.v].k)} → ${esc(LV[r.tg].k)} · ${esc(lang==="vi"?r.s.dvi:r.s.den)}</span></div>`).join("") : `<p>—</p>`;
+  return `<div class="stack">
+    <div class="card stack"><p class="eyebrow">${esc(L(roleOf(role)))}${mgr?" · Lead the Line":""}</p><h1>${t("doneH")}</h1><p>${t("doneP")}</p></div>
+    <div class="card stack"><h2>${t("focusH")}</h2><div class="focus3">${f}</div></div>
+    <div class="card stack"><h2>${t("scoresH")}</h2>${scores}</div>
+    <div class="card stack" style="overflow-x:auto"><table class="res"><thead><tr><th>${t("thSkill")}</th><th>${t("thYou")}</th><th>${t("thTarget")}</th><th>${t("thGap")}</th></tr></thead><tbody>${table}</tbody></table><p class="small muted">${t("legendDots")}</p></div>
+  </div>`;
+}
+
+/* ---------- scoring & aggregation ---------- */
+function scoreOf(doc, key){
+  const out = {}; let tc=0, tn=0;
+  for(const p of ["ana","ai","core","biz"]){
+    const qs = qsFor(p, doc.role); let c=0;
+    for(const q of qs){ if(doc.answers && doc.answers[q.id] && doc.answers[q.id]===key[q.id]) c++; }
+    out[p] = qs.length? Math.round(c/qs.length*100):0; tc+=c; tn+=qs.length;
+  }
+  out.total = tn? Math.round(tc/tn*100):0; return out;
+}
+function avg(a){ const x=a.filter(v=>v!=null&&!isNaN(v)); return x.length? x.reduce((s,v)=>s+v,0)/x.length : null; }
+function groupStats(docs){
+  const o = {n:docs.length, self:{}, gap:{}, parts:{}};
+  for(const s of SKILLS){
+    o.self[s.id] = round1(avg(docs.map(d=>d.ratings?.[s.id])));
+    o.gap[s.id] = round1(avg(docs.map(d=>{ const tg=target(s,d.role,d.manager); const v=d.ratings?.[s.id]; return (tg==null||v==null)?null:tg-v; })));
+  }
+  const scored = docs.filter(d=>d.score);
+  if(scored.length) for(const p of ["ana","ai","core","biz","total"]) o.parts[p] = Math.round(avg(scored.map(d=>d.score[p])));
+  return o;
+}
+function round1(x){ return x==null?null:Math.round(x*10)/10; }
+function buildSummary(all){
+  const team = all.filter(d=>d.status==="submitted" && !d.manager);
+  const groups = {all: groupStats(team)};
+  for(const r of ROLES){ const g = team.filter(d=>d.role===r.id); if(g.length>=3) groups[r.id]=groupStats(g); }
+  return {wave:WAVE, updatedAt:new Date().toISOString(), n:team.length, groups};
+}
+
+/* ---------- heat map ---------- */
+function lvClass(v){ if(v==null) return "cn"; return "c"+Math.max(0,Math.min(4,Math.round(v))); }
+function scClass(v){ if(v==null) return "cn"; if(v<40) return "d3"; if(v<60) return "d2"; if(v<80) return "d1"; return "d0"; }
+function hmHead(extraParts){
+  let pil = `<tr class="pil"><th></th>`, sk = `<tr><th></th>`;
+  for(const p of PILLARS){ const ss=SKILLS.filter(s=>s.p===p.id); pil += `<th colspan="${ss.length}">${esc(L(p))}</th>`; sk += ss.map(s=>`<th title="${esc(L(s))}">${s.id}</th>`).join(""); }
+  if(extraParts){ pil += `<th colspan="5">${esc(t("legScore"))}</th>`; sk += ["ana","ai","core","biz"].map(k=>`<th title="${esc(L(PARTS.find(p=>p.id===k)))}">${k.toUpperCase()}</th>`).join("")+`<th>${t("total")}</th>`; }
+  return `<thead>${pil}</tr>${sk}</tr></thead>`;
+}
+function legendHTML(mode){
+  if(mode==="self") return `<div class="legend"><span>${t("legLv")}:</span>${LV.map((l,i)=>`<span><i class="c${i}"></i>${i} ${esc(l.k)}</span>`).join("")}<span><i class="cn" style="border:1px solid var(--line)"></i>${t("noData")}</span></div>`;
+  return `<div class="legend"><span>${t("legGap")}:</span><span><i class="d0"></i>${t("onTarget")}</span><span><i class="d1"></i>&lt;1.5</span><span><i class="d2"></i>1.5–2.4</span><span><i class="d3"></i>2.5+</span><span style="margin-left:8px">${t("legScore")}: <i class="d0"></i>80+ <i class="d1"></i>60–79 <i class="d2"></i>40–59 <i class="d3"></i>&lt;40</span></div>`;
+}
+
+/* ---------- team view ---------- */
+let summary = null;
+function renderTeam(){
+  const v = $("#v-team");
+  if(!summary || !summary.groups){ v.innerHTML = `<div class="card stack"><h2>${t("teamH")}</h2><p class="muted">${t("teamNone")}</p><p class="priv small">${t("privacy")}</p></div>`; return; }
+  const gs = summary.groups;
+  const order = ["all", ...ROLES.map(r=>r.id).filter(id=>gs[id])];
+  let body = "";
+  for(const g of order){
+    const s = gs[g]; const name = g==="all"? t("allTeam") : L(roleOf(g));
+    body += `<tr class="${g==="all"?"":""}"><th>${esc(name)} <span class="muted small">· ${s.n}</span></th>`;
+    body += SKILLS.map(k=>{ const x=s.gap[k.id]; return `<td class="${gapClass(x)}" title="${esc(L(k))}: ${x??"–"}">${x==null?"–":(x<=0?"✓":x.toFixed(1))}</td>`; }).join("");
+    body += ["ana","ai","core","biz","total"].map(p=>{ const x=s.parts?.[p]; return `<td class="${scClass(x)}">${x==null?"–":x}</td>`; }).join("") + `</tr>`;
+  }
+  const all = gs.all;
+  const top = SKILLS.map(s=>({s,g:all.gap[s.id]})).filter(x=>x.g!=null).sort((a,b)=>b.g-a.g).slice(0,5);
+  const keyRows = SKILLS.map(s=>`<span><b>${s.id}</b> ${esc(L(s))}</span>`).join(" · ");
+  v.innerHTML = `<div class="stack">
+    <div class="card stack"><h2>${t("teamH")}</h2><p>${t("teamP")}</p><p class="small muted">${t("updated")}: ${esc(new Date(summary.updatedAt).toLocaleDateString(lang==="vi"?"vi-VN":"en-GB"))} · ${summary.n} ${t("people")}</p></div>
+    <div class="card stack"><h3>${t("topGaps")}</h3><ul class="clean">${top.map(x=>`<li><b>${esc(L(x.s))}</b> — ${x.g.toFixed(1)}</li>`).join("")}</ul></div>
+    <div class="hmwrap"><table class="hm">${hmHead(true)}<tbody>${body}</tbody></table></div>
+    ${legendHTML("gap")}
+    <p class="small muted">${keyRows}</p>
+    <p class="small muted">${t("minGroup")}</p>
+    <p class="priv small">${t("privacy")}</p>
+  </div>`;
+}
+
+/* ---------- admin view ---------- */
+let allDocs = [], key = null, mode = "gap", showNames = false, names = {}, adminMsg = "";
+async function resolveNames(ids){
+  if(!user || !showNames) return;
+  try{ const ps = await user.profiles(ids); for(const id of ids){ names[id] = (ps && ps[id] && ps[id].name) || ""; } }catch(e){}
+}
+function median(a){ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); const m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; }
+async function renderAdmin(){
+  const v = $("#v-admin");
+  if(!isAdmin){ v.innerHTML = `<div class="card"><p>${t("adminOnly")}</p></div>`; return; }
+  const sub = allDocs.filter(d=>d.status==="submitted");
+  const drafts = allDocs.filter(d=>d.status==="draft");
+  const scoredN = sub.filter(d=>d.score).length;
+  const mins = sub.filter(d=>d.startedAt&&d.submittedAt).map(d=>(new Date(d.submittedAt)-new Date(d.startedAt))/60000);
+  const med = median(mins);
+  if(showNames) await resolveNames(sub.map(d=>d._id));
+  const roleIdx = Object.fromEntries(ROLES.map((r,i)=>[r.id,i]));
+  sub.sort((a,b)=> (a.manager-b.manager) || (roleIdx[a.role]-roleIdx[b.role]) || String(a.code).localeCompare(String(b.code)));
+  let body = "";
+  for(const d of sub){
+    const label = showNames && names[d._id] ? names[d._id] : (d.code || d._id.slice(0,6));
+    body += `<tr><th><span class="lbl"></span> <span class="pill">${esc((roleOf(d.role)?.en||"").split(" ")[0])}</span>${d.manager?` <span class="pill" style="background:var(--g1);color:var(--ink)">${t("mgrTag")}</span>`:""}</th>`;
+    body += SKILLS.map(s=>{
+      const val = d.ratings?.[s.id]; const tg = target(s,d.role,d.manager);
+      if(mode==="self") return `<td class="${lvClass(val)}">${val??"–"}</td>`;
+      const g = (val==null||tg==null)?null:tg-val; return `<td class="${gapClass(g)}">${g==null?"–":(g<=0?"✓":g)}</td>`;
+    }).join("");
+    body += ["ana","ai","core","biz","total"].map(p=>{ const x=d.score?.[p]; return `<td class="${scClass(x)}">${x??"–"}</td>`; }).join("");
+    body += `</tr>`;
+  }
+  const team = sub.filter(d=>!d.manager);
+  if(team.length){
+    const g = groupStats(team);
+    body += `<tr class="avg"><th>${t("teamAvg")} · ${team.length}</th>` + SKILLS.map(s=>{
+      if(mode==="self"){ const x=g.self[s.id]; return `<td class="${lvClass(x)}">${x==null?"–":x.toFixed(1)}</td>`; }
+      const x=g.gap[s.id]; return `<td class="${gapClass(x)}">${x==null?"–":(x<=0?"✓":x.toFixed(1))}</td>`;
+    }).join("") + ["ana","ai","core","biz","total"].map(p=>{ const x=g.parts[p]; return `<td class="${scClass(x)}">${x??"–"}</td>`; }).join("") + `</tr>`;
+  }
+  // calibration
+  const cal = [];
+  for(const d of sub){
+    if(!d.score) continue;
+    const label = showNames && names[d._id] ? names[d._id] : (d.code || d._id.slice(0,6));
+    for(const p of ["ana","ai","core","biz"]){
+      const ks = p==="core" ? [roleOf(d.role)?.skill] : PART_SKILLS[p];
+      const sa = avg(ks.map(k=>d.ratings?.[k])); const sc = d.score[p];
+      if(sa!=null && sa>=3 && sc<50) cal.push({label, txt:`${t("calHi")} ${L(PARTS.find(x=>x.id===p))} (${sc}%)`});
+      if(sa!=null && sa<=1 && sc>=80) cal.push({label, txt:`${t("calLo")} ${L(PARTS.find(x=>x.id===p))} (${sc}%)`});
+    }
+  }
+  v.innerHTML = `<div class="stack">
+    <div class="card stack"><h2>${t("adminH")}</h2><p class="priv small">${t("adminP")}</p>
+      <div class="kpis"><div class="kpi"><b>${sub.length}</b><span>${t("kSub")}</span></div><div class="kpi"><b>${drafts.length}</b><span>${t("kDraft")}</span></div><div class="kpi"><b>${scoredN}</b><span>${t("kScored")}</span></div><div class="kpi"><b>${med==null?"–":Math.round(med)}</b><span>${t("kMin")}</span></div></div>
+      <div class="row">
+        <div class="seg" role="group"><button data-mode="gap" aria-pressed="${mode==="gap"}">${t("mGap")}</button><button data-mode="self" aria-pressed="${mode==="self"}">${t("mSelf")}</button></div>
+        <label class="chk small"><input type="checkbox" id="f-names" ${showNames?"checked":""}> ${t("showNames")}</label>
+        <span class="spacer"></span>
+        <button class="btn ghost" data-act="score">${t("scoreBtn")}</button>
+        <button class="btn ghost" data-act="publish">${t("publishBtn")}</button>
+        <button class="btn ghost" data-act="export">${t("exportBtn")}</button>
+      </div>
+      <p class="small" id="adminmsg" aria-live="polite">${esc(adminMsg)}</p>
+    </div>
+    ${sub.length? `<div class="hmwrap"><table class="hm">${hmHead(true)}<tbody>${body}</tbody></table></div>${legendHTML(mode)}<p class="small muted">${SKILLS.map(s=>`<b>${s.id}</b> ${esc(L(s))}`).join(" · ")}</p>` : `<div class="card"><p class="muted">${t("noneYet")}</p></div>`}
+    ${cal.length? `<div class="card stack"><h3>${t("calH")}</h3><p class="small muted">${t("calP")}</p><ul class="clean" id="callist"></ul></div>`:""}
+  </div>`;
+  // labels and notes via textContent (other people's input)
+  const lbls = v.querySelectorAll("table.hm tbody tr:not(.avg) th .lbl");
+  sub.forEach((d,i)=>{ if(lbls[i]) lbls[i].textContent = showNames && names[d._id] ? names[d._id] : (d.code || d._id.slice(0,6)); });
+  const cl = $("#callist"); if(cl) for(const c of cal){ const li=document.createElement("li"); const b=document.createElement("b"); b.textContent=c.label; li.append(b, " — "+c.txt); cl.append(li); }
+}
+async function adminScore(){
+  if(!key){ try{ const k = await db.doc("key/v1").get(); key = k.exists? k.data():null; }catch(e){} }
+  if(!key){ adminMsg = t("noKey"); renderAdmin(); return; }
+  let n=0;
+  for(const d of allDocs.filter(x=>x.status==="submitted")){
+    const s = scoreOf(d, key);
+    try{ await db.doc("results/"+d._id).update({score:s, scoredAt:new Date().toISOString()}); n++; }catch(e){}
+  }
+  adminMsg = `${n} ${t("scoredN")}`; renderAdmin();
+}
+async function adminPublish(){
+  try{ await db.doc("summary/team").set(buildSummary(allDocs)); adminMsg = t("published"); }catch(e){ adminMsg = e && e.message || "Error"; }
+  renderAdmin();
+}
+async function adminExport(){
+  const dl = await claude.use("downloads");
+  const head = ["code","role","manager","status","startedAt","submittedAt",...SKILLS.map(s=>"self_"+s.id),...SKILLS.map(s=>"target_"+s.id),"score_ana","score_ai","score_core","score_biz","score_total","note"];
+  const q = (x)=> { const s = String(x ?? ""); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines = [head.join(",")];
+  for(const d of allDocs){
+    lines.push([d.code,d.role,d.manager?"yes":"no",d.status,d.startedAt,d.submittedAt,...SKILLS.map(s=>d.ratings?.[s.id]),...SKILLS.map(s=>target(s,d.role,d.manager)),d.score?.ana,d.score?.ai,d.score?.core,d.score?.biz,d.score?.total,d.note].map(q).join(","));
+  }
+  const data = "﻿"+lines.join("\n");
+  if(!dl){ adminMsg="Download is not available in this view."; renderAdmin(); return; }
+  try{ await dl.save({filename:"1pct-planner-baseline-"+WAVE+".csv", data}); }catch(e){ if(e && e.code!=="cancelled"){ adminMsg = e.message||"Export failed"; renderAdmin(); } }
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", async (e)=>{
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.lang){ lang=b.dataset.lang; try{localStorage.setItem("p1diag.lang",lang);}catch(_){}
+    document.querySelectorAll("[data-lang]").forEach(x=>x.setAttribute("aria-pressed", x.dataset.lang===lang)); paintStatic(); renderAll(); return; }
+  if(b.dataset.tab){ tab=b.dataset.tab; document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected", x.dataset.tab===tab));
+    ["me","team","admin"].forEach(id=> $("#v-"+id).classList.toggle("hide", id!==tab)); renderAll(); return; }
+  if(b.dataset.rate){ st.ratings[b.dataset.rate]=+b.dataset.v; queueSave(); const y=window.scrollY; renderMe(); window.scrollTo(0,y); return; }
+  if(b.dataset.mode){ mode=b.dataset.mode; renderAdmin(); return; }
+  const a = b.dataset.act;
+  if(a==="start"){ if(st.status==="new"){ st.status="draft"; st.startedAt=new Date().toISOString(); queueSave(); } step = firstOpenStep(); renderMe(); window.scrollTo(0,0); }
+  else if(a==="next"){ step=Math.min(STEPS.length-1, step+1); renderMe(); window.scrollTo(0,0); }
+  else if(a==="back"){ step=Math.max(0, step-1); renderMe(); window.scrollTo(0,0); }
+  else if(a==="submit"){ st.status="submitted"; st.submittedAt=new Date().toISOString(); st.updatedAt=st.submittedAt;
+    if(live){ clearTimeout(saveTimer); try{ await ref.set(JSON.parse(JSON.stringify(st))); }catch(err){ st.status="draft"; saveState="err"; renderMe(); return; } }
+    renderMe(); window.scrollTo(0,0); }
+  else if(a==="score"){ b.disabled=true; await adminScore(); }
+  else if(a==="publish"){ b.disabled=true; await adminPublish(); }
+  else if(a==="export"){ await adminExport(); }
+});
+document.addEventListener("change", async (e)=>{
+  const el = e.target;
+  if(el.dataset && el.dataset.q){ st.answers[el.dataset.q]=el.value; queueSave();
+    el.closest("fieldset").querySelectorAll(".opt").forEach(o=>o.classList.toggle("sel", o.querySelector("input").checked));
+    const pill = el.closest(".card").querySelector(".pill"); const part = STEPS[step]; const qs=qsFor(part,st.role);
+    if(pill) pill.textContent = `${qs.filter(q=>st.answers[q.id]).length}/${qs.length} ${t("answered")}`; return; }
+  if(el.id==="f-role"){ st.role=el.value; queueSave(); renderMe(); return; }
+  if(el.id==="f-mgr"){ st.manager=el.checked; queueSave(); return; }
+  if(el.id==="f-names"){ showNames=el.checked; renderAdmin(); return; }
+});
+document.addEventListener("input",(e)=>{
+  const el=e.target;
+  if(el.id==="f-code"){ st.code=el.value.trim().slice(0,20); queueSave(); }
+  if(el.id==="f-note"){ st.note=el.value.slice(0,600); queueSave(); }
+});
+function firstOpenStep(){
+  if(!st.role) return 1;
+  if(SKILLS.some(s=>st.ratings[s.id]==null)) return 2;
+  for(let i=3;i<=6;i++){ const qs=qsFor(STEPS[i],st.role); if(qs.some(q=>!st.answers[q.id])) return i; }
+  return 7;
+}
+function paintStatic(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(el=> el.textContent = t(el.dataset.t));
+  const bn = $("#banner"); if(!live){ bn.textContent = t("preview"); bn.classList.remove("hide"); } else bn.classList.add("hide");
+}
+function renderAll(){ renderMe(); if(tab==="team") renderTeam(); if(tab==="admin") renderAdmin(); }
+
+/* ---------- boot ---------- */
+paintStatic(); renderAll();
+(async ()=>{
+  try{
+    [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
+  }catch(e){ db=null; user=null; }
+  if(user){ try{ uid = await user.id(); isAdmin = await user.canEdit(); }catch(e){} }
+  live = !!(db && uid);
+  if(isAdmin){ $("[data-tab=admin]").classList.remove("hide"); }
+  paintStatic();
+  if(!db){ renderAll(); return; }
+  try{
+    db.doc("summary/team").onSnapshot(s=>{ summary = s.exists? s.data():null; if(tab==="team") renderTeam(); }, ()=>{});
+  }catch(e){}
+  if(live){
+    ref = db.doc("results/"+uid);
+    try{ const s = await ref.get(); if(s.exists){ st = Object.assign(st, JSON.parse(JSON.stringify(s.data()))); } }catch(e){}
+    ref.onSnapshot(s=>{ if(s.exists && !s.metadata.hasPendingWrites){ const d=s.data(); if(d.score && (!st.score || d.scoredAt!==st.scoredAt)){ st.score=d.score; st.scoredAt=d.scoredAt; if(tab==="me") renderMe(); } } }, ()=>{});
+  }
+  if(isAdmin){
+    db.collection("results").onSnapshot(s=>{ allDocs = s.docs.map(d=>Object.assign({_id:d.id}, d.data())); if(tab==="admin") renderAdmin(); }, ()=>{});
+  }
+  renderAll();
+})();
+</script>
+<style>.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}</style>
