@@ -1,0 +1,12 @@
+{
+  "name": "the-1pct-planner-hub",
+  "private": true,
+  "description": "The 1% Planner Hub: static front end (docs/) and Google Apps Script backend (backend/). No runtime dependencies.",
+  "scripts": {
+    "test:backend": "node backend/tests/logic.test.js && node backend/tests/api.test.js",
+    "gen:seed": "node tools/gen_seed.mjs",
+    "bundle:backend": "node tools/bundle_backend.mjs",
+    "dev:backend": "node backend/dev/server.mjs --port 8787",
+    "check:private": "node tools/check_no_private.mjs --all"
+  }
+}
