@@ -5,6 +5,9 @@ import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, getSession, setSession, updateProfile, isDemo, serverNow } from '../api.js';
 import { loadCatalog, journey, courseStatus, courseProgress, nextStep, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 
+// "A2 + A3" for a pair; more than three courses on one date reads "A2, A3 +3" so the line stays short.
+const codeList = (set) => (set.length <= 3 ? set.map((c) => c.code).join(' + ') : `${set.slice(0, 2).map((c) => c.code).join(', ')} +${set.length - 2}`);
+
 const NEXT_RE = /^[a-z]+\.html(\?[\w=&%.-]*)?(#[\w-]*)?$/;
 const CODE_RE = /^[A-Z0-9_-]{3,20}$/;
 const LAST_CODE = 'hub.lastCode';
@@ -588,12 +591,12 @@ function comingUp(me, courses) {
   const closing = courses.filter((c) => c.checkpoint_close && c.checkpoint_close >= today && !(c.checkpoint && c.checkpoint.status === 'passed')).sort((x, y) => (x.checkpoint_close < y.checkpoint_close ? -1 : 1));
   if (closing.length) {
     const d = closing[0].checkpoint_close; const set = closing.filter((c) => c.checkpoint_close === d);
-    items.push({ date: d, icon: 'flag', title: t('home.up.checkpoint_closes', { codes: set.map((c) => c.code).join(' + ') }), sub: set.length === 1 ? pick(set[0], 'name') : t('home.up.checkpoint_sub'), href: `course.html?c=${encodeURIComponent(set[0].code)}`, prio: 1 });
+    items.push({ date: d, icon: 'flag', title: t('home.up.checkpoint_closes', { codes: codeList(set) }), sub: set.length === 1 ? pick(set[0], 'name') : t('home.up.checkpoint_sub'), href: `course.html?c=${encodeURIComponent(set[0].code)}`, prio: 1 });
   }
   const forums = courses.filter((c) => c.forum_date && c.forum_date >= today).sort((x, y) => (x.forum_date < y.forum_date ? -1 : 1));
   if (forums.length) {
     const d = forums[0].forum_date; const set = forums.filter((c) => c.forum_date === d);
-    items.push({ date: d, icon: 'users', title: t('home.up.forum', { codes: set.map((c) => c.code).join(' + ') }), sub: pick(set[0].forum || {}, 'title'), href: `course.html?c=${encodeURIComponent(set[0].code)}`, prio: 1 });
+    items.push({ date: d, icon: 'users', title: t('home.up.forum', { codes: codeList(set) }), sub: pick(set[0].forum || {}, 'title'), href: `course.html?c=${encodeURIComponent(set[0].code)}`, prio: 1 });
   }
   const pitch = S.catalog && S.catalog.program && S.catalog.program.pitch_day;
   if (pitch && pitch >= today) items.push({ date: pitch, icon: 'trophy', title: t('home.up.pitch'), sub: t('home.up.pitch_sub'), href: 'capstone.html', prio: 4 });
