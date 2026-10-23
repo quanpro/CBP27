@@ -58,13 +58,13 @@ Alternative: **1% Planner ▸ Import items from CSV…** lets you paste the CSV 
 | pass_mark | 0.8 | checkpoint pass mark (8 of 10) |
 | retake_hours | 24 | wait between checkpoint attempts |
 | max_free_attempts | 2 | the 3rd attempt needs an unlock |
-| late_days | 7 | the checkpoint stays open until forum date + 7 days; answers are shown to everyone after that |
+| late_days | 7 | the checkpoint stays open until forum date + 7 days (later attempts need an unlock). The correct answers are shown only to people who have passed |
 | team_view_min_n | 3 | smallest group shown in team views |
 | session_hours | 6 | how long a login lasts |
 | baseline_minutes / baseline_grace_minutes | 60 / 10 | baseline timer and server grace |
 | recall_days | 2,7,30 | recall days after the forum (or after a late pass) |
 | pitch_deadline / capstone_deadline | 2027-06-21 / 2027-12-20 | last day to submit |
-| lock_failures | 5 | wrong PINs before a lock (15 min, then 30, 60 … the same day) |
+| lock_failures | 5 | wrong PINs before a lock: 15 min, then 30 min; the **3rd lock within 7 days stays until you clear it** (see step 9) |
 
 After editing Items, Courses, Episodes or Config, run **1% Planner ▸ Refresh cache** (otherwise the Hub picks the change up within 10 minutes).
 
@@ -87,7 +87,9 @@ Leave every other column empty: the script fills them.
 **Teams** tab (for Pitch Day and the capstone): `team_id`, `project_title`, `members` (codes separated by `;`), `sponsor_code`, `active` = `TRUE`.
 
 ## 9 · Issue PINs
-**1% Planner ▸ Issue PINs for new roster rows**. A window shows each new code with a 6-digit PIN **once**. Copy them onto the PIN cards now; the Sheet keeps only a scrambled version (a salted hash), so nobody can read a PIN later. Everyone chooses their own PIN at first login. Lost PIN: **Reset a PIN…** (it also signs the person out everywhere and clears a lock).
+**1% Planner ▸ Issue PINs for new roster rows**. A window shows each new code with a 6-digit PIN **once**. Copy them onto the PIN cards now; the Sheet keeps only a scrambled version (a salted hash), so nobody can read a PIN later. Everyone chooses their own PIN at first login, then accepts the privacy notice before anything else works. Lost PIN: **Reset a PIN…** (it also signs the person out everywhere and clears any lock).
+
+**Locks.** 5 wrong PINs lock a code for 15 minutes; a second lock within 7 days lasts 30 minutes; the **third lock within 7 days stays until an admin lifts it**. If the person still knows their PIN, use **1% Planner ▸ Clear a lock…** (the PIN stays the same); if not, use **Reset a PIN…**. Codes that do not exist lock the same way, so nobody can find out which codes are real by guessing.
 
 ## 10 · Publish the web app
 1. In the script editor: **Deploy ▸ New deployment**. Click the gear next to "Select type" ▸ **Web app**.
@@ -124,6 +126,7 @@ Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learn
 
 ## 12 · Sharing and safety (do not skip)
 - Share the Sheet only with HR L&D (Editor). **Share ▸ General access: Restricted** (link sharing off). Nobody else, including managers.
+- **Anyone who can edit the Sheet can open its script** (Extensions ▸ Apps Script): they can read the secret keys in Script Properties, change the code, and read every result. Give Editor access only to people you trust completely (today: HR L&D). Never add a Viewer or Editor "just to look"; send an export instead.
 - 2-step verification on your account and HR's.
 - **Project Settings ▸ Script Properties** holds `TOKEN_SECRET` and `PIN_PEPPER`. Never copy, share or delete them. If `PIN_PEPPER` is lost every PIN must be re-issued (clear `pin_hash` and run Issue PINs). Changing `TOKEN_SECRET` signs everyone out (harmless).
 - Do not sort, delete or move rows in **Attempts**, **Recall** or **Roster** (use **Data ▸ Create a filter view** to look at subsets). Do not rename tabs or row-1 headers.
@@ -139,6 +142,7 @@ Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learn
 - To let pilot users take the baseline early, set `baseline_open_from` to the pilot day, **Refresh cache**; afterwards set it back to `2026-11-16`.
 - The baseline is one attempt per wave. After the pilot, **Void an attempt…** for each pilot baseline so those people can take the real one.
 - Install **1% Planner ▸ Install hourly summary trigger** before people use the team page. **Rebuild summaries** updates it at once.
+- Team-page numbers appear only when nobody can still change them: baseline averages after the baseline window closes (plus the 70-minute timer), each course's checkpoint numbers after its late window closes (forum date + 7 days). Until then the team page says the numbers appear later. This stops anyone working out one person's score by comparing two snapshots.
 - For the re-test (Nov–Dec 2027): set `wave` to `2027-12` and the window to `2027-11-29` / `2027-12-10`. The same items are used; each person's earlier result shows next to the new one.
 
 ## The 1% Planner menu
@@ -151,9 +155,10 @@ Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learn
 | Refresh cache | the Hub reads Items, Courses, Config and Episodes fresh |
 | Issue PINs for new roster rows | new PINs, shown once |
 | Reset a PIN… | new PIN shown once, lock cleared, signed out everywhere |
+| Clear a lock… | lifts a lock (including the 3-locks-in-7-days lock); the PIN stays the same |
 | Unlock a retake… | code + course + who held the 15-minute chat + note → one extra attempt (also reopens a closed checkpoint) |
 | Void an attempt… | the attempt stops counting anywhere (pilot or technical problems) |
-| Rebuild summaries / Install hourly summary trigger | team-view numbers (groups under 3, managers and test users left out) |
+| Rebuild summaries / Install hourly summary trigger | team-view numbers (groups or counts under 3, managers and test users left out; published only after the baseline window / each course's late window closes) |
 | Baseline heatmap | `Dash_Baseline`: people × courses, self-rating, calibration flags |
 | Course gate report | `Dash_Gate`: passed / not yet / not started, first-try pass rate, three most-missed items per course |
 | IDP export | `Dash_IDP`: two largest gaps and suggested capability goals per person |
@@ -163,7 +168,7 @@ Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learn
 ## Troubleshooting
 - **"Missing tab …"** in the Log or the Hub shows a server error: run **Set up / repair tabs**.
 - **A change in Items/Courses/Config does not show**: **Refresh cache**.
-- **Someone is locked out**: the lock ends by itself (15 min, longer after repeated locks the same day) or use **Reset a PIN…**.
+- **Someone is locked out**: a first or second lock ends by itself (15 / 30 min). After 3 locks in 7 days the code stays locked: use **Clear a lock…** (PIN known) or **Reset a PIN…** (PIN forgotten).
 - **"busy"** in the Hub: many people saved at the same moment; the Hub retries automatically.
 - **Permission error mentioning `getActiveSpreadsheet`** after deploying: in `appsscript.json` replace `spreadsheets.currentonly` with `https://www.googleapis.com/auth/spreadsheets`, save, run `setupSheet` once to re-authorise, then redeploy (step 13).
 

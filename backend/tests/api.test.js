@@ -116,28 +116,61 @@ section('auth: login, same error for unknown codes, lockout escalation', () => {
   const garbage = h.err({ action: 'login', code: '<script>', pin: 'x' }, 'auth_failed');
   eq(unknown, wrong, 'unknown code = same error as wrong PIN'); eq(inactive, wrong); eq(garbage, wrong);
 
-  // 5 failures → 15 min; same day 30, 60; next day 15 again
-  const code = 'T008';
-  const fail5 = () => {
-    for (let i = 0; i < 4; i++) h.err({ action: 'login', code, pin: '000001' }, 'auth_failed');
-    return h.err({ action: 'login', code, pin: '000001' }, 'locked');
+  // Locks: 5 wrong PINs → 15 min, then 30 (rolling 7 days); the 3rd lock in 7 days needs an admin.
+  // Unknown codes lock exactly like real ones, and a wrong PIN costs no Sheet write, no lock, no Log row.
+  const fail5 = (code) => {
+    const seq = [];
+    for (let i = 0; i < 5; i++) { const r = h.call({ action: 'login', code, pin: '000001' }); seq.push(r.error); }
+    return seq;
   };
-  let now = h.clock.now();
-  let e = fail5();
-  eq(e.until, '2026-11-16T09:15:00+07:00');
-  h.clock.advance(MIN);
-  eq(h.err({ action: 'login', code, pin: PIN }, 'locked').until, '2026-11-16T09:15:00+07:00', 'correct PIN still locked');
-  h.clock.set(T('2026-11-16T09:16:00+07:00'));
-  e = fail5(); eq(e.until, '2026-11-16T09:46:00+07:00', 'second lock doubles to 30 min');
-  h.clock.set(T('2026-11-16T09:47:00+07:00'));
-  e = fail5(); eq(e.until, '2026-11-16T10:47:00+07:00', 'third lock 60 min');
-  h.clock.set(T('2026-11-17T09:00:00+07:00'));
-  e = fail5(); eq(e.until, '2026-11-17T09:15:00+07:00', 'new day starts at 15 min');
-  h.clock.set(T('2026-11-17T09:15:01+07:00'));
-  h.login(code);
-  const row = h.table('Roster').find((x) => x.employee_code === code);
-  eq(row.failed_logins, '0'); eq(row.lock_count, '1');
-  void now;
+  const w0 = h.ss.stats.writes, acq0 = h.lock.acquisitions, log0 = h.table('Log').length;
+  h.clock.set(T('2026-11-16T10:00:00+07:00'));
+  const realSeq = fail5('T008');
+  const wReal = h.ss.stats.writes;
+  const fakeSeq = fail5('ZZ998');
+  eq(h.ss.stats.writes, wReal, 'an unknown code never writes to the Sheet');
+  ok(wReal > w0, 'a real person\'s lock is kept in Roster');
+  eq(realSeq.map((e) => e.code), ['auth_failed', 'auth_failed', 'auth_failed', 'auth_failed', 'locked']);
+  eq(fakeSeq, realSeq, 'identical error bodies for a real and an unknown code');
+  eq(realSeq[4].until, '2026-11-16T10:15:00+07:00');
+  eq(h.err({ action: 'login', code: 'T008', pin: PIN }, 'locked'), h.err({ action: 'login', code: 'ZZ998', pin: PIN }, 'locked'), 'correct PIN still locked');
+  eq(h.lock.acquisitions, acq0, 'failed logins never take the script lock');
+  eq(h.table('Log').length, log0, 'failed logins write no Log row');
+  const lockRow = h.table('Roster').find((x) => x.employee_code === 'T008');
+  eq([lockRow.locked_until, lockRow.lock_count, lockRow.lock_history], ['2026-11-16T10:15:00+07:00', '1', '2026-11-16T10:00:00+07:00']);
+  const w1 = h.ss.stats.writes;
+  h.err({ action: 'login', code: 'T004', pin: '000001' }, 'auth_failed');
+  h.err({ action: 'login', code: 'ZZ997', pin: '000001' }, 'auth_failed');
+  eq(h.ss.stats.writes, w1, 'a normal wrong PIN writes nothing to the Sheet (known or unknown)');
+  // second lock: 30 min; third: until an admin clears it (identical for an unknown code)
+  h.clock.set(T('2026-11-16T11:00:00+07:00'));
+  eq(fail5('T008')[4].until, '2026-11-16T11:30:00+07:00');
+  eq(fail5('ZZ998')[4].until, '2026-11-16T11:30:00+07:00', 'unknown code escalates the same way');
+  h.clock.set(T('2026-11-16T11:31:00+07:00'));
+  const hard = fail5('T008')[4];
+  eq(hard.code, 'locked'); eq(hard.until, null, 'third lock in 7 days: until an admin clears it');
+  eq(fail5('ZZ998')[4], hard, 'same body for an unknown code');
+  h.clock.set(T('2026-11-25T09:00:00+07:00'));
+  eq(h.err({ action: 'login', code: 'T008', pin: PIN }, 'locked').until, null, 'still locked a week later');
+  h.cache.evictAll();
+  eq(h.err({ action: 'login', code: 'T008', pin: PIN }, 'locked').until, null, 'kept in Roster when the cache is gone');
+  h.run('clearLock_', 'T008');
+  h.login('T008');
+  const cleared = h.table('Roster').find((x) => x.employee_code === 'T008');
+  eq([cleared.locked_until, cleared.lock_count, cleared.lock_history], ['', '0', '']);
+  ok(h.table('Log').some((r) => r.action === 'admin_clear_lock' && r.employee_code === 'T008'));
+  // rolling 7 days, kept in Roster across days: lock again 2 days later → 30 min; 8 days later → 15 min
+  h.clock.set(T('2026-11-26T09:00:00+07:00'));
+  eq(fail5('T007')[4].until, '2026-11-26T09:15:00+07:00');
+  h.clock.set(T('2026-11-28T09:00:00+07:00'));
+  eq(fail5('T007')[4].until, '2026-11-28T09:30:00+07:00', 'escalation survives the 6-hour cache');
+  h.clock.set(T('2026-12-06T09:00:00+07:00'));
+  eq(fail5('T007')[4].until, '2026-12-06T09:15:00+07:00', 'older locks drop out after 7 days');
+  // successful login resets the counter: 4 wrong, 1 right, 4 wrong → still no lock
+  for (let i = 0; i < 4; i++) h.err({ action: 'login', code: 'T006', pin: '000001' }, 'auth_failed');
+  h.login('T006');
+  for (let i = 0; i < 4; i++) h.err({ action: 'login', code: 'T006', pin: '000001' }, 'auth_failed');
+  h.login('T006');
 });
 
 section('auth: must_change_pin, change_pin, session_ver, consent, set_lang, token expiry', () => {
@@ -423,8 +456,8 @@ section('checkpoint: pass 8/10, not yet 7/10, reveal rule, 24 h retake with othe
   me = h.ok({ action: 'me', token: t3 });
   eq(me.courses[0].checkpoint.gate_closed, true); eq(me.courses[0].checkpoint.status, 'not_started');
   const rv2 = h.ok({ action: 'review', token: h.login('T002'), attempt_id: a1.attempt_id });
-  eq(rv2.reveal, true, 'key shown after late_until');
-  eq(rv2.missed.every((m) => m.correct !== null), true);
+  eq(rv2.reveal, false, 'no reveal by time: a late learner never sees the key before passing');
+  eq(rv2.missed.every((m) => m.correct === null && m.why_en === ''), true);
   h.run('unlockRetake_', 'T003', 'A2', 'T010', 'late with manager');
   const late = h.ok({ action: 'start', token: t3, assessment: 'checkpoint', course: 'A2' });
   const lr = h.ok({ action: 'submit', token: t3, attempt_id: late.attempt_id, answers: answersFor(late.items, 10) });
@@ -480,9 +513,11 @@ section('watch: ticks saved per episode, reflected in me', () => {
 });
 
 // ============================================================ team views, capstone, panel
-section('team_summary suppression and team_status (manager only, no scores)', () => {
-  const h = harness('2026-11-16T09:00:00+07:00');
-  const takers = ['T001', 'T002', 'T003', 'T004', 'T005', 'T006', 'T007', 'T008', 'T009', 'T010', 'T040'];
+section('team_summary: published only after the window, per-metric counts, never live; team_status', () => {
+  const roster = fx.testRoster().concat([Object.assign(fx.testRoster().find((p) => p.employee_code === 'T010'),
+    { employee_code: 'T011', display_name: 'Fixture Manager Quebec', manager_code: 'T010' })]);
+  const h = harness('2026-11-16T09:00:00+07:00', { roster });
+  const takers = ['T001', 'T002', 'T003', 'T004', 'T005', 'T006', 'T007', 'T008', 'T010', 'T011', 'T040'];
   takers.forEach((c, i) => {
     const t = h.login(c);
     const s = h.ok({ action: 'start', token: t, assessment: 'baseline' });
@@ -491,51 +526,82 @@ section('team_summary suppression and team_status (manager only, no scores)', ()
   });
   const tok = h.login('T001');
   let ts = h.ok({ action: 'team_summary', token: tok });
-  eq(Object.keys(ts).sort(), ['baseline', 'checkpoints', 'min_n', 'ok', 'server_now', 'updated_at', 'wave']);
-  eq(ts.min_n, 3); eq(ts.wave, '2026-11');
-  eq(ts.baseline.map((g) => [g.group, g.n]), [['all', 9], ['demand', 3], ['supply', 3]], 'materials (2) and cs (1) hidden; manager and test user never counted');
+  eq(Object.keys(ts).sort(), ['baseline', 'baseline_publish_after', 'baseline_published', 'checkpoints', 'min_n', 'ok', 'server_now', 'updated_at', 'wave']);
+  eq([ts.min_n, ts.wave, ts.baseline_published, ts.baseline_publish_after], [3, '2026-11', false, '2026-11-27']);
+  eq([ts.baseline, ts.checkpoints, ts.updated_at], [[], [], null], 'nothing while the window is open');
+  h.run('buildSummary');
+  eq(h.table('Summary').length, 0, 'the hourly rebuild publishes nothing during the window');
+  eq(h.ok({ action: 'team_summary', token: tok }).baseline, []);
+  // one learner abandons the baseline just before the window closes: graded at publication
+  h.clock.set(T('2026-11-27T23:30:00+07:00'));
+  const t9 = h.login('T009');
+  const s9 = h.ok({ action: 'start', token: t9, assessment: 'baseline' });
+  h.ok({ action: 'save', token: t9, attempt_id: s9.attempt_id, answers: answersFor(s9.items, 20, true), self_ratings: SELF10 });
+  h.clock.set(T('2026-11-28T01:09:59+07:00'));
+  h.run('buildSummary');
+  eq(h.ok({ action: 'team_summary', token: h.login('T001') }).baseline_published, false, 'still inside timer + grace');
+  eq(h.table('Summary').length, 0);
+  h.clock.set(T('2026-11-28T01:10:01+07:00'));
+  ts = h.ok({ action: 'team_summary', token: h.login('T001') });
+  eq([ts.baseline_published, ts.baseline], [true, []], 'never computed on a request: empty until the rebuild');
+  h.run('buildSummary');
+  eq(h.table('Attempts').find((a) => a.attempt_id === s9.attempt_id).status, 'expired', 'rebuild grades abandoned baselines first');
+  ts = h.ok({ action: 'team_summary', token: h.login('T001') });
+  eq(ts.baseline.map((g) => [g.group, g.n]), [['all', 9], ['demand', 3], ['supply', 3]], 'materials (2) and cs (1) hidden; managers and test user never counted');
   eq(Object.keys(ts.baseline[0].courses), fx.COURSES);
   eq(Object.keys(ts.baseline[0].courses.A2).sort(), ['pct', 'self']);
   eq(ts.baseline[1].courses.A2.self, round1((1 + 2 + 3) / 3));
   ok(Number.isInteger(ts.baseline[0].courses.A2.pct));
-  eq(ts.checkpoints.map((g) => g.group), ['all', 'demand', 'supply']);
-  eq(Object.keys(ts.checkpoints[0].courses.A2).sort(), ['first_try_pass', 'passed_by_forum']);
-  eq(ts.checkpoints[0].courses.A2, { first_try_pass: null, passed_by_forum: null }, 'course not started');
+  eq(ts.updated_at, '2026-11-28T01:10:01+07:00');
+  ok(h.table('Summary').every((r) => +r.n >= 3 && +r.count >= 0), 'Summary rows carry n and count');
   ok(!/T00|Alpha|Juliet/.test(JSON.stringify(ts)), 'no names or codes in team_summary');
-  // the hourly summary tab gives the same answer
-  eq(h.run('buildSummary') > 0, true);
-  ok(h.table('Summary').every((r) => +r.n >= 3), 'Summary tab never stores small groups');
-  ts = h.ok({ action: 'team_summary', token: tok });
-  eq(ts.updated_at, '2026-11-16T09:00:00+07:00');
-  eq(ts.baseline.map((g) => g.n), [9, 3, 3]);
+  eq(ts.checkpoints, []);
 
-  h.err({ action: 'team_status', token: tok }, 'forbidden');
+  // team_status: direct reports only, no managers, no test users, no scores
+  h.err({ action: 'team_status', token: h.login('T001') }, 'forbidden');
   const st = h.ok({ action: 'team_status', token: h.login('T010') });
-  eq(st.reports.map((r) => r.code), ['T001', 'T002', 'T003', 'T004'], 'direct reports only; test user hidden');
+  eq(st.reports.map((r) => r.code), ['T001', 'T002', 'T003', 'T004'], 'manager T011 and test user T040 hidden');
   eq(Object.keys(st.reports[0]).sort(), ['baseline', 'code', 'courses', 'first_name']);
   eq(st.reports[0].first_name, 'Alpha'); eq(st.reports[0].baseline, 'done');
   eq(st.reports[0].courses.A2, 'not_started'); eq(Object.keys(st.reports[0].courses), fx.COURSES);
   ok(!/pct|score|n_correct/.test(JSON.stringify(st)), 'no scores in team_status');
-  // checkpoint states show up as passed / not_yet
+
+  // checkpoints: published after late_until (A2: 2027-02-02 23:59:59), counts per metric
   h.clock.set(T('2027-01-05T09:00:00+07:00'));
-  const t1 = h.login('T001');
-  const c1 = h.ok({ action: 'start', token: t1, assessment: 'checkpoint', course: 'A2' });
-  h.ok({ action: 'submit', token: t1, attempt_id: c1.attempt_id, answers: answersFor(c1.items, 9) });
-  const t2 = h.login('T002');
-  const c2 = h.ok({ action: 'start', token: t2, assessment: 'checkpoint', course: 'A2' });
-  h.ok({ action: 'submit', token: t2, attempt_id: c2.attempt_id, answers: answersFor(c2.items, 3) });
+  for (const [c, n] of [['T001', 9], ['T002', 3], ['T003', 2], ['T004', 10]]) {
+    const t = h.login(c);
+    const a = h.ok({ action: 'start', token: t, assessment: 'checkpoint', course: 'A2' });
+    h.ok({ action: 'submit', token: t, attempt_id: a.attempt_id, answers: answersFor(a.items, n) });
+  }
   const st2 = h.ok({ action: 'team_status', token: h.login('T010') });
-  eq([st2.reports[0].courses.A2, st2.reports[1].courses.A2, st2.reports[2].courses.A2], ['passed', 'not_yet', 'not_started']);
+  eq([st2.reports[0].courses.A2, st2.reports[1].courses.A2], ['passed', 'not_yet']);
   h.run('buildSummary');
-  const ts2 = h.ok({ action: 'team_summary', token: t1 });
-  eq(ts2.checkpoints[1].courses.A2.first_try_pass, 50, 'demand: 1 of 2 who tried passed first time');
-  eq(ts2.checkpoints[1].courses.A2.passed_by_forum, 33, 'demand: 1 of 3 passed so far');
+  eq(h.ok({ action: 'team_summary', token: h.login('T001') }).checkpoints, [], 'not before the late window closes');
+  h.clock.set(T('2027-02-03T00:00:01+07:00'));
+  h.run('buildSummary');
+  ts = h.ok({ action: 'team_summary', token: h.login('T001') });
+  eq(ts.checkpoints.map((g) => [g.group, g.n]), [['all', 10], ['demand', 3], ['supply', 3]]);
+  eq(Object.keys(ts.checkpoints[0].courses.A2).sort(), ['first_try_pass', 'n_by_forum', 'n_first_try', 'passed_by_forum']);
+  eq(ts.checkpoints[0].courses.A2, { first_try_pass: 50, passed_by_forum: 20, n_first_try: 4, n_by_forum: 10 });
+  eq(ts.checkpoints[1].courses.A2, { first_try_pass: null, passed_by_forum: 33, n_first_try: 3, n_by_forum: 3 }, 'demand hidden: all − demand would expose the one supply attempter');
+  eq(ts.checkpoints[2].courses.A2, { first_try_pass: null, passed_by_forum: 33, n_first_try: 1, n_by_forum: 3 });
+  eq(ts.checkpoints[0].courses.A3, { first_try_pass: null, passed_by_forum: 0, n_first_try: 0, n_by_forum: 10 }, 'A3 (same forum) published: nobody attempted');
+  eq(ts.checkpoints[0].courses.A1, { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 }, 'A1 not published yet');
+  // a late attempt (with an unlock) after publication does not move the published numbers
+  h.run('unlockRetake_', 'T005', 'A2', 'T010', 'late');
+  const t5 = h.login('T005');
+  const l5 = h.ok({ action: 'start', token: t5, assessment: 'checkpoint', course: 'A2' });
+  h.ok({ action: 'submit', token: t5, attempt_id: l5.attempt_id, answers: answersFor(l5.items, 10) });
+  h.run('buildSummary');
+  eq(h.ok({ action: 'team_summary', token: t5 }).checkpoints[0].courses.A2, ts.checkpoints[0].courses.A2, 'frozen after publication');
 });
 
 function round1(x) { return Math.round(x * 10) / 10; }
 
 section('capstone: members only, SOI ≤ 60 words, URL and VND rules, deadline; panel scores', () => {
-  const h = harness('2027-06-01T09:00:00+07:00');
+  const roster = fx.testRoster().map((p) => (p.employee_code === 'T004' ? Object.assign({}, p, { roles: 'learner;panel' })
+    : p.employee_code === 'T010' ? Object.assign({}, p, { roles: 'learner;manager;panel' }) : p));
+  const h = harness('2027-06-01T09:00:00+07:00', { roster });
   const t1 = h.login('T001');
   const g = h.ok({ action: 'capstone_get', token: t1 });
   eq(g.team, { team_id: 'TEAM1', project_title: 'Fixture project one', members: [{ code: 'T001', first_name: 'Alpha' }, { code: 'T002', first_name: 'Bravo' }, { code: 'T003', first_name: 'Charlie' }], sponsor: { code: 'T010', first_name: 'Juliet' } });
@@ -579,7 +645,8 @@ section('capstone: members only, SOI ≤ 60 words, URL and VND rules, deadline; 
   h.err({ action: 'panel_score', token: h.login('T001'), stage: 'pitch', team_id: 'TEAM1', scores: { c1: 3, c2: 3, c3: 3, c4: 3, c5: 3 } }, 'forbidden');
   const pl = h.ok({ action: 'panel_list', token: judge, stage: 'pitch' });
   eq(pl.stage, 'pitch'); eq(pl.teams.map((t) => t.team_id), ['TEAM1', 'TEAM2']);
-  eq(Object.keys(pl.teams[0]).sort(), ['my_score', 'project_title', 'submission', 'team_id']);
+  eq(Object.keys(pl.teams[0]).sort(), ['is_sponsor', 'my_score', 'project_title', 'submission', 'team_id']);
+  eq(pl.teams.map((t) => t.is_sponsor), [false, false]);
   ok(pl.teams[0].submission && pl.teams[1].submission === null); eq(pl.teams[0].my_score, null);
   eq(h.err({ action: 'panel_score', token: judge, stage: 'pitch', team_id: 'TEAM1', scores: { c1: 6, c2: 3, c3: 3, c4: 3, c5: 3 } }, 'bad_request').field, 'c1');
   h.err({ action: 'panel_score', token: judge, stage: 'pitch', team_id: 'TEAM1', scores: { c1: 2, c2: 3, c3: 3, c4: 3 } }, 'bad_request');
@@ -592,8 +659,18 @@ section('capstone: members only, SOI ≤ 60 words, URL and VND rules, deadline; 
   eq(h.ok({ action: 'panel_list', token: h.login('T050'), stage: 'pitch' }).teams[0].my_score, null, 'admin may list; own scores only');
   h.ok({ action: 'panel_score', token: h.login('T050'), stage: 'pitch', team_id: 'TEAM1', scores: { c1: 2, c2: 2, c3: 2, c4: 2, c5: 2 } });
   h.run('menuPanelResults');
-  const dp = h.table('Dash_Panel');
-  eq(dp.map((r) => [r.stage, r.team_id, r.judges, r.weighted_score]), [['pitch', 'TEAM1', '2', '3.17']], 'mean of judges: (26/6 + 12/6) / 2');
+  let dp = h.table('Dash_Panel');
+  eq(dp.map((r) => [r.stage, r.team_id, r.judges, r.weighted_score, r.sponsor_scored]), [['pitch', 'TEAM1', '2', '3.17', 'no']], 'mean of judges: (26/6 + 12/6) / 2');
+  // a judge who is a team member cannot score that team; a sponsor may, and is marked
+  const member = h.login('T004');
+  eq(h.err({ action: 'panel_score', token: member, stage: 'pitch', team_id: 'TEAM2', scores: { c1: 5, c2: 5, c3: 5, c4: 5, c5: 5 } }, 'forbidden').message, 'Judges cannot score their own team.');
+  h.ok({ action: 'panel_score', token: member, stage: 'pitch', team_id: 'TEAM1', scores: { c1: 3, c2: 3, c3: 3, c4: 3, c5: 3 } });
+  const sponsor = h.login('T010');
+  eq(h.ok({ action: 'panel_list', token: sponsor, stage: 'pitch' }).teams.map((t) => t.is_sponsor), [true, true]);
+  h.ok({ action: 'panel_score', token: sponsor, stage: 'pitch', team_id: 'TEAM1', scores: { c1: 5, c2: 5, c3: 5, c4: 5, c5: 5 } });
+  h.run('menuPanelResults');
+  dp = h.table('Dash_Panel');
+  eq([dp[0].judges, dp[0].sponsor_scored, dp[0].weighted_without_sponsor, dp[0].weighted_score], ['4', 'yes (T010)', '3.11', '3.58']);
 });
 
 // ============================================================ privacy, infrastructure
@@ -612,7 +689,8 @@ section('Log tab never holds PINs, answers or tokens; busy lock; cache eviction'
   ok(log.length >= 5, 'log rows written');
   const text = JSON.stringify(log);
   for (const bad of [PIN, '864201', '975310', 'v1.', '"a"', 'FX_A2_A_0', 'answers', 'pin_hash']) ok(!text.includes(bad), 'Log must not contain ' + bad);
-  ok(log.some((r) => r.action === 'login' && r.ok === 'FALSE' && /auth_failed/.test(r.message)));
+  eq(log.filter((r) => r.ok === 'FALSE' && r.action === 'login').length, 0, 'anonymous failures are never logged');
+  ok(log.some((r) => r.action === 'login' && r.ok === 'TRUE' && r.employee_code === 'T001'));
   ok(log.some((r) => r.action === 'submit' && r.message.includes(s.attempt_id)), 'attempt ids are kept');
   eq(log.filter((r) => r.employee_code === '246810').length, 0, 'unknown codes are not logged');
 
@@ -622,7 +700,7 @@ section('Log tab never holds PINs, answers or tokens; busy lock; cache eviction'
   h.lock.contended = true;
   h.err({ action: 'start', token: t2, assessment: 'checkpoint', course: 'A2' }, 'busy');
   h.err({ action: 'submit', token: t2, attempt_id: s2.attempt_id, answers: {} }, 'busy');
-  h.err({ action: 'login', code: 'T003', pin: PIN }, 'busy');
+  h.ok({ action: 'login', code: 'T003', pin: PIN }); // login needs no lock (its Log row is skipped when busy)
   h.ok({ action: 'save', token: t2, attempt_id: s2.attempt_id, answers: answersFor(s2.items, 3) });
   h.ok({ action: 'me', token: t2 });
   h.lock.contended = false;
@@ -643,6 +721,86 @@ section('Log tab never holds PINs, answers or tokens; busy lock; cache eviction'
   h.updateWhere('Items', 'item_id', 'FX_A3_PR_02', { active: 'FALSE' });
   h.clock.advance(11 * MIN);
   eq(h.ok({ action: 'start', token: h.login('T005'), assessment: 'predict', course: 'A3' }).items.length, 1, 'cache expires after 10 min');
+});
+
+section('hardening: anonymous flooding, secrets cache, save-after-submit race, consent, logout', () => {
+  const h = harness('2027-01-05T09:00:00+07:00');
+  // warm the secrets once (a real request), then count Properties reads on anonymous traffic
+  h.login('T001');
+  const ps = h.ctx.PropertiesService.getScriptProperties();
+  const orig = ps.getProperty;
+  let reads = 0;
+  ps.getProperty = (k) => { reads++; return orig(k); };
+  const log0 = h.table('Log').length, acq0 = h.lock.acquisitions, w0 = h.ss.stats.writes;
+  for (let i = 0; i < 25; i++) {
+    h.call('{"action":');
+    h.call({ action: 'me', token: 'v1.eyJjIjoiWCJ9.AAAA' + i });
+    h.call({ action: 'drop_tables', token: 'x' });
+    h.call({ action: 'login', code: 'NOPE' + i, pin: '1' });
+  }
+  ps.getProperty = orig;
+  eq([h.table('Log').length - log0, h.lock.acquisitions - acq0, h.ss.stats.writes - w0], [0, 0, 0], '100 anonymous requests: no Log row, no lock, no Sheet write');
+  eq(reads, 0, 'forged tokens do not read Script Properties (secrets cached)');
+  const anon = Array.from(h.cache.store.entries()).filter(([k]) => k.startsWith('stat:anon:'));
+  eq(anon.length, 1); eq(anon[0][1].v, '100', 'anonymous failures counted in CacheService');
+  // secrets fall back to Script Properties when the cache is empty
+  h.cache.evictAll();
+  h.login('T001');
+
+  // save-after-submit race: a save that read the row while open writes after submit graded it
+  const tok = h.login('T002');
+  const s = h.ok({ action: 'start', token: tok, assessment: 'checkpoint', course: 'A2' });
+  const real = answersFor(s.items, 7);
+  const probe = Object.fromEntries(s.items.map((i) => [i.item_id, 'a']));
+  const origRead = h.ctx.readRow_;
+  let fired = false;
+  h.ctx.readRow_ = function (name, rowNum) {
+    const r = origRead(name, rowNum);
+    if (name === 'Attempts' && !fired) {
+      fired = true;
+      const saved = h.ctx.REQ_;
+      const res = JSON.parse(h.ctx.doPost({ postData: { contents: JSON.stringify({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: real }) } }).getContent());
+      eq([res.score_pct, res.missed.length], [70, 3]);
+      h.ctx.REQ_ = saved;
+    }
+    return r;
+  };
+  h.call({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: probe });
+  h.ctx.readRow_ = origRead;
+  ok(fired);
+  const rv = h.ok({ action: 'review', token: tok, attempt_id: s.attempt_id });
+  eq([rv.score_pct, rv.missed.length], [70, 3], 'results come from the frozen graded answers');
+  eq(rv.missed.map((m) => m.your.id), s.items.slice(7).map((i) => real[i.item_id]));
+  const row = h.table('Attempts').find((a) => a.attempt_id === s.attempt_id);
+  eq(JSON.parse(row.graded_answers), real);
+
+  // consent is enforced on the server (F18)
+  const roster = fx.testRoster().map((p) => (p.employee_code === 'T009' ? Object.assign({}, p, { consent_at: '' }) : p));
+  const h2 = harness('2027-01-05T09:00:00+07:00', { roster });
+  const t9 = h2.login('T009');
+  eq(h2.ok({ action: 'me', token: t9 }).profile.consent_needed, true);
+  for (const a of [{ action: 'start', assessment: 'predict', course: 'A2' }, { action: 'team_summary' }, { action: 'capstone_get' }, { action: 'watch', course: 'A2', ep: 1, watched: true }, { action: 'save', attempt_id: 'x' }, { action: 'review', attempt_id: 'x' }]) {
+    h2.err(Object.assign({ token: t9 }, a), 'consent_required');
+  }
+  eq(h2.ok({ action: 'set_lang', token: t9, lang: 'vi' }).lang, 'vi', 'set_lang allowed before consent');
+  h2.ok({ action: 'consent', token: t9 });
+  h2.ok({ action: 'start', token: t9, assessment: 'predict', course: 'A2' });
+  // must_change_pin comes first, then consent
+  const t30 = h2.login('T030');
+  h2.err({ action: 'consent', token: t30 }, 'pin_change_required');
+  const c30 = h2.ok({ action: 'change_pin', token: t30, old_pin: PIN, new_pin: '135790' });
+  h2.err({ action: 'start', token: c30.token, assessment: 'predict', course: 'A2' }, 'consent_required');
+
+  // logout signs out every device
+  const d1 = h2.login('T001'), d2 = h2.login('T001');
+  const lo = h2.ok({ action: 'logout', token: d1 });
+  eq(Object.keys(lo).sort(), ['ok', 'server_now']);
+  h2.err({ action: 'me', token: d1 }, 'session_expired');
+  h2.err({ action: 'me', token: d2 }, 'session_expired');
+  h2.err({ action: 'logout', token: d1 }, 'session_expired');
+  h2.ok({ action: 'logout', token: h2.login('T030', '135790') }); // allowed before consent
+  h2.login('T001');
+  ok(h2.table('Log').some((r) => r.action === 'logout' && r.employee_code === 'T001'));
 });
 
 section('F5 coercion: setup makes every tab plain text and repairs converted cells', () => {
@@ -691,7 +849,7 @@ section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate,
   h.run('onOpen');
   const labels = h.ui.menus[0].items.filter((i) => i.label).map((i) => i.label);
   eq(h.ui.menus[0].name, '1% Planner');
-  for (const l of ['Set up / repair tabs', 'Import items from CSV…', 'Validate items / courses', 'Issue PINs for new roster rows', 'Reset a PIN…', 'Unlock a retake…', 'Void an attempt…', 'Rebuild summaries', 'Install hourly summary trigger', 'Baseline heatmap', 'Course gate report', 'IDP export', 'Recall due list', 'Seed episodes', 'Panel results']) ok(labels.includes(l), 'menu: ' + l);
+  for (const l of ['Set up / repair tabs', 'Import items from CSV…', 'Validate items / courses', 'Issue PINs for new roster rows', 'Reset a PIN…', 'Unlock a retake…', 'Void an attempt…', 'Rebuild summaries', 'Install hourly summary trigger', 'Baseline heatmap', 'Course gate report', 'IDP export', 'Recall due list', 'Seed episodes', 'Panel results', 'Clear a lock…']) ok(labels.includes(l), 'menu: ' + l);
   for (const i of h.ui.menus[0].items) if (i.fn) eq(typeof h.ctx[i.fn], 'function', 'menu handler exists: ' + i.fn);
 
   // Issue PINs: shown once, only hashes stored, first login must change
@@ -710,6 +868,17 @@ section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate,
   h.err({ action: 'me', token: old }, 'session_expired');
   h.err({ action: 'login', code: 'T001', pin: PIN }, 'auth_failed');
   eq(h.ok({ action: 'login', code: 'T001', pin: pin2 }).profile.must_change_pin, true);
+  // Clear a lock (menu) and Reset a PIN both lift a lock
+  for (let i = 0; i < 5; i++) h.call({ action: 'login', code: 'T007', pin: '000001' });
+  h.err({ action: 'login', code: 'T007', pin: PIN }, 'locked');
+  h.ui.prompts.push('t007');
+  h.run('menuClearLock');
+  h.login('T007');
+  for (let i = 0; i < 5; i++) h.call({ action: 'login', code: 'T008', pin: '000001' });
+  h.ui.prompts.push('T008');
+  h.run('menuResetPin');
+  const pin8 = /(\d{6})</.exec(h.ui.dialogs.pop().html)[1];
+  h.login('T008', pin8);
   // Unlock via the menu prompts
   h.ui.prompts.push('t005', 'a2', 'T010', 'chat on 5 Jan');
   h.run('menuUnlock');
@@ -752,7 +921,8 @@ section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate,
   h.run('menuRecallDue');
   ok(h.sheet('Dash_Recall'));
   h.run('menuRebuildSummaries');
-  ok(h.table('Summary').length > 0);
+  eq(h.table('Summary').length, 0, '2 baseline takers (< 3) and no closed late window: nothing to publish');
+  ok(h.sheet('Summary').getRange(1, 1, 1, 8).getValues()[0].includes('count'));
   h.run('menuInstallTrigger'); h.run('menuInstallTrigger');
   eq(h.triggers.length, 1); eq(h.triggers[0].getHandlerFunction(), 'buildSummary'); eq(h.triggers[0].everyHours, 1);
   h.run('menuSeedEpisodes');

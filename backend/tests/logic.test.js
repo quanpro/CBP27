@@ -177,7 +177,27 @@ test('summarise drops small groups and every manager / test row', () => {
   const hidden = out2[0].n - out2.slice(1).reduce((s, g) => s + g.n, 0);
   ok(hidden === 0 || hidden >= 3, 'all minus shown groups never reveals fewer than 3 people');
   eq(L.summarise(rows.slice(0, 2), 3), [], 'all suppressed when n < 3');
-  eq(L.summarise([{ group: 'demand', values: { pct: null } }, { group: 'demand', values: { pct: 5 } }, { group: 'demand', values: {} }], 3)[0].avg.pct, 5, 'null values ignored in averages');
+  const four = [{ group: 'demand', values: { pct: null } }, { group: 'demand', values: { pct: 5 } }, { group: 'demand', values: { pct: 7 } }, { group: 'demand', values: { pct: 9 } }];
+  eq(L.summarise(four, 3)[0].avg.pct, 7, 'null values ignored in averages');
+  eq(L.summarise(four, 3)[0].count.pct, 3, 'count = people with a value');
+  eq(L.summarise(four.slice(0, 3), 3)[0].avg.pct, null, 'a metric only 2 people have is suppressed');
+  eq(L.summarise(four.slice(0, 3), 3)[0].n, 3);
+});
+
+test('summarise: per-metric counts and complementary suppression (no single result exposed)', () => {
+  // first-try pass: only one person in the whole team attempted → no group may show it
+  const rows = [];
+  ['demand', 'demand', 'demand', 'supply', 'supply', 'supply'].forEach((g, i) => rows.push({ group: g, values: { ftp: i === 0 ? 0 : null, pbf: i % 2 } }));
+  let out = L.summarise(rows, 3);
+  eq(out.map((g) => [g.group, g.n, g.avg.ftp, g.count.ftp]), [['all', 6, null, 1], ['demand', 3, null, 1], ['supply', 3, null, 0]]);
+  eq(out[0].count.pbf, 6); eq(out[0].avg.pbf, 0.5);
+  // 4 attempters: demand 3 shown would leave 1 supply person = all − demand → demand hidden too
+  const rows2 = rows.map((r, i) => ({ group: r.group, values: { ftp: i < 4 ? 1 : null } }));
+  out = L.summarise(rows2, 3);
+  eq(out.map((g) => [g.group, g.avg.ftp]), [['all', 1], ['demand', null], ['supply', null]]);
+  // 6 attempters, 3 + 3 → both shown
+  out = L.summarise(rows.map((r, i) => ({ group: r.group, values: { ftp: i % 2 } })), 3);
+  eq(out.map((g) => g.count.ftp), [6, 3, 3]); ok(out.every((g) => g.avg.ftp !== null));
 });
 
 test('panel weighting (F20)', () => {
@@ -250,16 +270,20 @@ test('hashPin with pepper and salt; tokens sign and verify', () => {
   eq(L.b64urlEncode('ab?'), Buffer.from('ab?').toString('base64url'));
 });
 
-test('lockout escalation 15 → 30 → 60, new day resets, max 24 h', () => {
+test('lockout: 15 → 30 min within 7 days, 3rd lock in 7 days needs an admin, rolling window', () => {
   const t0 = T('2026-11-16T09:00:00+07:00');
-  const l1 = L.nextLockState(0, NaN, t0);
-  eq(l1.lock_count, 1); eq(l1.locked_until, t0 + 15 * 60000);
-  const l2 = L.nextLockState(l1.lock_count, l1.locked_until, t0 + 20 * 60000);
-  eq(l2.lock_count, 2); eq(l2.locked_until - (t0 + 20 * 60000), 30 * 60000);
-  const l3 = L.nextLockState(l2.lock_count, l2.locked_until, t0 + 60 * 60000);
-  eq(l3.lock_count, 3); eq(l3.locked_until - (t0 + 60 * 60000), 60 * 60000);
-  eq(L.nextLockState(3, l3.locked_until, T('2026-11-17T09:00:00+07:00')).lock_count, 1, 'next day starts again');
-  eq(L.lockMinutes(9), 1440);
+  const l1 = L.nextLock([], t0);
+  eq([l1.count, l1.hard, l1.locked_until - t0], [1, false, 15 * 60000]);
+  const l2 = L.nextLock(l1.history, t0 + 3 * 86400000);
+  eq([l2.count, l2.hard, l2.locked_until - (t0 + 3 * 86400000)], [2, false, 30 * 60000]);
+  const l3 = L.nextLock(l2.history, t0 + 6 * 86400000);
+  eq([l3.count, l3.hard, l3.locked_until], [3, true, Infinity], 'third lock within 7 days is permanent');
+  eq(l3.history.length, 3);
+  eq(L.nextLock(l1.history, t0 + 7 * 86400000 + 1).count, 1, 'older than 7 days no longer counts');
+  eq(L.nextLock([t0 - 8 * 86400000, t0 - 86400000], t0).count, 2, 'rolling window, not per calendar day');
+  eq(L.nextLock(['2026-11-15T09:00:00+07:00', 'junk'], t0).count, 2, 'ISO history accepted');
+  eq(L.nextLock([t0, t0], t0 + 1000).count, 2, 'duplicates ignored');
+  eq(L.lockMinutes(2), 30); eq(L.HARD_LOCK_AFTER, 3);
 });
 
 test('PIN strength, word count, codes, names, roles, reveal rule', () => {
@@ -276,9 +300,9 @@ test('PIN strength, word count, codes, names, roles, reveal rule', () => {
   eq(L.publicRoles('panel', false), ['panel'], 'a judge is not a learner');
   eq(L.toBool('true'), true); eq(L.toBool('1'), true); eq(L.toBool('FALSE'), false); eq(L.toBool(''), false);
   const lateEnd = L.dayEnd7('2027-02-02');
-  eq(L.revealKey(false, lateEnd, '2027-02-02'), false, 'not passed, late window still open');
-  eq(L.revealKey(false, lateEnd + 1, '2027-02-02'), true, 'after late_until');
-  eq(L.revealKey(true, 0, '2027-02-02'), true, 'passed');
+  eq(L.revealKey(false, lateEnd, '2027-02-02'), false, 'not passed');
+  eq(L.revealKey(false, lateEnd + 365 * 86400000, '2027-02-02'), false, 'never revealed by time alone');
+  eq(L.revealKey(true), true, 'passed');
   eq(L.guardCell('=HYPERLINK("x")'), ' =HYPERLINK("x")'); eq(L.guardCell('plain'), 'plain');
   eq(L.escapeHtml('<a href="x">'), '&lt;a href=&quot;x&quot;&gt;');
 });

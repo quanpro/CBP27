@@ -9,7 +9,7 @@ var SCHEMA = {
   Config: ['key', 'value', 'note'],
   Roster: ['employee_code', 'display_name', 'role_area', 'is_manager', 'manager_code', 'roles', 'pin_hash', 'pin_salt',
     'must_change_pin', 'failed_logins', 'locked_until', 'active', 'lang',
-    'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate'],
+    'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate', 'lock_history'],
   Courses: ['code', 'name_en', 'name_vi', 'self_en', 'self_vi',
     'obj1_en', 'obj1_vi', 'obj2_en', 'obj2_vi', 'obj3_en', 'obj3_vi', 'obj4_en', 'obj4_vi', 'obj5_en', 'obj5_vi', 'obj6_en', 'obj6_vi',
     'cycle', 'blink_url', 'online_from', 'checkpoint_close', 'forum_date', 'field_until', 'open', 'order'],
@@ -21,7 +21,7 @@ var SCHEMA = {
   Teams: ['team_id', 'project_title', 'members', 'sponsor_code', 'active'],
   Attempts: ['attempt_id', 'employee_code', 'assessment', 'course', 'form', 'attempt_no', 'status', 'started_at',
     'last_saved_at', 'submitted_at', 'served_items', 'answers', 'n_items', 'n_correct', 'score_pct', 'by_objective',
-    'by_course', 'passed', 'wave', 'seed', 'self_ratings'],
+    'by_course', 'passed', 'wave', 'seed', 'self_ratings', 'graded_answers'],
   SelfRatings: ['employee_code', 'wave', 'course', 'level', 'submitted_at'],
   Unlocks: ['employee_code', 'course', 'unlocked_by', 'unlocked_at', 'reason'],
   Recall: ['employee_code', 'course', 'due_date', 'day', 'status', 'score_pct', 'done_at', 'attempt_id'],
@@ -30,7 +30,7 @@ var SCHEMA = {
     'submitted_by', 'submitted_at', 'stage'],
   PanelScores: ['team_id', 'stage', 'judge_code', 'c1_problem', 'c2_structure', 'c3_result', 'c4_value', 'c5_communication',
     'comment', 'scored_at'],
-  Summary: ['wave_or_course', 'group', 'n', 'metric', 'course', 'value', 'updated_at'],
+  Summary: ['wave_or_course', 'group', 'n', 'metric', 'course', 'value', 'updated_at', 'count'],
   Pulse: ['forum_date', 'nps', 'useful', 'will_use', 'change_next', 'submitted_at'],
   Log: ['ts', 'action', 'employee_code', 'ok', 'message']
 };
@@ -73,7 +73,7 @@ var REQ_ = null;
 var LOCK_DEPTH_ = 0;
 
 function resetRequest_() {
-  REQ_ = { now: Date.now(), tables: {}, cfg: null, courses: null, gen: null, logAction: '', logged: false, logCode: '', logMsg: '' };
+  REQ_ = { now: Date.now(), tables: {}, cfg: null, courses: null, gen: null, secrets: {}, logAction: '', logged: false, loggable: false, logCode: '', logMsg: '' };
   LOCK_DEPTH_ = 0;
   return REQ_;
 }
@@ -274,12 +274,18 @@ function replaceBody_(name, headers, rows) {
 
 var CACHE_TTL_S_ = 600;
 
+/** Cache generation: CacheService first, Script Properties as the fallback (keeps the Properties quota for real work). */
 function cacheGen_() {
   var r = req_();
   if (r.gen === null) {
     var g = null;
-    try { g = PropertiesService.getScriptProperties().getProperty('CACHE_GEN'); } catch (e) { g = null; }
-    r.gen = g || '1';
+    try { g = CacheService.getScriptCache().get('meta:cache_gen'); } catch (e) { g = null; }
+    if (!g) {
+      try { g = PropertiesService.getScriptProperties().getProperty('CACHE_GEN'); } catch (e2) { g = null; }
+      g = g || '1';
+      try { CacheService.getScriptCache().put('meta:cache_gen', g, 21600); } catch (e3) { /* optional */ }
+    }
+    r.gen = g;
   }
   return r.gen;
 }
@@ -318,6 +324,7 @@ function clearCaches_() {
   var p = PropertiesService.getScriptProperties();
   var g = parseInt(p.getProperty('CACHE_GEN') || '1', 10) || 1;
   p.setProperty('CACHE_GEN', String(g + 1));
+  try { CacheService.getScriptCache().put('meta:cache_gen', String(g + 1), 21600); } catch (e) { /* optional */ }
   req_().gen = null;
   req_().cfg = null;
   req_().courses = null;
@@ -548,10 +555,26 @@ function normCertificate_(v) {
 
 /**
  * doPost marks which actions are logged (setLogAction_); the handler adds the employee
- * code and a short message. The row is written once, while the lock is held, or by
- * writeLogNow_() for requests that never took the lock. Never PINs, answers or tokens.
+ * code and a short message. Only "loggable" requests get a row: a valid session, a
+ * successful login, a real person's lock, or an admin action. Anonymous failures (bad JSON,
+ * forged token, unknown code, wrong PIN) never take the lock or write a row; they are only
+ * counted in CacheService (countAnon_). The row is written once, while the lock is held, or
+ * by writeLogNow_(). Never PINs, answers or tokens.
  */
 function setLogAction_(action) { var r = req_(); r.logAction = action; r.logged = false; r.logCode = ''; r.logMsg = ''; }
+
+/** Marks this request as one that may write a Log row. */
+function setLoggable_() { req_().loggable = true; }
+
+/** Counts unauthenticated failures per hour in CacheService (no Sheet work, no lock). */
+function countAnon_() {
+  try {
+    var c = CacheService.getScriptCache();
+    var k = 'stat:anon:' + iso7(nowMs_()).slice(0, 13);
+    var n = parseInt(c.get(k) || '0', 10) || 0;
+    c.put(k, String(n + 1), 21600);
+  } catch (e) { /* counting is best effort */ }
+}
 
 function setLogInfo_(code, message) {
   var r = req_();
@@ -567,7 +590,7 @@ function scrubLog_(s) {
 
 function writeLogRow_(outcome) {
   var r = req_();
-  if (!r.logAction || r.logged || LOCK_DEPTH_ < 1) return;
+  if (!r.logAction || r.logged || !r.loggable || LOCK_DEPTH_ < 1) return;
   r.logged = true;
   appendRows_('Log', [{
     ts: iso7(Date.now()), action: r.logAction, employee_code: r.logCode || '',
@@ -578,7 +601,7 @@ function writeLogRow_(outcome) {
 /** For requests that never took the lock: a short separate lock just for the Log row. */
 function writeLogNow_(outcome) {
   var r = req_();
-  if (!r.logAction || r.logged) return;
+  if (!r.logAction || r.logged || !r.loggable) return;
   try {
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(2000)) { r.logged = true; return; }

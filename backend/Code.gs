@@ -9,7 +9,7 @@ var MAX_BODY_BYTES_ = 200000;
 
 /** Actions that get one Log row (never with PINs, answers or tokens). */
 var LOGGED_ACTIONS_ = {
-  login: true, change_pin: true, consent: true, start: true, submit: true,
+  login: true, change_pin: true, consent: true, logout: true, start: true, submit: true,
   capstone_submit: true, panel_score: true
 };
 
@@ -17,6 +17,7 @@ function routes_() {
   return {
     login: apiLogin_,
     change_pin: apiChangePin_,
+    logout: apiLogout_,
     consent: apiConsent_,
     set_lang: apiSetLang_,
     me: apiMe_,
@@ -49,7 +50,8 @@ function doPost(e) {
     writeLogNow_({ ok: true, code: '' });
   } catch (err) {
     out = errorBody_(err);
-    writeLogNow_({ ok: false, code: out.error.code });
+    if (req_().loggable) writeLogNow_({ ok: false, code: out.error.code });
+    else countAnon_(); // anonymous failure: no lock, no Sheet write
   }
   return jsonOut_(out);
 }

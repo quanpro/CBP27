@@ -14,6 +14,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Issue PINs for new roster rows', 'menuIssuePins')
     .addItem('Reset a PIN…', 'menuResetPin')
+    .addItem('Clear a lock…', 'menuClearLock')
     .addItem('Unlock a retake…', 'menuUnlock')
     .addItem('Void an attempt…', 'menuVoidAttempt')
     .addSeparator()
@@ -53,6 +54,7 @@ function listHtml_(title, lines) {
 function adminRun_(action, fn) {
   resetRequest_();
   setLogAction_(action);
+  setLoggable_();
   return withLock_(fn);
 }
 
@@ -179,10 +181,11 @@ function issuePins_() {
       if (!isValidCode(code)) return;
       var pin = randomPin_();
       var rec = makePinRecord_(pin);
-      updateRow_('Roster', r._row, {
+      updateRow_('Roster', r._row, Object.assign({
         employee_code: code, pin_hash: rec.pin_hash, pin_salt: rec.pin_salt, must_change_pin: 'TRUE',
-        failed_logins: 0, locked_until: '', lock_count: 0, session_ver: toInt(r.session_ver, 0) + 1
-      });
+        session_ver: toInt(r.session_ver, 0) + 1
+      }, clearLockFields_()));
+      clearFailState_(code);
       issued.push({ code: code, name: r.display_name || '', pin: pin });
     });
     setLogInfo_('', issued.length + ' issued');
@@ -214,14 +217,33 @@ function resetPin_(code) {
     if (!r) throw new Error('No roster row for ' + c);
     var pin = randomPin_();
     var rec = makePinRecord_(pin);
-    updateRow_('Roster', r._row, {
-      pin_hash: rec.pin_hash, pin_salt: rec.pin_salt, must_change_pin: 'TRUE', failed_logins: 0,
-      locked_until: '', lock_count: 0, session_ver: toInt(r.session_ver, 0) + 1
-    });
+    updateRow_('Roster', r._row, Object.assign({
+      pin_hash: rec.pin_hash, pin_salt: rec.pin_salt, must_change_pin: 'TRUE', session_ver: toInt(r.session_ver, 0) + 1
+    }, clearLockFields_()));
+    clearFailState_(c);
     setLogInfo_(c, 'reset');
     out = { code: c, name: r.display_name || '', pin: pin };
   });
   return out;
+}
+
+/** Lifts every lock on a code (including the 3-locks-in-7-days lock); the PIN stays the same. */
+function clearLock_(code) {
+  var c = normCode(code);
+  adminRun_('admin_clear_lock', function () {
+    var r = findRosterRow_(c);
+    if (!r) throw new Error('No roster row for ' + c);
+    updateRow_('Roster', r._row, clearLockFields_());
+    clearFailState_(c);
+    setLogInfo_(c, 'lock cleared');
+  });
+  return true;
+}
+
+function menuClearLock() {
+  var code = ask_('Clear a lock', 'Employee code (the PIN stays the same; use Reset a PIN… if it is forgotten):');
+  if (!code) return;
+  try { clearLock_(code); notify_('Clear a lock', 'Done: ' + normCode(code) + ' can sign in again.'); } catch (e) { notify_('Clear a lock', e.message); }
 }
 
 function menuResetPin() {
@@ -419,7 +441,7 @@ function buildDashGate_() {
           if (!key[id]) return;
           var s = stats[id] = stats[id] || { n: 0, k: 0, wrong: {} };
           s.n++;
-          var y = a.answers[id];
+          var y = gradedAnswers_(a)[id];
           if (y === key[id]) s.k++; else { var w = y || 'blank'; s.wrong[w] = (s.wrong[w] || 0) + 1; }
         });
       });
@@ -500,15 +522,21 @@ function buildDashPanel_() {
       teams_().forEach(function (t) {
         var mine = scores.filter(function (r) { return String(r.team_id).trim() === t.team_id && String(r.stage).trim().toLowerCase() === stage; });
         if (!mine.length) return;
+        var weighted = function (list) {
+          var w = list.map(function (r) {
+            return panelWeighted(stage, { c1: r.c1_problem, c2: r.c2_structure, c3: r.c3_result, c4: r.c4_value, c5: r.c5_communication });
+          }).filter(function (x) { return x !== null; });
+          return w.length ? Math.round(100 * w.reduce(function (s, x) { return s + x; }, 0) / w.length) / 100 : '';
+        };
+        var bySponsor = mine.filter(function (r) { return t.sponsor_code && normCode(r.judge_code) === t.sponsor_code; });
+        var others = mine.filter(function (r) { return bySponsor.indexOf(r) < 0; });
         var avg = function (k) { return round1(mine.reduce(function (s, r) { return s + toNum(r[k], 0); }, 0) / mine.length); };
-        var w = mine.map(function (r) {
-          return panelWeighted(stage, { c1: r.c1_problem, c2: r.c2_structure, c3: r.c3_result, c4: r.c4_value, c5: r.c5_communication });
-        }).filter(function (x) { return x !== null; });
-        var team = w.length ? Math.round(100 * w.reduce(function (s, x) { return s + x; }, 0) / w.length) / 100 : '';
-        out.push([stage, t.team_id, t.project_title, mine.length, avg('c1_problem'), avg('c2_structure'), avg('c3_result'), avg('c4_value'), avg('c5_communication'), team]);
+        var team = weighted(mine);
+        out.push([stage, t.team_id, t.project_title, mine.length, avg('c1_problem'), avg('c2_structure'), avg('c3_result'), avg('c4_value'), avg('c5_communication'), team,
+          bySponsor.length ? 'yes (' + t.sponsor_code + ')' : 'no', bySponsor.length ? weighted(others) : team]);
       });
     });
-    writeDash_('Dash_Panel', ['stage', 'team_id', 'project_title', 'judges', 'c1', 'c2', 'c3', 'c4', 'c5', 'weighted_score'], out);
+    writeDash_('Dash_Panel', ['stage', 'team_id', 'project_title', 'judges', 'c1', 'c2', 'c3', 'c4', 'c5', 'weighted_score', 'sponsor_scored', 'weighted_without_sponsor'], out);
   });
   return out.length;
 }

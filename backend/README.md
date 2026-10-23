@@ -33,6 +33,8 @@ Dev server accounts (all PIN `246810`): `T001`, `T005` demand · `T002`, `T006` 
 
 ## Rules the code keeps
 - Served items are built from a whitelist: never `answer`, `why_*` or `correct` before submission (tests deep-scan every `start`).
-- The checkpoint key and "why" are shown only after the learner passes that course, or after `forum_date + late_days` (decision D5).
-- Team views: groups under `team_view_min_n` are left out, managers and `test` users are never counted, and a group is also hidden when "all minus the shown groups" would single out fewer than `min_n` people.
+- The checkpoint key and "why" are shown only after the learner passes that course (decision D5, hardened: no time-based reveal).
+- Team views: groups and per-metric counts under `team_view_min_n` are left out, managers and `test` users are never counted, a group or metric is also hidden when "all minus the shown groups" would single out fewer than `min_n` people, and numbers are published (by `buildSummary`, never on a request) only after the baseline window / each course's late window has closed.
+- Wrong PINs are counted in CacheService for every code, known or not: no Sheet write, no script lock and no Log row for anonymous failures. 15 min, 30 min, then a lock that needs an admin (3 locks in 7 days).
+- Consent is enforced on the server (`consent_required`); `logout` signs out every device.
 - The Log tab never receives PINs, answers or tokens.

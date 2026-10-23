@@ -348,23 +348,32 @@ function verifyToken(token, nowMs, hmacFn) {
   return { ok: true, payload: payload };
 }
 
-// ---------------------------------------------------------------- lockout (F2)
+// ---------------------------------------------------------------- lockout (F2, hardened)
 
-/** Lock n of the day lasts 15 · 2^(n-1) minutes, at most 24 h. */
-function lockMinutes(n) { return Math.min(15 * Math.pow(2, Math.max(1, n) - 1), 1440); }
+var LOCK_WINDOW_MS = 7 * DAY_MS;
+var HARD_LOCK_AFTER = 3;
+/** Roster.locked_until for a lock that only an admin can lift ("Reset a PIN…" / "Clear a lock…"). */
+var HARD_LOCK_ISO = '2099-12-31T23:59:59+07:00';
+
+/** Lock n within 7 days lasts 15 · 2^(n-1) minutes (15, 30, …). */
+function lockMinutes(n) { return 15 * Math.pow(2, Math.max(1, n) - 1); }
 
 /**
- * Next lock after the 5th failure. A lock that started on the same +07:00 day as the
- * previous one doubles; a new day starts again at 15 minutes.
+ * Next lock after the 5th wrong PIN. history = start times (ms) of earlier locks of this code.
+ * Locks are counted over a rolling 7 days: 15 min, then 30; the 3rd lock within 7 days is
+ * permanent until an admin clears it. → {history (≤ 3, newest last), count, hard, locked_until}
  */
-function nextLockState(prevCount, prevLockedUntilMs, nowMs) {
-  var n = 1;
-  prevCount = toInt(prevCount, 0);
-  if (prevCount > 0 && isFinite(prevLockedUntilMs) && !isNaN(prevLockedUntilMs)) {
-    var prevStart = prevLockedUntilMs - lockMinutes(prevCount) * 60000;
-    if (date7(prevStart) === date7(nowMs)) n = prevCount + 1;
-  }
-  return { lock_count: n, locked_until: nowMs + lockMinutes(n) * 60000 };
+function nextLock(history, nowMs) {
+  var seen = {}, recent = [];
+  (history || []).forEach(function (t) {
+    t = typeof t === 'number' ? t : parseTime(t);
+    if (isFinite(t) && !isNaN(t) && t > nowMs - LOCK_WINDOW_MS && t <= nowMs && !seen[t]) { seen[t] = true; recent.push(t); }
+  });
+  recent.sort(function (a, b) { return a - b; });
+  recent.push(nowMs);
+  var n = recent.length;
+  var hard = n >= HARD_LOCK_AFTER;
+  return { history: recent.slice(-HARD_LOCK_AFTER), count: n, hard: hard, locked_until: hard ? Infinity : nowMs + lockMinutes(n) * 60000 };
 }
 
 // ---------------------------------------------------------------- seeded shuffle
@@ -609,12 +618,12 @@ function unlocksUsed(attempts, maxFree, lateUntilMs) {
   return n;
 }
 
-/** D5: the key and why appear once the course is passed or after late_until. */
-function revealKey(passedCourse, nowMs, lateUntilDate) {
-  if (passedCourse) return true;
-  var end = dayEnd7(lateUntilDate);
-  return !isNaN(end) && nowMs > end;
-}
+/**
+ * D5 (hardened): a checkpoint's correct options and "why" lines appear only once the learner
+ * has passed that course. There is no time-based reveal: a late learner who could read both
+ * keys would pass an unlocked attempt from memory.
+ */
+function revealKey(passedCourse) { return !!passedCourse; }
 
 // ---------------------------------------------------------------- spaced recall (F11)
 
@@ -668,11 +677,12 @@ function excludedFromSummary(row) {
 
 /**
  * rows: [{group, is_manager, roles, values: {metric: number|null}}]
- * → [{group, n, avg: {metric: mean|null}}] for "all" then the role groups.
- * Managers, test users and inactive rows are never counted. Groups with n < minN are
- * dropped. Complementary rule: the people left out of the shown role groups must
- * themselves number 0 or ≥ minN, so "all" minus the shown groups never reveals a
- * smaller group (the next smallest role group is hidden until that holds).
+ * → [{group, n, avg: {metric: mean|null}, count: {metric: k}}] for "all" then the role groups.
+ * - Managers, test users and inactive rows are never counted.
+ * - Groups with n < minN are dropped; complementary rule: the people left out of the shown
+ *   role groups number 0 or ≥ minN, so "all" minus the shown groups never singles anyone out.
+ * - Per metric: count = people with a value; a metric with count < minN is null, and the same
+ *   complementary rule runs on each metric's counts.
  */
 function summarise(rows, minN) {
   minN = toInt(minN, 3);
@@ -688,22 +698,31 @@ function summarise(rows, minN) {
     });
     var avg = {};
     Object.keys(sums).forEach(function (k) { avg[k] = counts[k] ? sums[k] / counts[k] : null; });
-    return { group: name, n: members.length, avg: avg };
+    return { group: name, n: members.length, avg: avg, count: counts };
+  };
+  var hide = function (total, list, size) {
+    for (;;) {
+      var shown = list.reduce(function (s, g) { return s + size(g); }, 0);
+      var hidden = total - shown;
+      if (hidden === 0 || hidden >= minN || !list.length) return list;
+      var smallest = list.slice().sort(function (a, b) { return size(a) - size(b); })[0];
+      list = list.filter(function (g) { return g !== smallest; });
+    }
   };
   var all = build('all', kept);
   if (all.n < minN) return [];
   var groups = ROLE_GROUPS.map(function (g) {
     return build(g, kept.filter(function (r) { return str(r.group).toLowerCase() === g; }));
   });
-  var visible = groups.filter(function (g) { return g.n >= minN; });
-  for (;;) {
-    var shown = visible.reduce(function (s, g) { return s + g.n; }, 0);
-    var hidden = all.n - shown;
-    if (hidden === 0 || hidden >= minN || !visible.length) break;
-    var smallest = visible.slice().sort(function (a, b) { return a.n - b.n; })[0];
-    visible = visible.filter(function (g) { return g !== smallest; });
-  }
-  return [all].concat(groups.filter(function (g) { return visible.indexOf(g) >= 0; }));
+  var visible = hide(all.n, groups.filter(function (g) { return g.n >= minN; }), function (g) { return g.n; });
+  var shownGroups = [all].concat(groups.filter(function (g) { return visible.indexOf(g) >= 0; }));
+  Object.keys(all.count).forEach(function (k) {
+    var size = function (g) { return g.count[k] || 0; };
+    shownGroups.forEach(function (g) { if (size(g) < minN) g.avg[k] = null; });
+    var keep = hide(size(all), visible.filter(function (g) { return g.avg[k] !== null; }), size);
+    visible.forEach(function (g) { if (keep.indexOf(g) < 0) g.avg[k] = null; });
+  });
+  return shownGroups;
 }
 
 // ---------------------------------------------------------------- panel weighting (F20)
@@ -870,7 +889,8 @@ if (typeof module !== 'undefined' && module.exports) {
     normDate: normDate, normWave: normWave, normObjective: normObjective, objectiveOut: objectiveOut,
     bytesToHex: bytesToHex, hashPin: hashPin, constantTimeEqual: constantTimeEqual,
     b64urlEncode: b64urlEncode, b64urlDecode: b64urlDecode, signToken: signToken, verifyToken: verifyToken,
-    lockMinutes: lockMinutes, nextLockState: nextLockState,
+    LOCK_WINDOW_MS: LOCK_WINDOW_MS, HARD_LOCK_AFTER: HARD_LOCK_AFTER, HARD_LOCK_ISO: HARD_LOCK_ISO,
+    lockMinutes: lockMinutes, nextLock: nextLock,
     hashString: hashString, mulberry32: mulberry32, shuffle: shuffle,
     optionOf: optionOf, serveItem: serveItem, cleanAnswers: cleanAnswers, cleanSelfRatings: cleanSelfRatings,
     byObjective: byObjective, grade: grade, isPass: isPass, byCourse: byCourse, weakObjectives: weakObjectives,

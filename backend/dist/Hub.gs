@@ -910,23 +910,32 @@ function verifyToken(token, nowMs, hmacFn) {
   return { ok: true, payload: payload };
 }
 
-// ---------------------------------------------------------------- lockout (F2)
+// ---------------------------------------------------------------- lockout (F2, hardened)
 
-/** Lock n of the day lasts 15 · 2^(n-1) minutes, at most 24 h. */
-function lockMinutes(n) { return Math.min(15 * Math.pow(2, Math.max(1, n) - 1), 1440); }
+var LOCK_WINDOW_MS = 7 * DAY_MS;
+var HARD_LOCK_AFTER = 3;
+/** Roster.locked_until for a lock that only an admin can lift ("Reset a PIN…" / "Clear a lock…"). */
+var HARD_LOCK_ISO = '2099-12-31T23:59:59+07:00';
+
+/** Lock n within 7 days lasts 15 · 2^(n-1) minutes (15, 30, …). */
+function lockMinutes(n) { return 15 * Math.pow(2, Math.max(1, n) - 1); }
 
 /**
- * Next lock after the 5th failure. A lock that started on the same +07:00 day as the
- * previous one doubles; a new day starts again at 15 minutes.
+ * Next lock after the 5th wrong PIN. history = start times (ms) of earlier locks of this code.
+ * Locks are counted over a rolling 7 days: 15 min, then 30; the 3rd lock within 7 days is
+ * permanent until an admin clears it. → {history (≤ 3, newest last), count, hard, locked_until}
  */
-function nextLockState(prevCount, prevLockedUntilMs, nowMs) {
-  var n = 1;
-  prevCount = toInt(prevCount, 0);
-  if (prevCount > 0 && isFinite(prevLockedUntilMs) && !isNaN(prevLockedUntilMs)) {
-    var prevStart = prevLockedUntilMs - lockMinutes(prevCount) * 60000;
-    if (date7(prevStart) === date7(nowMs)) n = prevCount + 1;
-  }
-  return { lock_count: n, locked_until: nowMs + lockMinutes(n) * 60000 };
+function nextLock(history, nowMs) {
+  var seen = {}, recent = [];
+  (history || []).forEach(function (t) {
+    t = typeof t === 'number' ? t : parseTime(t);
+    if (isFinite(t) && !isNaN(t) && t > nowMs - LOCK_WINDOW_MS && t <= nowMs && !seen[t]) { seen[t] = true; recent.push(t); }
+  });
+  recent.sort(function (a, b) { return a - b; });
+  recent.push(nowMs);
+  var n = recent.length;
+  var hard = n >= HARD_LOCK_AFTER;
+  return { history: recent.slice(-HARD_LOCK_AFTER), count: n, hard: hard, locked_until: hard ? Infinity : nowMs + lockMinutes(n) * 60000 };
 }
 
 // ---------------------------------------------------------------- seeded shuffle
@@ -1171,12 +1180,12 @@ function unlocksUsed(attempts, maxFree, lateUntilMs) {
   return n;
 }
 
-/** D5: the key and why appear once the course is passed or after late_until. */
-function revealKey(passedCourse, nowMs, lateUntilDate) {
-  if (passedCourse) return true;
-  var end = dayEnd7(lateUntilDate);
-  return !isNaN(end) && nowMs > end;
-}
+/**
+ * D5 (hardened): a checkpoint's correct options and "why" lines appear only once the learner
+ * has passed that course. There is no time-based reveal: a late learner who could read both
+ * keys would pass an unlocked attempt from memory.
+ */
+function revealKey(passedCourse) { return !!passedCourse; }
 
 // ---------------------------------------------------------------- spaced recall (F11)
 
@@ -1230,11 +1239,12 @@ function excludedFromSummary(row) {
 
 /**
  * rows: [{group, is_manager, roles, values: {metric: number|null}}]
- * → [{group, n, avg: {metric: mean|null}}] for "all" then the role groups.
- * Managers, test users and inactive rows are never counted. Groups with n < minN are
- * dropped. Complementary rule: the people left out of the shown role groups must
- * themselves number 0 or ≥ minN, so "all" minus the shown groups never reveals a
- * smaller group (the next smallest role group is hidden until that holds).
+ * → [{group, n, avg: {metric: mean|null}, count: {metric: k}}] for "all" then the role groups.
+ * - Managers, test users and inactive rows are never counted.
+ * - Groups with n < minN are dropped; complementary rule: the people left out of the shown
+ *   role groups number 0 or ≥ minN, so "all" minus the shown groups never singles anyone out.
+ * - Per metric: count = people with a value; a metric with count < minN is null, and the same
+ *   complementary rule runs on each metric's counts.
  */
 function summarise(rows, minN) {
   minN = toInt(minN, 3);
@@ -1250,22 +1260,31 @@ function summarise(rows, minN) {
     });
     var avg = {};
     Object.keys(sums).forEach(function (k) { avg[k] = counts[k] ? sums[k] / counts[k] : null; });
-    return { group: name, n: members.length, avg: avg };
+    return { group: name, n: members.length, avg: avg, count: counts };
+  };
+  var hide = function (total, list, size) {
+    for (;;) {
+      var shown = list.reduce(function (s, g) { return s + size(g); }, 0);
+      var hidden = total - shown;
+      if (hidden === 0 || hidden >= minN || !list.length) return list;
+      var smallest = list.slice().sort(function (a, b) { return size(a) - size(b); })[0];
+      list = list.filter(function (g) { return g !== smallest; });
+    }
   };
   var all = build('all', kept);
   if (all.n < minN) return [];
   var groups = ROLE_GROUPS.map(function (g) {
     return build(g, kept.filter(function (r) { return str(r.group).toLowerCase() === g; }));
   });
-  var visible = groups.filter(function (g) { return g.n >= minN; });
-  for (;;) {
-    var shown = visible.reduce(function (s, g) { return s + g.n; }, 0);
-    var hidden = all.n - shown;
-    if (hidden === 0 || hidden >= minN || !visible.length) break;
-    var smallest = visible.slice().sort(function (a, b) { return a.n - b.n; })[0];
-    visible = visible.filter(function (g) { return g !== smallest; });
-  }
-  return [all].concat(groups.filter(function (g) { return visible.indexOf(g) >= 0; }));
+  var visible = hide(all.n, groups.filter(function (g) { return g.n >= minN; }), function (g) { return g.n; });
+  var shownGroups = [all].concat(groups.filter(function (g) { return visible.indexOf(g) >= 0; }));
+  Object.keys(all.count).forEach(function (k) {
+    var size = function (g) { return g.count[k] || 0; };
+    shownGroups.forEach(function (g) { if (size(g) < minN) g.avg[k] = null; });
+    var keep = hide(size(all), visible.filter(function (g) { return g.avg[k] !== null; }), size);
+    visible.forEach(function (g) { if (keep.indexOf(g) < 0) g.avg[k] = null; });
+  });
+  return shownGroups;
 }
 
 // ---------------------------------------------------------------- panel weighting (F20)
@@ -1432,7 +1451,8 @@ if (typeof module !== 'undefined' && module.exports) {
     normDate: normDate, normWave: normWave, normObjective: normObjective, objectiveOut: objectiveOut,
     bytesToHex: bytesToHex, hashPin: hashPin, constantTimeEqual: constantTimeEqual,
     b64urlEncode: b64urlEncode, b64urlDecode: b64urlDecode, signToken: signToken, verifyToken: verifyToken,
-    lockMinutes: lockMinutes, nextLockState: nextLockState,
+    LOCK_WINDOW_MS: LOCK_WINDOW_MS, HARD_LOCK_AFTER: HARD_LOCK_AFTER, HARD_LOCK_ISO: HARD_LOCK_ISO,
+    lockMinutes: lockMinutes, nextLock: nextLock,
     hashString: hashString, mulberry32: mulberry32, shuffle: shuffle,
     optionOf: optionOf, serveItem: serveItem, cleanAnswers: cleanAnswers, cleanSelfRatings: cleanSelfRatings,
     byObjective: byObjective, grade: grade, isPass: isPass, byCourse: byCourse, weakObjectives: weakObjectives,
@@ -1458,7 +1478,7 @@ var SCHEMA = {
   Config: ['key', 'value', 'note'],
   Roster: ['employee_code', 'display_name', 'role_area', 'is_manager', 'manager_code', 'roles', 'pin_hash', 'pin_salt',
     'must_change_pin', 'failed_logins', 'locked_until', 'active', 'lang',
-    'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate'],
+    'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate', 'lock_history'],
   Courses: ['code', 'name_en', 'name_vi', 'self_en', 'self_vi',
     'obj1_en', 'obj1_vi', 'obj2_en', 'obj2_vi', 'obj3_en', 'obj3_vi', 'obj4_en', 'obj4_vi', 'obj5_en', 'obj5_vi', 'obj6_en', 'obj6_vi',
     'cycle', 'blink_url', 'online_from', 'checkpoint_close', 'forum_date', 'field_until', 'open', 'order'],
@@ -1470,7 +1490,7 @@ var SCHEMA = {
   Teams: ['team_id', 'project_title', 'members', 'sponsor_code', 'active'],
   Attempts: ['attempt_id', 'employee_code', 'assessment', 'course', 'form', 'attempt_no', 'status', 'started_at',
     'last_saved_at', 'submitted_at', 'served_items', 'answers', 'n_items', 'n_correct', 'score_pct', 'by_objective',
-    'by_course', 'passed', 'wave', 'seed', 'self_ratings'],
+    'by_course', 'passed', 'wave', 'seed', 'self_ratings', 'graded_answers'],
   SelfRatings: ['employee_code', 'wave', 'course', 'level', 'submitted_at'],
   Unlocks: ['employee_code', 'course', 'unlocked_by', 'unlocked_at', 'reason'],
   Recall: ['employee_code', 'course', 'due_date', 'day', 'status', 'score_pct', 'done_at', 'attempt_id'],
@@ -1479,7 +1499,7 @@ var SCHEMA = {
     'submitted_by', 'submitted_at', 'stage'],
   PanelScores: ['team_id', 'stage', 'judge_code', 'c1_problem', 'c2_structure', 'c3_result', 'c4_value', 'c5_communication',
     'comment', 'scored_at'],
-  Summary: ['wave_or_course', 'group', 'n', 'metric', 'course', 'value', 'updated_at'],
+  Summary: ['wave_or_course', 'group', 'n', 'metric', 'course', 'value', 'updated_at', 'count'],
   Pulse: ['forum_date', 'nps', 'useful', 'will_use', 'change_next', 'submitted_at'],
   Log: ['ts', 'action', 'employee_code', 'ok', 'message']
 };
@@ -1522,7 +1542,7 @@ var REQ_ = null;
 var LOCK_DEPTH_ = 0;
 
 function resetRequest_() {
-  REQ_ = { now: Date.now(), tables: {}, cfg: null, courses: null, gen: null, logAction: '', logged: false, logCode: '', logMsg: '' };
+  REQ_ = { now: Date.now(), tables: {}, cfg: null, courses: null, gen: null, secrets: {}, logAction: '', logged: false, loggable: false, logCode: '', logMsg: '' };
   LOCK_DEPTH_ = 0;
   return REQ_;
 }
@@ -1723,12 +1743,18 @@ function replaceBody_(name, headers, rows) {
 
 var CACHE_TTL_S_ = 600;
 
+/** Cache generation: CacheService first, Script Properties as the fallback (keeps the Properties quota for real work). */
 function cacheGen_() {
   var r = req_();
   if (r.gen === null) {
     var g = null;
-    try { g = PropertiesService.getScriptProperties().getProperty('CACHE_GEN'); } catch (e) { g = null; }
-    r.gen = g || '1';
+    try { g = CacheService.getScriptCache().get('meta:cache_gen'); } catch (e) { g = null; }
+    if (!g) {
+      try { g = PropertiesService.getScriptProperties().getProperty('CACHE_GEN'); } catch (e2) { g = null; }
+      g = g || '1';
+      try { CacheService.getScriptCache().put('meta:cache_gen', g, 21600); } catch (e3) { /* optional */ }
+    }
+    r.gen = g;
   }
   return r.gen;
 }
@@ -1767,6 +1793,7 @@ function clearCaches_() {
   var p = PropertiesService.getScriptProperties();
   var g = parseInt(p.getProperty('CACHE_GEN') || '1', 10) || 1;
   p.setProperty('CACHE_GEN', String(g + 1));
+  try { CacheService.getScriptCache().put('meta:cache_gen', String(g + 1), 21600); } catch (e) { /* optional */ }
   req_().gen = null;
   req_().cfg = null;
   req_().courses = null;
@@ -1997,10 +2024,26 @@ function normCertificate_(v) {
 
 /**
  * doPost marks which actions are logged (setLogAction_); the handler adds the employee
- * code and a short message. The row is written once, while the lock is held, or by
- * writeLogNow_() for requests that never took the lock. Never PINs, answers or tokens.
+ * code and a short message. Only "loggable" requests get a row: a valid session, a
+ * successful login, a real person's lock, or an admin action. Anonymous failures (bad JSON,
+ * forged token, unknown code, wrong PIN) never take the lock or write a row; they are only
+ * counted in CacheService (countAnon_). The row is written once, while the lock is held, or
+ * by writeLogNow_(). Never PINs, answers or tokens.
  */
 function setLogAction_(action) { var r = req_(); r.logAction = action; r.logged = false; r.logCode = ''; r.logMsg = ''; }
+
+/** Marks this request as one that may write a Log row. */
+function setLoggable_() { req_().loggable = true; }
+
+/** Counts unauthenticated failures per hour in CacheService (no Sheet work, no lock). */
+function countAnon_() {
+  try {
+    var c = CacheService.getScriptCache();
+    var k = 'stat:anon:' + iso7(nowMs_()).slice(0, 13);
+    var n = parseInt(c.get(k) || '0', 10) || 0;
+    c.put(k, String(n + 1), 21600);
+  } catch (e) { /* counting is best effort */ }
+}
 
 function setLogInfo_(code, message) {
   var r = req_();
@@ -2016,7 +2059,7 @@ function scrubLog_(s) {
 
 function writeLogRow_(outcome) {
   var r = req_();
-  if (!r.logAction || r.logged || LOCK_DEPTH_ < 1) return;
+  if (!r.logAction || r.logged || !r.loggable || LOCK_DEPTH_ < 1) return;
   r.logged = true;
   appendRows_('Log', [{
     ts: iso7(Date.now()), action: r.logAction, employee_code: r.logCode || '',
@@ -2027,7 +2070,7 @@ function writeLogRow_(outcome) {
 /** For requests that never took the lock: a short separate lock just for the Log row. */
 function writeLogNow_(outcome) {
   var r = req_();
-  if (!r.logAction || r.logged) return;
+  if (!r.logAction || r.logged || !r.loggable) return;
   try {
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(2000)) { r.logged = true; return; }
@@ -2050,7 +2093,7 @@ var MAX_BODY_BYTES_ = 200000;
 
 /** Actions that get one Log row (never with PINs, answers or tokens). */
 var LOGGED_ACTIONS_ = {
-  login: true, change_pin: true, consent: true, start: true, submit: true,
+  login: true, change_pin: true, consent: true, logout: true, start: true, submit: true,
   capstone_submit: true, panel_score: true
 };
 
@@ -2058,6 +2101,7 @@ function routes_() {
   return {
     login: apiLogin_,
     change_pin: apiChangePin_,
+    logout: apiLogout_,
     consent: apiConsent_,
     set_lang: apiSetLang_,
     me: apiMe_,
@@ -2090,7 +2134,8 @@ function doPost(e) {
     writeLogNow_({ ok: true, code: '' });
   } catch (err) {
     out = errorBody_(err);
-    writeLogNow_({ ok: false, code: out.error.code });
+    if (req_().loggable) writeLogNow_({ ok: false, code: out.error.code });
+    else countAnon_(); // anonymous failure: no lock, no Sheet write
   }
   return jsonOut_(out);
 }
@@ -2136,29 +2181,44 @@ function jsonOut_(obj) {
 // Auth.gs
 // ============================================================================
 /**
- * Auth.gs · login, PIN change, consent, language, stateless signed tokens (F1),
- * peppered PIN hashes and escalating locks (F2), server-side must_change_pin (F3).
+ * Auth.gs · login, PIN change, logout, consent, language, stateless signed tokens (F1),
+ * peppered PIN hashes and locks (F2), server-side must_change_pin (F3) and consent (F18).
+ *
+ * Wrong PINs are counted per code in CacheService for every code, known or not, so an
+ * unknown code locks exactly like a real one (no "which codes exist" oracle) and a wrong
+ * PIN costs no Sheet write and no script lock. Only when a real person gets locked is the
+ * lock also written to Roster (locked_until, lock_count, lock_history), which keeps it
+ * beyond CacheService's 6-hour limit. Locks: 15 min, then 30 within 7 days; the 3rd lock in
+ * 7 days stays until an admin uses "Reset a PIN…" or "Clear a lock…".
  */
 
 var AUTH_FAILED_MSG_ = 'Employee code or PIN is not correct.';
+var DUMMY_SALT_ = 'no-such-user-salt-00000000000000';
+var DUMMY_HASH_ = '0000000000000000000000000000000000000000000000000000000000000000';
+var FAIL_TTL_S_ = 21600; // CacheService maximum (6 h)
 
-// ---------------------------------------------------------------- secrets (Script Properties)
+// ---------------------------------------------------------------- secrets (cached, then Script Properties)
 
-function tokenSecret_() {
-  var p = PropertiesService.getScriptProperties();
-  var s = p.getProperty('TOKEN_SECRET');
+/** Secrets are cached in CacheService so forged tokens do not spend the Properties quota. */
+function secret_(name, create) {
+  var r = req_();
+  if (r.secrets[name]) return r.secrets[name];
+  var key = 'sec:' + name, s = null;
+  try { s = CacheService.getScriptCache().get(key); } catch (e) { s = null; }
   if (!s) {
-    s = randomSecret_();
-    p.setProperty('TOKEN_SECRET', s);
+    var p = PropertiesService.getScriptProperties();
+    s = p.getProperty(name);
+    if (!s && create) { s = randomSecret_(); p.setProperty(name, s); }
+    if (!s) throw new Error(name + ' is missing: run setupSheet once from the editor');
+    try { CacheService.getScriptCache().put(key, s, 21600); } catch (e2) { /* optional */ }
   }
+  r.secrets[name] = s;
   return s;
 }
 
-function pinPepper_() {
-  var s = PropertiesService.getScriptProperties().getProperty('PIN_PEPPER');
-  if (!s) throw new Error('PIN_PEPPER is missing: run setupSheet once from the editor');
-  return s;
-}
+function tokenSecret_() { return secret_('TOKEN_SECRET', true); }
+
+function pinPepper_() { return secret_('PIN_PEPPER', false); }
 
 function randomSecret_() {
   var raw = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid();
@@ -2191,12 +2251,88 @@ function randomPin_() {
   throw new Error('Could not generate a PIN');
 }
 
+/** Always one hash, whether or not the person exists (same work on both paths). */
 function pinMatches_(row, pin) {
-  if (!/^\d{6}$/.test(String(pin)) || !row.pin_hash || !row.pin_salt) return false;
-  return constantTimeEqual(hashPin(pinPepper_(), row.pin_salt, pin, pinDigest_), String(row.pin_hash).trim().toLowerCase());
+  var real = !!(row && row.pin_hash && row.pin_salt);
+  var h = hashPin(pinPepper_(), real ? row.pin_salt : DUMMY_SALT_, String(pin), pinDigest_);
+  var ok = constantTimeEqual(h, real ? String(row.pin_hash).trim().toLowerCase() : DUMMY_HASH_);
+  return real && /^\d{6}$/.test(String(pin)) && ok;
 }
 
-// ---------------------------------------------------------------- tokens
+// ---------------------------------------------------------------- failure counter and locks
+
+function failKey_(code) {
+  var c = normCode(code);
+  return 'lf:' + (isValidCode(c) ? c : 'h' + hashString(c));
+}
+
+/** {f: wrong PINs since the last lock, h: lock start times (ms), u: locked until ms (-1 = until an admin clears it)} */
+function failState_(code) {
+  try {
+    var v = CacheService.getScriptCache().get(failKey_(code));
+    var st = v ? JSON.parse(v) : null;
+    if (st && typeof st === 'object') return { f: toInt(st.f, 0), h: Array.isArray(st.h) ? st.h : [], u: toNum(st.u, 0) };
+  } catch (e) { /* treat as empty */ }
+  return { f: 0, h: [], u: 0 };
+}
+
+function putFailState_(code, st) {
+  try { CacheService.getScriptCache().put(failKey_(code), JSON.stringify(st), FAIL_TTL_S_); } catch (e) { /* best effort */ }
+}
+
+function clearFailState_(code) {
+  try { CacheService.getScriptCache().remove(failKey_(code)); } catch (e) { /* best effort */ }
+}
+
+/** Current lock from the cache, and for a real person also from Roster. → {locked, until: ms | -1} */
+function currentLock_(st, row) {
+  var now = nowMs_();
+  if (st.u === -1) return { locked: true, until: -1 };
+  if (st.u > now) return { locked: true, until: st.u };
+  if (row) {
+    var t = parseTime(row.locked_until);
+    if (!isNaN(t) && t >= parseTime(HARD_LOCK_ISO)) return { locked: true, until: -1 };
+    if (!isNaN(t) && t > now) return { locked: true, until: t };
+  }
+  return { locked: false, until: 0 };
+}
+
+function lockedError_(until) {
+  return until === -1
+    ? apiError_('locked', 'Too many wrong PINs. Please ask HR to unlock your code.', { until: null })
+    : apiError_('locked', 'Too many wrong PINs. Try again later.', { until: iso7(until) });
+}
+
+/**
+ * One wrong PIN for `code`. row is the Roster row of a real, active person or null. Throws
+ * auth_failed, or locked on the failure that reaches lock_failures. A Sheet write happens only
+ * when a real person gets locked (Roster only; never the Log, never the script lock).
+ */
+function recordFailure_(code, row, st) {
+  var cfg = config_(), now = nowMs_();
+  st.f = toInt(st.f, 0) + 1;
+  if (st.f < cfg.lock_failures) {
+    putFailState_(code, st);
+    throw apiError_('auth_failed', AUTH_FAILED_MSG_);
+  }
+  var past = (st.h || []).slice();
+  if (row) String(row.lock_history || '').split(';').forEach(function (x) { if (x.trim()) past.push(parseTime(x.trim())); });
+  var nl = nextLock(past, now);
+  putFailState_(code, { f: 0, h: nl.history, u: nl.hard ? -1 : nl.locked_until });
+  if (row) {
+    updateRow_('Roster', row._row, {
+      locked_until: nl.hard ? HARD_LOCK_ISO : iso7(nl.locked_until), lock_count: nl.count,
+      lock_history: nl.history.map(iso7).join(';'), failed_logins: 0
+    });
+    // no Log row (anonymous request): Roster.lock_history is the record
+  }
+  throw lockedError_(nl.hard ? -1 : nl.locked_until);
+}
+
+/** Admin: lifts every lock on a code (Roster and cache). Also used by Reset a PIN. */
+function clearLockFields_() { return { failed_logins: 0, locked_until: '', lock_count: 0, lock_history: '' }; }
+
+// ---------------------------------------------------------------- tokens and sessions
 
 function issueToken_(user) {
   var exp = nowMs_() + config_().session_hours * 3600000;
@@ -2204,10 +2340,14 @@ function issueToken_(user) {
 }
 
 /**
- * Checks the token and the Roster row (active, session_ver). Unless allowMustChange,
- * a learner who still has to change the issued PIN gets pin_change_required (F3).
+ * Checks the token and the Roster row (active, session_ver). Then, unless the action allows it:
+ * pin_change_required while the issued PIN is unchanged (F3), and consent_required while the
+ * privacy notice is not accepted (F18).
+ * opts.pinOk: allowed before the PIN change (me, change_pin, logout).
+ * opts.consentOk: allowed before consent (me, change_pin, logout, consent, set_lang).
  */
-function requireSession_(body, allowMustChange) {
+function requireSession_(body, opts) {
+  opts = opts === true ? { pinOk: true, consentOk: true } : (opts || {});
   var v = verifyToken(body && body.token, nowMs_(), tokenHmac_);
   if (!v.ok) throw apiError_('session_expired', 'Please sign in again.');
   var row = findRosterRow_(v.payload.c);
@@ -2215,8 +2355,10 @@ function requireSession_(body, allowMustChange) {
     throw apiError_('session_expired', 'Please sign in again.');
   }
   var user = userView_(row);
+  setLoggable_();
   setLogInfo_(user.code, null);
-  if (!allowMustChange && user.must_change_pin) throw apiError_('pin_change_required', 'Please choose a new PIN first.');
+  if (!opts.pinOk && user.must_change_pin) throw apiError_('pin_change_required', 'Please choose a new PIN first.');
+  if (!opts.consentOk && !user.consent_at) throw apiError_('consent_required', 'Please read and accept the privacy notice first.');
   return { code: user.code, row: row, user: user };
 }
 
@@ -2234,62 +2376,41 @@ function profile_(user) {
   };
 }
 
-// ---------------------------------------------------------------- failures and locks
-
-/** Records one wrong PIN (lock already held); throws auth_failed or locked. */
-function recordFailure_(row) {
-  assertLocked_();
-  var cfg = config_(), now = nowMs_();
-  var fails = toInt(row.failed_logins, 0) + 1;
-  if (fails >= cfg.lock_failures) {
-    var st = nextLockState(toInt(row.lock_count, 0), parseTime(row.locked_until), now);
-    updateRow_('Roster', row._row, { failed_logins: 0, locked_until: iso7(st.locked_until), lock_count: st.lock_count });
-    setLogInfo_(null, 'lock ' + st.lock_count);
-    throw apiError_('locked', 'Too many wrong PINs. Try again later.', { until: iso7(st.locked_until) });
-  }
-  updateRow_('Roster', row._row, { failed_logins: fails });
-  throw apiError_('auth_failed', AUTH_FAILED_MSG_);
-}
-
-function throwIfLocked_(row) {
-  var until = parseTime(row.locked_until);
-  if (!isNaN(until) && nowMs_() < until) {
-    throw apiError_('locked', 'Too many wrong PINs. Try again later.', { until: iso7(until) });
-  }
-}
-
 // ---------------------------------------------------------------- actions
 
-/** login {code, pin} → {token, expires_at, profile} */
+/**
+ * login {code, pin} → {token, expires_at, profile}. No script lock: the failure counter lives
+ * in CacheService; unknown, inactive and PIN-less codes take exactly the same path.
+ */
 function apiLogin_(body) {
-  var code = normCode(body.code);
-  var pin = body.pin === null || body.pin === undefined ? '' : String(body.pin).trim();
-  return withLock_(function () {
-    var row = isValidCode(code) ? findRosterRow_(code) : null;
-    if (!row || !toBool(row.active) || !row.pin_hash) {
-      hashPin('x', 'y', pin, pinDigest_); // same work as a real check (no timing hint)
-      throw apiError_('auth_failed', AUTH_FAILED_MSG_);
-    }
-    setLogInfo_(normCode(row.employee_code), null);
-    throwIfLocked_(row);
-    if (!pinMatches_(row, pin)) recordFailure_(row);
-    if (toInt(row.failed_logins, 0) !== 0) updateRow_('Roster', row._row, { failed_logins: 0 });
-    var user = userView_(row);
-    var t = issueToken_(user);
-    return { token: t.token, expires_at: t.expires_at, profile: profile_(user) };
-  });
+  var code = normCode(body.code).slice(0, 64);
+  var pin = body.pin === null || body.pin === undefined ? '' : String(body.pin).trim().slice(0, 32);
+  var found = isValidCode(code) ? findRosterRow_(code) : null;
+  var row = found && toBool(found.active) && found.pin_hash ? found : null;
+  var st = failState_(code);
+  var lock = currentLock_(st, row);
+  if (lock.locked) throw lockedError_(lock.until);
+  if (!pinMatches_(row, pin)) recordFailure_(code, row, st);
+  if (st.f || st.u) putFailState_(code, { f: 0, h: st.h || [], u: 0 });
+  var user = userView_(row);
+  setLoggable_();
+  setLogInfo_(user.code, null);
+  var t = issueToken_(user);
+  return { token: t.token, expires_at: t.expires_at, profile: profile_(user) };
 }
 
 /** change_pin {token, old_pin, new_pin} → {token, expires_at, profile}; bumps session_ver. */
 function apiChangePin_(body) {
-  var s = requireSession_(body, true);
+  var s = requireSession_(body, { pinOk: true, consentOk: true });
   var oldPin = body.old_pin === null || body.old_pin === undefined ? '' : String(body.old_pin).trim();
   var newPin = body.new_pin === null || body.new_pin === undefined ? '' : String(body.new_pin).trim();
   return withLock_(function () {
     var row = findRosterRow_(s.code);
     if (!row || toInt(row.session_ver, 0) !== s.user.session_ver) throw apiError_('session_expired', 'Please sign in again.');
-    throwIfLocked_(row);
-    if (!pinMatches_(row, oldPin)) recordFailure_(row);
+    var st = failState_(s.code);
+    var lock = currentLock_(st, row);
+    if (lock.locked) throw lockedError_(lock.until);
+    if (!pinMatches_(row, oldPin)) recordFailure_(s.code, row, st);
     var problem = pinProblem(newPin, oldPin);
     if (problem) throw apiError_('pin_weak', problem);
     var rec = makePinRecord_(newPin);
@@ -2298,15 +2419,23 @@ function apiChangePin_(body) {
       pin_hash: rec.pin_hash, pin_salt: rec.pin_salt, must_change_pin: 'FALSE',
       session_ver: ver, failed_logins: 0
     });
+    if (st.f) putFailState_(s.code, { f: 0, h: st.h || [], u: 0 });
     var user = userView_(findRosterRow_(s.code));
     var t = issueToken_(user);
     return { token: t.token, expires_at: t.expires_at, profile: profile_(user) };
   });
 }
 
+/** logout {token} → {}: bumps session_ver, which signs out every device. */
+function apiLogout_(body) {
+  var s = requireSession_(body, { pinOk: true, consentOk: true });
+  updateRow_('Roster', s.row._row, { session_ver: s.user.session_ver + 1 });
+  return {};
+}
+
 /** consent {token} → {consent_at} (F18). Writes only the caller's own cell. */
 function apiConsent_(body) {
-  var s = requireSession_(body);
+  var s = requireSession_(body, { consentOk: true });
   var at = s.row.consent_at;
   if (!at) {
     at = iso7(nowMs_());
@@ -2317,7 +2446,7 @@ function apiConsent_(body) {
 
 /** set_lang {token, lang} → {lang} */
 function apiSetLang_(body) {
-  var s = requireSession_(body);
+  var s = requireSession_(body, { consentOk: true });
   var lang = String(body.lang || '').trim().toLowerCase();
   if (lang !== 'en' && lang !== 'vi') throw apiError_('bad_request', 'lang must be en or vi');
   if (s.user.lang !== lang || String(s.row.lang || '') !== lang) updateRow_('Roster', s.row._row, { lang: lang });
@@ -2363,11 +2492,15 @@ function parseAttempt_(r) {
     passed: toBool(r.passed),
     wave: normWave(r.wave),
     seed: r.seed || r.attempt_id,
-    self_ratings: parseJson_(r.self_ratings, {})
+    self_ratings: parseJson_(r.self_ratings, {}),
+    graded: parseJson_(r.graded_answers, null)
   };
 }
 
 function isDone_(a) { return a.status === 'submitted' || a.status === 'expired'; }
+
+/** The answers a submitted attempt was graded on (frozen at submit; a late autosave cannot change them). */
+function gradedAnswers_(a) { return a.graded && typeof a.graded === 'object' ? a.graded : a.answers; }
 
 /** Time order (started_at, then row), so a sorted Attempts tab changes nothing. */
 function byStart_(a, b) {
@@ -2467,7 +2600,7 @@ function finalizeBaseline_(att, answers, selfRatings, status, submittedMs) {
   var self = cleanSelfRatings(selfRatings, order);
   var at = iso7(submittedMs);
   updateRow_('Attempts', att._row, {
-    status: status, submitted_at: at, answers: JSON.stringify(clean), self_ratings: JSON.stringify(self),
+    status: status, submitted_at: at, answers: JSON.stringify(clean), graded_answers: JSON.stringify(clean), self_ratings: JSON.stringify(self),
     n_items: g.n_items, n_correct: g.n_correct, score_pct: g.score_pct,
     by_objective: JSON.stringify(g.by_objective), by_course: JSON.stringify(bc), passed: ''
   });
@@ -2543,9 +2676,10 @@ function checkpointResult_(att) {
   var st = checkpointState_(att.code, att.course);
   var byId = indexItems_(itemsFor_('checkpoint', att.course, att.form));
   var served = att.served.filter(function (id) { return byId[id]; });
-  var reveal = revealKey(st.passed, now, st.late_until);
-  var missed = served.filter(function (id) { return att.answers[id] !== byId[id].answer; })
-    .map(function (id) { return reviewRow_(byId[id], att.answers[id], reveal); });
+  var reveal = revealKey(st.passed);
+  var graded = gradedAnswers_(att);
+  var missed = served.filter(function (id) { return graded[id] !== byId[id].answer; })
+    .map(function (id) { return reviewRow_(byId[id], graded[id], reveal); });
   var res = {
     assessment: 'checkpoint', course: att.course, form: att.form, attempt_no: att.attempt_no,
     n_items: att.n_items, n_correct: att.n_correct, score_pct: att.score_pct, passed: att.passed, reveal: reveal,
@@ -2567,7 +2701,8 @@ function recallRowForAttempt_(att) {
 function reviewResult_(att) {
   var byId = indexItems_(itemsForAttempt_(att));
   var served = att.served.filter(function (id) { return byId[id]; });
-  var review = served.map(function (id) { return reviewRow_(byId[id], att.answers[id], true); });
+  var graded = gradedAnswers_(att);
+  var review = served.map(function (id) { return reviewRow_(byId[id], graded[id], true); });
   if (att.assessment === 'recall') {
     var rr = recallRowForAttempt_(att);
     return {
@@ -2934,7 +3069,7 @@ function apiSubmit_(body) {
     var g = grade(served, answers, key, obj);
     var at = iso7(now);
     var patch = {
-      status: 'submitted', submitted_at: at, last_saved_at: at, answers: JSON.stringify(answers),
+      status: 'submitted', submitted_at: at, last_saved_at: at, answers: JSON.stringify(answers), graded_answers: JSON.stringify(answers),
       n_items: g.n_items, n_correct: g.n_correct, score_pct: g.score_pct, by_objective: JSON.stringify(g.by_objective)
     };
     if (att.assessment === 'checkpoint') {
@@ -2971,90 +3106,138 @@ function apiReview_(body) {
 
 // ---------------------------------------------------------------- team views
 
-/** Rows for the Summary tab (managers and test users never counted; small groups dropped). */
+/** Baseline averages are published only once nobody can still add to them (window + timer + grace). */
+function baselinePublishMs_(cfg) {
+  var end = dayEnd7(cfg.baseline_open_to);
+  return isNaN(end) ? NaN : end + (cfg.baseline_minutes + cfg.baseline_grace_minutes) * 60000;
+}
+
+/** A course's checkpoint metrics are published only after its late window (late_until) has closed. */
+function checkpointPublishMs_(c) { return dayEnd7(lateUntil_(c)); }
+
+/** Grades every abandoned baseline (all people) so a published average never moves later. Lock required. */
+function expireAllStaleBaselines_() {
+  var codes = {};
+  allAttempts_().forEach(function (a) { if (a.assessment === 'baseline' && a.status === 'open') codes[a.code] = true; });
+  Object.keys(codes).forEach(function (c) { expireBaselines_(c); });
+}
+
+/**
+ * Rows for the Summary tab, built only by buildSummary() (menu or hourly trigger), never on a
+ * request. Managers and test users are never counted; small groups and small per-metric counts
+ * are suppressed (summarise); nothing is published while it could still change, so two
+ * snapshots cannot be subtracted to reveal one person.
+ */
 function buildSummaryRows_() {
   var cfg = config_(), now = nowMs_(), updated = iso7(now);
   var minN = cfg.team_view_min_n;
   var order = courseOrder_();
   var courses = courses_();
+  expireAllStaleBaselines_();
   var people = rosterRows_().map(userView_).filter(function (u) { return u.active && u.code; });
   var atts = allAttempts_();
   var byCode = {};
   atts.forEach(function (a) { (byCode[a.code] = byCode[a.code] || []).push(a); });
   var out = [];
+  var emit = function (key, g, metric, course, value, count) {
+    out.push({ wave_or_course: key, group: g.group, n: g.n, metric: metric, course: course, value: value, updated_at: updated, count: count });
+  };
 
-  var baseRows = [];
-  people.forEach(function (u) {
-    var a = (byCode[u.code] || []).filter(function (x) { return x.assessment === 'baseline' && x.wave === cfg.wave && isDone_(x); })[0];
-    if (!a) return;
-    var self = cleanSelfRatings(a.self_ratings, order), values = {};
-    order.forEach(function (c) {
-      values['pct:' + c] = typeof a.by_course[c] === 'number' ? a.by_course[c] : null;
-      values['self:' + c] = c in self ? self[c] : null;
+  if (now > baselinePublishMs_(cfg)) {
+    var baseRows = [];
+    people.forEach(function (u) {
+      var a = (byCode[u.code] || []).filter(function (x) { return x.assessment === 'baseline' && x.wave === cfg.wave && isDone_(x); })[0];
+      if (!a) return;
+      var self = cleanSelfRatings(a.self_ratings, order), values = {};
+      order.forEach(function (c) {
+        values['pct:' + c] = typeof a.by_course[c] === 'number' ? a.by_course[c] : null;
+        values['self:' + c] = c in self ? self[c] : null;
+      });
+      baseRows.push({ group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values });
     });
-    baseRows.push({ group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values });
-  });
-  summarise(baseRows, minN).forEach(function (g) {
-    order.forEach(function (c) {
-      var sv = g.avg['self:' + c], pv = g.avg['pct:' + c];
-      out.push({ wave_or_course: cfg.wave, group: g.group, n: g.n, metric: 'self', course: c, value: sv === null || sv === undefined ? '' : round1(sv), updated_at: updated });
-      out.push({ wave_or_course: cfg.wave, group: g.group, n: g.n, metric: 'baseline_pct', course: c, value: pv === null || pv === undefined ? '' : Math.round(pv), updated_at: updated });
+    summarise(baseRows, minN).forEach(function (g) {
+      order.forEach(function (c) {
+        var sv = g.avg['self:' + c], pv = g.avg['pct:' + c];
+        emit(cfg.wave, g, 'self', c, sv === null || sv === undefined ? '' : round1(sv), g.count['self:' + c] || 0);
+        emit(cfg.wave, g, 'baseline_pct', c, pv === null || pv === undefined ? '' : Math.round(pv), g.count['pct:' + c] || 0);
+      });
     });
-  });
+  }
 
-  var cpRows = people.filter(function (u) { return u.roles.indexOf('learner') >= 0; }).map(function (u) {
-    var values = {};
-    courses.forEach(function (c) {
-      var mine = (byCode[u.code] || []).filter(function (x) { return x.assessment === 'checkpoint' && x.course === c.code && isDone_(x); });
-      values['ftp:' + c.code] = mine.length ? (mine[0].passed ? 1 : 0) : null;
-      var forumEnd = dayEnd7(c.forum_date);
-      var started = courseIsOpen_(c, now) || mine.length > 0;
-      values['pbf:' + c.code] = started ? (mine.some(function (x) { return x.passed && (isNaN(forumEnd) || x.submitted_ms <= forumEnd); }) ? 1 : 0) : null;
+  var published = courses.filter(function (c) { return now > checkpointPublishMs_(c); });
+  if (published.length) {
+    var cpRows = people.filter(function (u) { return u.roles.indexOf('learner') >= 0; }).map(function (u) {
+      var values = {};
+      published.forEach(function (c) {
+        var lateEnd = checkpointPublishMs_(c), forumEnd = dayEnd7(c.forum_date);
+        var mine = (byCode[u.code] || []).filter(function (x) {
+          return x.assessment === 'checkpoint' && x.course === c.code && isDone_(x) && x.submitted_ms <= lateEnd;
+        });
+        values['ftp:' + c.code] = mine.length ? (mine[0].passed ? 1 : 0) : null;
+        values['pbf:' + c.code] = mine.some(function (x) { return x.passed && x.submitted_ms <= forumEnd; }) ? 1 : 0;
+      });
+      return { group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values };
     });
-    return { group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values };
-  });
-  summarise(cpRows, minN).forEach(function (g) {
-    courses.forEach(function (c) {
-      var f = g.avg['ftp:' + c.code], p = g.avg['pbf:' + c.code];
-      out.push({ wave_or_course: c.code, group: g.group, n: g.n, metric: 'checkpoint_first_try_pass', course: c.code, value: f === null || f === undefined ? '' : Math.round(f * 100), updated_at: updated });
-      out.push({ wave_or_course: c.code, group: g.group, n: g.n, metric: 'checkpoint_pass_by_forum', course: c.code, value: p === null || p === undefined ? '' : Math.round(p * 100), updated_at: updated });
+    summarise(cpRows, minN).forEach(function (g) {
+      published.forEach(function (c) {
+        var f = g.avg['ftp:' + c.code], p = g.avg['pbf:' + c.code];
+        emit(c.code, g, 'checkpoint_first_try_pass', c.code, f === null || f === undefined ? '' : Math.round(f * 100), g.count['ftp:' + c.code] || 0);
+        emit(c.code, g, 'checkpoint_pass_by_forum', c.code, p === null || p === undefined ? '' : Math.round(p * 100), g.count['pbf:' + c.code] || 0);
+      });
     });
-  });
+  }
   return out;
 }
 
+/**
+ * team_summary {token} → {updated_at, min_n, wave, baseline_published, baseline_publish_after,
+ * baseline: [{group, n, courses: {A2: {self, pct}}}],
+ * checkpoints: [{group, n, courses: {A2: {first_try_pass, passed_by_forum, n_first_try, n_by_forum}}}]}
+ * Reads the Summary tab only (never computed on a request). Groups are empty until published.
+ */
 function apiTeamSummary_(body) {
   requireSession_(body);
-  var cfg = config_();
-  var rows = readTable_('Summary').rows;
-  if (!rows.length) rows = buildSummaryRows_().map(function (r) {
-    var o = {}; Object.keys(r).forEach(function (k) { o[k] = toCell_(r[k]); }); return o;
-  });
+  var cfg = config_(), now = nowMs_();
+  var minN = cfg.team_view_min_n;
+  var order = courseOrder_();
+  var basePublished = now > baselinePublishMs_(cfg);
+  var cpOpen = {};
+  courses_().forEach(function (c) { cpOpen[c.code] = now > checkpointPublishMs_(c); });
   var groupsOrder = ['all'].concat(ROLE_GROUPS);
   var base = {}, cps = {}, updated = '';
-  var val = function (v) { var s = String(v === undefined ? '' : v).trim(); return s === '' ? null : toNum(s, null); };
-  rows.forEach(function (r) {
+  var val = function (v) { var x = String(v === undefined ? '' : v).trim(); return x === '' ? null : toNum(x, null); };
+  readTable_('Summary').rows.forEach(function (r) {
     var g = String(r.group || '').trim().toLowerCase(), n = toInt(r.n, 0), c = normCode(r.course), m = String(r.metric || '').trim();
-    if (groupsOrder.indexOf(g) < 0 || n < cfg.team_view_min_n || !c) return;
-    if (r.updated_at && r.updated_at > updated) updated = r.updated_at;
+    var k = toInt(r.count, 0);
+    if (groupsOrder.indexOf(g) < 0 || n < minN || !c || order.indexOf(c) < 0) return;
+    var v = k >= minN ? val(r.value) : null; // defence in depth: small counts never shown
     if ((m === 'self' || m === 'baseline_pct') && normWave(r.wave_or_course) === cfg.wave) {
+      if (!basePublished) return;
       var b = base[g] = base[g] || { group: g, n: n, courses: {} };
       var bc = b.courses[c] = b.courses[c] || { self: null, pct: null };
-      if (m === 'self') bc.self = val(r.value); else bc.pct = val(r.value);
+      if (m === 'self') bc.self = v; else bc.pct = v;
     } else if (m === 'checkpoint_first_try_pass' || m === 'checkpoint_pass_by_forum') {
+      if (!cpOpen[c]) return;
       var p = cps[g] = cps[g] || { group: g, n: n, courses: {} };
-      var pc = p.courses[c] = p.courses[c] || { first_try_pass: null, passed_by_forum: null };
-      if (m === 'checkpoint_first_try_pass') pc.first_try_pass = val(r.value); else pc.passed_by_forum = val(r.value);
-    }
+      var pc = p.courses[c] = p.courses[c] || { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 };
+      if (m === 'checkpoint_first_try_pass') { pc.first_try_pass = v; pc.n_first_try = k; } else { pc.passed_by_forum = v; pc.n_by_forum = k; }
+    } else return;
+    if (r.updated_at && r.updated_at > updated) updated = r.updated_at;
   });
-  var order = courseOrder_();
-  var finish = function (map) {
+  var finish = function (map, empty) {
     return groupsOrder.filter(function (g) { return map[g]; }).map(function (g) {
-      map[g].courses = orderedMap_(map[g].courses, order);
+      var full = {};
+      order.forEach(function (c) { full[c] = map[g].courses[c] || empty(); });
+      map[g].courses = full;
       return map[g];
     });
   };
-  return { updated_at: updated || null, min_n: cfg.team_view_min_n, wave: cfg.wave, baseline: finish(base), checkpoints: finish(cps) };
+  return {
+    updated_at: updated || null, min_n: minN, wave: cfg.wave,
+    baseline_published: basePublished, baseline_publish_after: cfg.baseline_open_to,
+    baseline: finish(base, function () { return { self: null, pct: null }; }),
+    checkpoints: finish(cps, function () { return { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 }; })
+  };
 }
 
 function apiTeamStatus_(body) {
@@ -3063,7 +3246,8 @@ function apiTeamStatus_(body) {
   var cfg = config_();
   var atts = allAttempts_();
   var reports = rosterRows_().map(userView_).filter(function (u) {
-    return u.active && u.manager_code === s.code && u.code !== s.code && !u.is_test;
+    // managers' own results are visible only to themselves, Quân and HR
+    return u.active && u.manager_code === s.code && u.code !== s.code && !u.is_test && !u.is_manager;
   });
   return {
     reports: reports.map(function (u) {
@@ -3203,7 +3387,7 @@ function apiPanelList_(body) {
     teams: teams_().map(function (t) {
       var r = mine[t.team_id];
       return {
-        team_id: t.team_id, project_title: t.project_title,
+        team_id: t.team_id, project_title: t.project_title, is_sponsor: t.sponsor_code === s.code,
         submission: submissionFor_(t.team_id, stage),
         my_score: r ? {
           c1: toInt(r.c1_problem, 0), c2: toInt(r.c2_structure, 0), c3: toInt(r.c3_result, 0), c4: toInt(r.c4_value, 0),
@@ -3230,7 +3414,9 @@ function apiPanelScore_(body) {
   var comment = body.comment === null || body.comment === undefined ? '' : String(body.comment).trim();
   if (comment.length > 2000) throw apiError_('bad_request', 'comment is too long', { field: 'comment' });
   return withLock_(function () {
-    if (!teams_().some(function (t) { return t.team_id === teamId; })) throw apiError_('not_found', 'Team not found');
+    var team = teams_().filter(function (t) { return t.team_id === teamId; })[0];
+    if (!team) throw apiError_('not_found', 'Team not found');
+    if (team.members.indexOf(s.code) >= 0) throw apiError_('forbidden', 'Judges cannot score their own team.');
     setLogInfo_(s.code, stage + ' ' + teamId);
     var at = iso7(nowMs_());
     var row = {
@@ -3266,6 +3452,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Issue PINs for new roster rows', 'menuIssuePins')
     .addItem('Reset a PIN…', 'menuResetPin')
+    .addItem('Clear a lock…', 'menuClearLock')
     .addItem('Unlock a retake…', 'menuUnlock')
     .addItem('Void an attempt…', 'menuVoidAttempt')
     .addSeparator()
@@ -3305,6 +3492,7 @@ function listHtml_(title, lines) {
 function adminRun_(action, fn) {
   resetRequest_();
   setLogAction_(action);
+  setLoggable_();
   return withLock_(fn);
 }
 
@@ -3431,10 +3619,11 @@ function issuePins_() {
       if (!isValidCode(code)) return;
       var pin = randomPin_();
       var rec = makePinRecord_(pin);
-      updateRow_('Roster', r._row, {
+      updateRow_('Roster', r._row, Object.assign({
         employee_code: code, pin_hash: rec.pin_hash, pin_salt: rec.pin_salt, must_change_pin: 'TRUE',
-        failed_logins: 0, locked_until: '', lock_count: 0, session_ver: toInt(r.session_ver, 0) + 1
-      });
+        session_ver: toInt(r.session_ver, 0) + 1
+      }, clearLockFields_()));
+      clearFailState_(code);
       issued.push({ code: code, name: r.display_name || '', pin: pin });
     });
     setLogInfo_('', issued.length + ' issued');
@@ -3466,14 +3655,33 @@ function resetPin_(code) {
     if (!r) throw new Error('No roster row for ' + c);
     var pin = randomPin_();
     var rec = makePinRecord_(pin);
-    updateRow_('Roster', r._row, {
-      pin_hash: rec.pin_hash, pin_salt: rec.pin_salt, must_change_pin: 'TRUE', failed_logins: 0,
-      locked_until: '', lock_count: 0, session_ver: toInt(r.session_ver, 0) + 1
-    });
+    updateRow_('Roster', r._row, Object.assign({
+      pin_hash: rec.pin_hash, pin_salt: rec.pin_salt, must_change_pin: 'TRUE', session_ver: toInt(r.session_ver, 0) + 1
+    }, clearLockFields_()));
+    clearFailState_(c);
     setLogInfo_(c, 'reset');
     out = { code: c, name: r.display_name || '', pin: pin };
   });
   return out;
+}
+
+/** Lifts every lock on a code (including the 3-locks-in-7-days lock); the PIN stays the same. */
+function clearLock_(code) {
+  var c = normCode(code);
+  adminRun_('admin_clear_lock', function () {
+    var r = findRosterRow_(c);
+    if (!r) throw new Error('No roster row for ' + c);
+    updateRow_('Roster', r._row, clearLockFields_());
+    clearFailState_(c);
+    setLogInfo_(c, 'lock cleared');
+  });
+  return true;
+}
+
+function menuClearLock() {
+  var code = ask_('Clear a lock', 'Employee code (the PIN stays the same; use Reset a PIN… if it is forgotten):');
+  if (!code) return;
+  try { clearLock_(code); notify_('Clear a lock', 'Done: ' + normCode(code) + ' can sign in again.'); } catch (e) { notify_('Clear a lock', e.message); }
 }
 
 function menuResetPin() {
@@ -3671,7 +3879,7 @@ function buildDashGate_() {
           if (!key[id]) return;
           var s = stats[id] = stats[id] || { n: 0, k: 0, wrong: {} };
           s.n++;
-          var y = a.answers[id];
+          var y = gradedAnswers_(a)[id];
           if (y === key[id]) s.k++; else { var w = y || 'blank'; s.wrong[w] = (s.wrong[w] || 0) + 1; }
         });
       });
@@ -3752,15 +3960,21 @@ function buildDashPanel_() {
       teams_().forEach(function (t) {
         var mine = scores.filter(function (r) { return String(r.team_id).trim() === t.team_id && String(r.stage).trim().toLowerCase() === stage; });
         if (!mine.length) return;
+        var weighted = function (list) {
+          var w = list.map(function (r) {
+            return panelWeighted(stage, { c1: r.c1_problem, c2: r.c2_structure, c3: r.c3_result, c4: r.c4_value, c5: r.c5_communication });
+          }).filter(function (x) { return x !== null; });
+          return w.length ? Math.round(100 * w.reduce(function (s, x) { return s + x; }, 0) / w.length) / 100 : '';
+        };
+        var bySponsor = mine.filter(function (r) { return t.sponsor_code && normCode(r.judge_code) === t.sponsor_code; });
+        var others = mine.filter(function (r) { return bySponsor.indexOf(r) < 0; });
         var avg = function (k) { return round1(mine.reduce(function (s, r) { return s + toNum(r[k], 0); }, 0) / mine.length); };
-        var w = mine.map(function (r) {
-          return panelWeighted(stage, { c1: r.c1_problem, c2: r.c2_structure, c3: r.c3_result, c4: r.c4_value, c5: r.c5_communication });
-        }).filter(function (x) { return x !== null; });
-        var team = w.length ? Math.round(100 * w.reduce(function (s, x) { return s + x; }, 0) / w.length) / 100 : '';
-        out.push([stage, t.team_id, t.project_title, mine.length, avg('c1_problem'), avg('c2_structure'), avg('c3_result'), avg('c4_value'), avg('c5_communication'), team]);
+        var team = weighted(mine);
+        out.push([stage, t.team_id, t.project_title, mine.length, avg('c1_problem'), avg('c2_structure'), avg('c3_result'), avg('c4_value'), avg('c5_communication'), team,
+          bySponsor.length ? 'yes (' + t.sponsor_code + ')' : 'no', bySponsor.length ? weighted(others) : team]);
       });
     });
-    writeDash_('Dash_Panel', ['stage', 'team_id', 'project_title', 'judges', 'c1', 'c2', 'c3', 'c4', 'c5', 'weighted_score'], out);
+    writeDash_('Dash_Panel', ['stage', 'team_id', 'project_title', 'judges', 'c1', 'c2', 'c3', 'c4', 'c5', 'weighted_score', 'sponsor_scored', 'weighted_without_sponsor'], out);
   });
   return out.length;
 }

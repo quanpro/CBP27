@@ -34,11 +34,15 @@ function parseAttempt_(r) {
     passed: toBool(r.passed),
     wave: normWave(r.wave),
     seed: r.seed || r.attempt_id,
-    self_ratings: parseJson_(r.self_ratings, {})
+    self_ratings: parseJson_(r.self_ratings, {}),
+    graded: parseJson_(r.graded_answers, null)
   };
 }
 
 function isDone_(a) { return a.status === 'submitted' || a.status === 'expired'; }
+
+/** The answers a submitted attempt was graded on (frozen at submit; a late autosave cannot change them). */
+function gradedAnswers_(a) { return a.graded && typeof a.graded === 'object' ? a.graded : a.answers; }
 
 /** Time order (started_at, then row), so a sorted Attempts tab changes nothing. */
 function byStart_(a, b) {
@@ -138,7 +142,7 @@ function finalizeBaseline_(att, answers, selfRatings, status, submittedMs) {
   var self = cleanSelfRatings(selfRatings, order);
   var at = iso7(submittedMs);
   updateRow_('Attempts', att._row, {
-    status: status, submitted_at: at, answers: JSON.stringify(clean), self_ratings: JSON.stringify(self),
+    status: status, submitted_at: at, answers: JSON.stringify(clean), graded_answers: JSON.stringify(clean), self_ratings: JSON.stringify(self),
     n_items: g.n_items, n_correct: g.n_correct, score_pct: g.score_pct,
     by_objective: JSON.stringify(g.by_objective), by_course: JSON.stringify(bc), passed: ''
   });
@@ -214,9 +218,10 @@ function checkpointResult_(att) {
   var st = checkpointState_(att.code, att.course);
   var byId = indexItems_(itemsFor_('checkpoint', att.course, att.form));
   var served = att.served.filter(function (id) { return byId[id]; });
-  var reveal = revealKey(st.passed, now, st.late_until);
-  var missed = served.filter(function (id) { return att.answers[id] !== byId[id].answer; })
-    .map(function (id) { return reviewRow_(byId[id], att.answers[id], reveal); });
+  var reveal = revealKey(st.passed);
+  var graded = gradedAnswers_(att);
+  var missed = served.filter(function (id) { return graded[id] !== byId[id].answer; })
+    .map(function (id) { return reviewRow_(byId[id], graded[id], reveal); });
   var res = {
     assessment: 'checkpoint', course: att.course, form: att.form, attempt_no: att.attempt_no,
     n_items: att.n_items, n_correct: att.n_correct, score_pct: att.score_pct, passed: att.passed, reveal: reveal,
@@ -238,7 +243,8 @@ function recallRowForAttempt_(att) {
 function reviewResult_(att) {
   var byId = indexItems_(itemsForAttempt_(att));
   var served = att.served.filter(function (id) { return byId[id]; });
-  var review = served.map(function (id) { return reviewRow_(byId[id], att.answers[id], true); });
+  var graded = gradedAnswers_(att);
+  var review = served.map(function (id) { return reviewRow_(byId[id], graded[id], true); });
   if (att.assessment === 'recall') {
     var rr = recallRowForAttempt_(att);
     return {
@@ -605,7 +611,7 @@ function apiSubmit_(body) {
     var g = grade(served, answers, key, obj);
     var at = iso7(now);
     var patch = {
-      status: 'submitted', submitted_at: at, last_saved_at: at, answers: JSON.stringify(answers),
+      status: 'submitted', submitted_at: at, last_saved_at: at, answers: JSON.stringify(answers), graded_answers: JSON.stringify(answers),
       n_items: g.n_items, n_correct: g.n_correct, score_pct: g.score_pct, by_objective: JSON.stringify(g.by_objective)
     };
     if (att.assessment === 'checkpoint') {
@@ -642,90 +648,138 @@ function apiReview_(body) {
 
 // ---------------------------------------------------------------- team views
 
-/** Rows for the Summary tab (managers and test users never counted; small groups dropped). */
+/** Baseline averages are published only once nobody can still add to them (window + timer + grace). */
+function baselinePublishMs_(cfg) {
+  var end = dayEnd7(cfg.baseline_open_to);
+  return isNaN(end) ? NaN : end + (cfg.baseline_minutes + cfg.baseline_grace_minutes) * 60000;
+}
+
+/** A course's checkpoint metrics are published only after its late window (late_until) has closed. */
+function checkpointPublishMs_(c) { return dayEnd7(lateUntil_(c)); }
+
+/** Grades every abandoned baseline (all people) so a published average never moves later. Lock required. */
+function expireAllStaleBaselines_() {
+  var codes = {};
+  allAttempts_().forEach(function (a) { if (a.assessment === 'baseline' && a.status === 'open') codes[a.code] = true; });
+  Object.keys(codes).forEach(function (c) { expireBaselines_(c); });
+}
+
+/**
+ * Rows for the Summary tab, built only by buildSummary() (menu or hourly trigger), never on a
+ * request. Managers and test users are never counted; small groups and small per-metric counts
+ * are suppressed (summarise); nothing is published while it could still change, so two
+ * snapshots cannot be subtracted to reveal one person.
+ */
 function buildSummaryRows_() {
   var cfg = config_(), now = nowMs_(), updated = iso7(now);
   var minN = cfg.team_view_min_n;
   var order = courseOrder_();
   var courses = courses_();
+  expireAllStaleBaselines_();
   var people = rosterRows_().map(userView_).filter(function (u) { return u.active && u.code; });
   var atts = allAttempts_();
   var byCode = {};
   atts.forEach(function (a) { (byCode[a.code] = byCode[a.code] || []).push(a); });
   var out = [];
+  var emit = function (key, g, metric, course, value, count) {
+    out.push({ wave_or_course: key, group: g.group, n: g.n, metric: metric, course: course, value: value, updated_at: updated, count: count });
+  };
 
-  var baseRows = [];
-  people.forEach(function (u) {
-    var a = (byCode[u.code] || []).filter(function (x) { return x.assessment === 'baseline' && x.wave === cfg.wave && isDone_(x); })[0];
-    if (!a) return;
-    var self = cleanSelfRatings(a.self_ratings, order), values = {};
-    order.forEach(function (c) {
-      values['pct:' + c] = typeof a.by_course[c] === 'number' ? a.by_course[c] : null;
-      values['self:' + c] = c in self ? self[c] : null;
+  if (now > baselinePublishMs_(cfg)) {
+    var baseRows = [];
+    people.forEach(function (u) {
+      var a = (byCode[u.code] || []).filter(function (x) { return x.assessment === 'baseline' && x.wave === cfg.wave && isDone_(x); })[0];
+      if (!a) return;
+      var self = cleanSelfRatings(a.self_ratings, order), values = {};
+      order.forEach(function (c) {
+        values['pct:' + c] = typeof a.by_course[c] === 'number' ? a.by_course[c] : null;
+        values['self:' + c] = c in self ? self[c] : null;
+      });
+      baseRows.push({ group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values });
     });
-    baseRows.push({ group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values });
-  });
-  summarise(baseRows, minN).forEach(function (g) {
-    order.forEach(function (c) {
-      var sv = g.avg['self:' + c], pv = g.avg['pct:' + c];
-      out.push({ wave_or_course: cfg.wave, group: g.group, n: g.n, metric: 'self', course: c, value: sv === null || sv === undefined ? '' : round1(sv), updated_at: updated });
-      out.push({ wave_or_course: cfg.wave, group: g.group, n: g.n, metric: 'baseline_pct', course: c, value: pv === null || pv === undefined ? '' : Math.round(pv), updated_at: updated });
+    summarise(baseRows, minN).forEach(function (g) {
+      order.forEach(function (c) {
+        var sv = g.avg['self:' + c], pv = g.avg['pct:' + c];
+        emit(cfg.wave, g, 'self', c, sv === null || sv === undefined ? '' : round1(sv), g.count['self:' + c] || 0);
+        emit(cfg.wave, g, 'baseline_pct', c, pv === null || pv === undefined ? '' : Math.round(pv), g.count['pct:' + c] || 0);
+      });
     });
-  });
+  }
 
-  var cpRows = people.filter(function (u) { return u.roles.indexOf('learner') >= 0; }).map(function (u) {
-    var values = {};
-    courses.forEach(function (c) {
-      var mine = (byCode[u.code] || []).filter(function (x) { return x.assessment === 'checkpoint' && x.course === c.code && isDone_(x); });
-      values['ftp:' + c.code] = mine.length ? (mine[0].passed ? 1 : 0) : null;
-      var forumEnd = dayEnd7(c.forum_date);
-      var started = courseIsOpen_(c, now) || mine.length > 0;
-      values['pbf:' + c.code] = started ? (mine.some(function (x) { return x.passed && (isNaN(forumEnd) || x.submitted_ms <= forumEnd); }) ? 1 : 0) : null;
+  var published = courses.filter(function (c) { return now > checkpointPublishMs_(c); });
+  if (published.length) {
+    var cpRows = people.filter(function (u) { return u.roles.indexOf('learner') >= 0; }).map(function (u) {
+      var values = {};
+      published.forEach(function (c) {
+        var lateEnd = checkpointPublishMs_(c), forumEnd = dayEnd7(c.forum_date);
+        var mine = (byCode[u.code] || []).filter(function (x) {
+          return x.assessment === 'checkpoint' && x.course === c.code && isDone_(x) && x.submitted_ms <= lateEnd;
+        });
+        values['ftp:' + c.code] = mine.length ? (mine[0].passed ? 1 : 0) : null;
+        values['pbf:' + c.code] = mine.some(function (x) { return x.passed && x.submitted_ms <= forumEnd; }) ? 1 : 0;
+      });
+      return { group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values };
     });
-    return { group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values };
-  });
-  summarise(cpRows, minN).forEach(function (g) {
-    courses.forEach(function (c) {
-      var f = g.avg['ftp:' + c.code], p = g.avg['pbf:' + c.code];
-      out.push({ wave_or_course: c.code, group: g.group, n: g.n, metric: 'checkpoint_first_try_pass', course: c.code, value: f === null || f === undefined ? '' : Math.round(f * 100), updated_at: updated });
-      out.push({ wave_or_course: c.code, group: g.group, n: g.n, metric: 'checkpoint_pass_by_forum', course: c.code, value: p === null || p === undefined ? '' : Math.round(p * 100), updated_at: updated });
+    summarise(cpRows, minN).forEach(function (g) {
+      published.forEach(function (c) {
+        var f = g.avg['ftp:' + c.code], p = g.avg['pbf:' + c.code];
+        emit(c.code, g, 'checkpoint_first_try_pass', c.code, f === null || f === undefined ? '' : Math.round(f * 100), g.count['ftp:' + c.code] || 0);
+        emit(c.code, g, 'checkpoint_pass_by_forum', c.code, p === null || p === undefined ? '' : Math.round(p * 100), g.count['pbf:' + c.code] || 0);
+      });
     });
-  });
+  }
   return out;
 }
 
+/**
+ * team_summary {token} → {updated_at, min_n, wave, baseline_published, baseline_publish_after,
+ * baseline: [{group, n, courses: {A2: {self, pct}}}],
+ * checkpoints: [{group, n, courses: {A2: {first_try_pass, passed_by_forum, n_first_try, n_by_forum}}}]}
+ * Reads the Summary tab only (never computed on a request). Groups are empty until published.
+ */
 function apiTeamSummary_(body) {
   requireSession_(body);
-  var cfg = config_();
-  var rows = readTable_('Summary').rows;
-  if (!rows.length) rows = buildSummaryRows_().map(function (r) {
-    var o = {}; Object.keys(r).forEach(function (k) { o[k] = toCell_(r[k]); }); return o;
-  });
+  var cfg = config_(), now = nowMs_();
+  var minN = cfg.team_view_min_n;
+  var order = courseOrder_();
+  var basePublished = now > baselinePublishMs_(cfg);
+  var cpOpen = {};
+  courses_().forEach(function (c) { cpOpen[c.code] = now > checkpointPublishMs_(c); });
   var groupsOrder = ['all'].concat(ROLE_GROUPS);
   var base = {}, cps = {}, updated = '';
-  var val = function (v) { var s = String(v === undefined ? '' : v).trim(); return s === '' ? null : toNum(s, null); };
-  rows.forEach(function (r) {
+  var val = function (v) { var x = String(v === undefined ? '' : v).trim(); return x === '' ? null : toNum(x, null); };
+  readTable_('Summary').rows.forEach(function (r) {
     var g = String(r.group || '').trim().toLowerCase(), n = toInt(r.n, 0), c = normCode(r.course), m = String(r.metric || '').trim();
-    if (groupsOrder.indexOf(g) < 0 || n < cfg.team_view_min_n || !c) return;
-    if (r.updated_at && r.updated_at > updated) updated = r.updated_at;
+    var k = toInt(r.count, 0);
+    if (groupsOrder.indexOf(g) < 0 || n < minN || !c || order.indexOf(c) < 0) return;
+    var v = k >= minN ? val(r.value) : null; // defence in depth: small counts never shown
     if ((m === 'self' || m === 'baseline_pct') && normWave(r.wave_or_course) === cfg.wave) {
+      if (!basePublished) return;
       var b = base[g] = base[g] || { group: g, n: n, courses: {} };
       var bc = b.courses[c] = b.courses[c] || { self: null, pct: null };
-      if (m === 'self') bc.self = val(r.value); else bc.pct = val(r.value);
+      if (m === 'self') bc.self = v; else bc.pct = v;
     } else if (m === 'checkpoint_first_try_pass' || m === 'checkpoint_pass_by_forum') {
+      if (!cpOpen[c]) return;
       var p = cps[g] = cps[g] || { group: g, n: n, courses: {} };
-      var pc = p.courses[c] = p.courses[c] || { first_try_pass: null, passed_by_forum: null };
-      if (m === 'checkpoint_first_try_pass') pc.first_try_pass = val(r.value); else pc.passed_by_forum = val(r.value);
-    }
+      var pc = p.courses[c] = p.courses[c] || { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 };
+      if (m === 'checkpoint_first_try_pass') { pc.first_try_pass = v; pc.n_first_try = k; } else { pc.passed_by_forum = v; pc.n_by_forum = k; }
+    } else return;
+    if (r.updated_at && r.updated_at > updated) updated = r.updated_at;
   });
-  var order = courseOrder_();
-  var finish = function (map) {
+  var finish = function (map, empty) {
     return groupsOrder.filter(function (g) { return map[g]; }).map(function (g) {
-      map[g].courses = orderedMap_(map[g].courses, order);
+      var full = {};
+      order.forEach(function (c) { full[c] = map[g].courses[c] || empty(); });
+      map[g].courses = full;
       return map[g];
     });
   };
-  return { updated_at: updated || null, min_n: cfg.team_view_min_n, wave: cfg.wave, baseline: finish(base), checkpoints: finish(cps) };
+  return {
+    updated_at: updated || null, min_n: minN, wave: cfg.wave,
+    baseline_published: basePublished, baseline_publish_after: cfg.baseline_open_to,
+    baseline: finish(base, function () { return { self: null, pct: null }; }),
+    checkpoints: finish(cps, function () { return { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 }; })
+  };
 }
 
 function apiTeamStatus_(body) {
@@ -734,7 +788,8 @@ function apiTeamStatus_(body) {
   var cfg = config_();
   var atts = allAttempts_();
   var reports = rosterRows_().map(userView_).filter(function (u) {
-    return u.active && u.manager_code === s.code && u.code !== s.code && !u.is_test;
+    // managers' own results are visible only to themselves, Quân and HR
+    return u.active && u.manager_code === s.code && u.code !== s.code && !u.is_test && !u.is_manager;
   });
   return {
     reports: reports.map(function (u) {
@@ -874,7 +929,7 @@ function apiPanelList_(body) {
     teams: teams_().map(function (t) {
       var r = mine[t.team_id];
       return {
-        team_id: t.team_id, project_title: t.project_title,
+        team_id: t.team_id, project_title: t.project_title, is_sponsor: t.sponsor_code === s.code,
         submission: submissionFor_(t.team_id, stage),
         my_score: r ? {
           c1: toInt(r.c1_problem, 0), c2: toInt(r.c2_structure, 0), c3: toInt(r.c3_result, 0), c4: toInt(r.c4_value, 0),
@@ -901,7 +956,9 @@ function apiPanelScore_(body) {
   var comment = body.comment === null || body.comment === undefined ? '' : String(body.comment).trim();
   if (comment.length > 2000) throw apiError_('bad_request', 'comment is too long', { field: 'comment' });
   return withLock_(function () {
-    if (!teams_().some(function (t) { return t.team_id === teamId; })) throw apiError_('not_found', 'Team not found');
+    var team = teams_().filter(function (t) { return t.team_id === teamId; })[0];
+    if (!team) throw apiError_('not_found', 'Team not found');
+    if (team.members.indexOf(s.code) >= 0) throw apiError_('forbidden', 'Judges cannot score their own team.');
     setLogInfo_(s.code, stage + ' ' + teamId);
     var at = iso7(nowMs_());
     var row = {
