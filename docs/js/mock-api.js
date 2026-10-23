@@ -274,8 +274,8 @@ async function resultOf(a) {
   if (a.assessment === 'predict') return { assessment: 'predict', course: a.course, n_items: a.n_items, n_correct: a.n_correct, score_pct: a.score_pct, review: reviewRows(a, items, true) };
   if (a.assessment === 'recall') return { assessment: 'recall', course: a.course, day: a.day, n_items: a.n_items, n_correct: a.n_correct, score_pct: a.score_pct, review: reviewRows(a, items, true) };
   const c = cat.courses.find((x) => x.code === a.course);
-  const passedEver = mine(a.code, (x) => x.assessment === 'checkpoint' && x.course === a.course && x.passed).length > 0;
-  const reveal = passedEver || day(now()) > addDays(c.forum_date, 7);
+  // Decision D5 (as tightened after the security review): the key is shown only once the learner has passed.
+  const reveal = mine(a.code, (x) => x.assessment === 'checkpoint' && x.course === a.course && x.passed).length > 0;
   const weak = Object.entries(a.by_objective || {}).filter(([, v]) => v.correct < v.n).map(([k]) => Number(k)).sort((x, y) => x - y);
   const done = mine(a.code, (x) => x.assessment === 'checkpoint' && x.course === a.course && x.status === 'submitted').length;
   const unlocks = state.unlocks.filter((u) => u.code === a.code && u.course === a.course).length;
@@ -320,6 +320,7 @@ const ACTIONS = {
     u.pin = n; u.sv += 1; u.must_change_pin = false; save();
     return ok({ ...tokenFor(u), profile: profileOf(u) });
   },
+  async logout(p, u) { u.sv += 1; save(); return ok({}); },
   async consent(p, u) { u.consent_at = iso(now()); save(); return ok({ consent_at: u.consent_at }); },
   async set_lang(p, u) { if (['en', 'vi'].includes(p.lang)) { u.lang = p.lang; save(); } return ok({ lang: u.lang }); },
   async me(p, u) {
@@ -434,7 +435,7 @@ const ACTIONS = {
     const courses = (vals) => Object.fromEntries(ORDER.map((c, i) => [c, vals(i)]));
     const base = (seed, n, group) => ({ group, n, courses: courses((i) => ({ self: Math.round((1 + ((seed + i * 7) % 20) / 10) * 10) / 10, pct: 30 + ((seed * 3 + i * 11) % 45) })) });
     const cps = (group, n, upto) => ({ group, n, courses: courses((i) => (i < upto ? { first_try_pass: 55 + ((i * 13 + n) % 40), passed_by_forum: 80 + ((i * 7 + n) % 21) } : { first_try_pass: null, passed_by_forum: null })) });
-    return ok({ updated_at: iso(now() - 2 * H), min_n: 3, wave: '2026-11',
+    return ok({ updated_at: iso(now() - 2 * H), min_n: 3, wave: '2026-11', baseline_published: true, baseline_publish_after: day(now() - 2 * D),
       baseline: [base(5, 18, 'all'), base(9, 6, 'demand'), base(3, 5, 'supply'), base(12, 4, 'cs')],
       checkpoints: [cps('all', 18, 2), cps('demand', 6, 2), cps('supply', 5, 2), cps('cs', 4, 2)] });
   },
@@ -476,11 +477,14 @@ const ACTIONS = {
   async panel_list(p, u) {
     if (!u.roles.includes('panel') && !u.roles.includes('admin')) return fail('forbidden');
     const stage = p.stage === 'capstone' ? 'capstone' : 'pitch';
-    return ok({ stage, teams: Object.values(TEAMS).map((tm) => ({ team_id: tm.team_id, project_title: tm.project_title,
+    return ok({ stage, teams: Object.values(TEAMS).map((tm) => ({ team_id: tm.team_id, project_title: tm.project_title, is_sponsor: tm.sponsor === u.code,
       submission: (state.capstone[tm.team_id] || {})[stage] || null, my_score: state.panel[`${tm.team_id}|${stage}|${u.code}`] || null })) });
   },
   async panel_score(p, u) {
     if (!u.roles.includes('panel') && !u.roles.includes('admin')) return fail('forbidden');
+    const team = TEAMS[p.team_id];
+    if (!team) return fail('not_found');
+    if (team.members.includes(u.code)) return fail('forbidden', 'Judges do not score their own team');
     const sc = p.scores || {};
     if (['c1', 'c2', 'c3', 'c4', 'c5'].some((k) => !(Number(sc[k]) >= 1 && Number(sc[k]) <= 5))) return fail('bad_request', 'Five scores from 1 to 5 are required');
     const rec = { c1: Number(sc.c1), c2: Number(sc.c2), c3: Number(sc.c3), c4: Number(sc.c4), c5: Number(sc.c5), comment: String(p.comment || ''), scored_at: iso(now()) };
@@ -490,7 +494,8 @@ const ACTIONS = {
 };
 
 const OPEN_ACTIONS = new Set(['login']);
-const PIN_EXEMPT = new Set(['login', 'change_pin', 'me']);
+const PIN_EXEMPT = new Set(['login', 'change_pin', 'me', 'logout']);
+const CONSENT_EXEMPT = new Set(['login', 'change_pin', 'me', 'consent', 'set_lang', 'logout']);
 
 /** Entry point used by api.js in demo mode. */
 export async function handle(payload) {
@@ -504,6 +509,7 @@ export async function handle(payload) {
     u = userFromToken(payload.token);
     if (!u) return fail('session_expired');
     if (u.must_change_pin && !PIN_EXEMPT.has(payload.action)) return fail('pin_change_required');
+    if (!u.consent_at && !CONSENT_EXEMPT.has(payload.action)) return fail('consent_required');
   }
   try { return await fn(payload, u); } catch (e) { console.error(e); return fail('server_error', String(e && e.message)); }
 }

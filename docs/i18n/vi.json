@@ -193,7 +193,8 @@
   "not_found": "Không tìm thấy nội dung.",
   "forbidden": "Bạn không có quyền truy cập mục này.",
   "busy": "Hub đang bận. Vui lòng thử lại.",
-  "server_error": "Hub gặp sự cố. Vui lòng thử lại sau một phút."
+  "server_error": "Hub gặp sự cố. Vui lòng thử lại sau một phút.",
+  "consent_required": "Vui lòng đọc thông báo bảo mật trước."
  },
  "title": {
   "home": "Học tập của tôi",
@@ -567,7 +568,7 @@
    "key": "Tên khoá học",
    "note": "Nhóm dưới {n} người được ẩn. Không tính quản lý.",
    "empty_title": "Chưa có bức tranh đội",
-   "empty_body": "Số liệu trung bình sẽ hiện khi mỗi nhóm có ít nhất {n} người hoàn thành bài đánh giá đầu vào."
+   "empty_body": "Bức tranh đội sẽ hiện sau khi đợt đánh giá đầu vào đóng vào {date}, khi mỗi nhóm có ít nhất {n} người đã làm bài."
   },
   "cp": {
    "title": "Checkpoint",
@@ -582,7 +583,7 @@
    "caption": "Kết quả checkpoint của {group}",
    "note": "Số người trong nhóm: {n}. Dấu gạch (—) nghĩa là khoá học chưa đến checkpoint.",
    "empty_title": "Chưa có kết quả checkpoint",
-   "empty_body": "Tỷ lệ đạt sẽ hiện sau khi checkpoint đầu tiên đóng.",
+   "empty_body": "Tỷ lệ đạt của mỗi khoá học sẽ hiện một tuần sau forum, khi checkpoint đã đóng hẳn.",
    "unavailable": "Hiện chưa xem được số liệu checkpoint."
   },
   "gs": {
@@ -678,7 +679,7 @@
    "late": "Hoàn thành muộn",
    "late_body": "Nếu chưa đạt khi checkpoint đóng, bạn vẫn đến forum. Bạn có thể hoàn thành trong tuần sau đó, cùng quản lý.",
    "answers": "Sau checkpoint bạn thấy gì",
-   "answers_body": "Điểm của bạn, các mục tiêu cần ôn và các tập nên xem lại. Đáp án đúng hiện ra khi bạn đạt, hoặc một tuần sau forum.",
+   "answers_body": "Điểm của bạn, các mục tiêu cần ôn và các tập nên xem lại. Đáp án đúng hiện ra khi bạn đạt.",
    "recall": "Ôn tập ngắt quãng",
    "recall_body": "Sau khi đạt: 3 câu hỏi vào ngày 2, 7 và 30 sau forum, lấy từ đề bạn chưa làm. Không ảnh hưởng đến kết quả checkpoint.",
    "baseline": "Đánh giá đầu vào và đánh giá lại",
@@ -725,7 +726,7 @@
    "q2": "Nếu tôi chưa đạt checkpoint thì sao?",
    "q2_a": "Không sao cả. Bạn sẽ thấy cần ôn lại gì, xem lại các tập đó và làm lại sau 24 giờ với đề còn lại. Lần thứ ba mở sau một buổi trao đổi ngắn với quản lý.",
    "q3": "Vì sao tôi chưa thấy đáp án đúng?",
-   "q3_a": "Để đề còn lại vẫn là một bài kiểm tra công bằng. Bạn thấy ngay câu trả lời của mình và các ý cần ôn; đáp án đúng hiện ra khi bạn đạt, hoặc một tuần sau forum.",
+   "q3_a": "Để đề còn lại, và mọi lần làm sau, vẫn là một bài kiểm tra công bằng. Bạn thấy ngay câu trả lời của mình và các ý cần ôn; đáp án đúng hiện ra khi bạn đạt.",
    "q4": "Tôi lỡ hạn checkpoint. Giờ làm sao?",
    "q4_a": "Bạn vẫn đến forum. Checkpoint còn mở thêm một tuần sau forum để bạn hoàn thành cùng quản lý. Sau đó, quản lý có thể mở thêm một lượt làm.",
    "q5": "Hub có biết tôi đã xem video nào không?",
@@ -906,7 +907,7 @@
   "missed_title_other": "{count} câu bạn làm chưa đúng",
   "missed_none_title": "Không sai câu nào",
   "missed_none": "Bạn trả lời đúng tất cả.",
-  "locked_note": "Đáp án đúng sẽ mở khi bạn đạt, hoặc sau khi checkpoint đóng.",
+  "locked_note": "Đáp án đúng sẽ mở khi bạn đạt.",
   "recall_title": "Ôn tập giãn cách",
   "recall_body": "Ba câu hỏi ngắn vào mỗi ngày dưới đây giúp kiến thức luôn mới.",
   "recall_day": "Ngày {day}",
@@ -1171,7 +1172,8 @@
   "err_missing_one": "Hãy chấm đủ năm tiêu chí — còn 1.",
   "err_missing_other": "Hãy chấm đủ năm tiêu chí — còn {count}.",
   "err_offline": "Có vẻ bạn đang mất kết nối. Có mạng lại thì bấm lưu lần nữa.",
-  "anchors": "Xem mô tả mức 1, 3 và 5"
+  "anchors": "Xem mô tả mức 1, 3 và 5",
+  "sponsor_chip": "Bạn là người bảo trợ đội này"
  },
  "rubric": {
   "title": "Hội đồng chấm điểm thế nào",

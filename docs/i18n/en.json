@@ -193,7 +193,8 @@
   "not_found": "We couldn't find that.",
   "forbidden": "You don't have access to this.",
   "busy": "The Hub is busy. Please try again.",
-  "server_error": "The Hub had a problem. Please try again in a minute."
+  "server_error": "The Hub had a problem. Please try again in a minute.",
+  "consent_required": "Please read the privacy notice first."
  },
  "title": {
   "home": "My learning",
@@ -567,7 +568,7 @@
    "key": "Course names",
    "note": "Groups with fewer than {n} people are hidden. Managers are not included.",
    "empty_title": "No team picture yet",
-   "empty_body": "Averages appear once at least {n} people in a group have finished the baseline."
+   "empty_body": "The team picture appears after the baseline window closes on {date}, when at least {n} people in a group have taken it."
   },
   "cp": {
    "title": "Checkpoints",
@@ -582,7 +583,7 @@
    "caption": "Checkpoint results for {group}",
    "note": "Group size: {n}. A dash (—) means the course hasn't reached its checkpoint yet.",
    "empty_title": "No checkpoint results yet",
-   "empty_body": "Pass rates appear after the first checkpoint closes.",
+   "empty_body": "Pass rates for a course appear a week after its forum, once the checkpoint has fully closed.",
    "unavailable": "Checkpoint figures are unavailable right now."
   },
   "gs": {
@@ -678,7 +679,7 @@
    "late": "Late finish",
    "late_body": "If you haven't passed when the checkpoint closes, still come to the forum. You can finish in the week after, with your manager.",
    "answers": "What you see after a checkpoint",
-   "answers_body": "Your score, the objectives to revisit and the episodes to rewatch. The right answers appear once you pass, or a week after the forum.",
+   "answers_body": "Your score, the objectives to revisit and the episodes to rewatch. The right answers appear once you pass.",
    "recall": "Spaced recall",
    "recall_body": "After you pass: 3 questions on day 2, 7 and 30 after the forum, from the form you didn't take. It doesn't affect the gate.",
    "baseline": "Baseline and re-test",
@@ -725,7 +726,7 @@
    "q2": "What happens if I don't pass the checkpoint?",
    "q2_a": "Nothing bad. You see what to revisit, rewatch those episodes and retake after 24 hours with the other form. A third try opens after a short chat with your manager.",
    "q3": "Why can't I see the right answers yet?",
-   "q3_a": "So the other form stays a fair test. You see your own answers and the ideas to revisit straight away; the right answers appear once you pass, or a week after the forum.",
+   "q3_a": "So the other form, and any later try, stays a fair test. You see your own answers and the ideas to revisit straight away; the right answers appear once you pass.",
    "q4": "I missed the checkpoint deadline. What now?",
    "q4_a": "Come to the forum anyway. The checkpoint stays open for a week after the forum so you can finish it with your manager. After that, your manager can unlock one more try.",
    "q5": "Does the Hub know which videos I watched?",
@@ -906,7 +907,7 @@
   "missed_title_other": "The {count} questions you missed",
   "missed_none_title": "Nothing missed",
   "missed_none": "Every answer was right.",
-  "locked_note": "The right answers unlock when you pass, or after the checkpoint closes.",
+  "locked_note": "The right answers unlock when you pass.",
   "recall_title": "Spaced recall",
   "recall_body": "Three short questions on each date keep it fresh.",
   "recall_day": "Day {day}",
@@ -1171,7 +1172,8 @@
   "err_missing_one": "Score all five criteria — 1 left.",
   "err_missing_other": "Score all five criteria — {count} left.",
   "err_offline": "You seem to be offline. Save again when you're back online.",
-  "anchors": "See the anchors for 1, 3 and 5"
+  "anchors": "See the anchors for 1, 3 and 5",
+  "sponsor_chip": "You sponsor this team"
  },
  "rubric": {
   "title": "How the panel scores",

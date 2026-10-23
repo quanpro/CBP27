@@ -186,7 +186,8 @@ function teamCard(tm) {
   function paintHeader() {
     render(headChips,
       tm.submission ? chip(t('panel.submitted_chip', { date: fmtShortDate(tm.submission.submitted_at) }), 'info', 'file') : chip(t('panel.not_submitted_chip'), 'warn', 'clock'),
-      tm.my_score ? chip(t('panel.scored_chip'), 'pass', 'check') : null);
+      tm.my_score ? chip(t('panel.scored_chip'), 'pass', 'check') : null,
+      tm.is_sponsor ? chip(t('panel.sponsor_chip'), '', 'users') : null);
   }
   paintHeader();
   const title = (tm.submission && tm.submission.project_title) || tm.project_title || tm.team_id;

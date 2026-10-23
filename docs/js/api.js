@@ -140,6 +140,9 @@ export async function call(action, params = {}, { auth = true, retries } = {}) {
       const ok = await sessionExpiredHandler();
       if (ok) continue;
     }
+    if ((err.code === 'consent_required' || err.code === 'pin_change_required') && auth && !/(^|\/)index\.html$|\/$/.test(location.pathname)) {
+      location.replace('index.html'); // finish onboarding (own PIN, privacy notice) first
+    }
     const { code, message, ...extra } = err;
     throw new ApiError(code, message, extra);
   }
@@ -150,6 +153,7 @@ export const api = {
   login: (code, pin) => call('login', { code, pin }, { auth: false }),
   changePin: (old_pin, new_pin) => call('change_pin', { old_pin, new_pin }),
   consent: () => call('consent'),
+  logout: () => call('logout', {}, { retries: 1 }),
   setLang: (lang) => call('set_lang', { lang }),
   me: () => call('me'),
   watch: (course, ep, watched) => call('watch', { course, ep, watched }),

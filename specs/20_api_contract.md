@@ -7,7 +7,7 @@ This file is the single source of truth for request and response shapes. `backen
 - Every response is JSON with `server_now` (ISO, +07:00):
   - success `{ "ok": true, "server_now": "…", ...data }`
   - failure `{ "ok": false, "server_now": "…", "error": { "code": "…", "message": "…", ...extra } }`
-- Error codes: `bad_request` · `auth_failed` · `locked` (extra `until`) · `session_expired` · `pin_change_required` · `pin_weak` · `not_open` (extra `opens_at?`) · `gate_closed` · `retake_too_soon` (extra `next_retake_at`) · `unlock_needed` · `already_submitted` · `already_passed` · `not_due` · `not_found` · `forbidden` · `busy` (lock timeout; client retries) · `server_error`.
+- Error codes: `bad_request` · `auth_failed` · `locked` (extra `until`) · `session_expired` · `pin_change_required` · `pin_weak` · `not_open` (extra `opens_at?`) · `gate_closed` · `retake_too_soon` (extra `next_retake_at`) · `unlock_needed` · `already_submitted` · `already_passed` · `not_due` · `not_found` · `forbidden` · `consent_required` (privacy notice not yet acknowledged) · `busy` (lock timeout; client retries) · `server_error`. Some errors carry one extra field: `bad_request.field`, `not_due.due_date`, `gate_closed.deadline` (capstone).
 - Times are ISO strings with `+07:00`. Dates are `YYYY-MM-DD`. Percentages are integers 0–100 (`score_pct`).
 - `lang` values: `en` | `vi`. Course codes: `A2 A3 A1 P1 C1 P2 P3 P4 P5 P6` (calendar order).
 - Served items **never** contain `answer`, `why_en`, `why_vi`, `correct` or `mockCorrect`.
@@ -30,7 +30,8 @@ Code is trimmed and upper-cased. Errors: `auth_failed` (unknown code, inactive, 
 ### `change_pin` `{token, old_pin, new_pin}` → `{token, expires_at, profile}`
 New PIN: 6 digits, not all the same digit, not `123456`/`654321`, not equal to the old PIN. Bumps `session_ver` (other devices log out) and clears `must_change_pin`. Errors: `auth_failed` (old PIN wrong), `pin_weak`.
 
-### `consent` `{token}` → `{consent_at}`  ·  `set_lang` `{token, lang}` → `{lang}`
+### `consent` `{token}` → `{consent_at}`  ·  `set_lang` `{token, lang}` → `{lang}`  ·  `logout` `{token}` → `{}`
+`logout` bumps `session_ver`: the token (and any other device's) stops working. Until `consent` is called, every action except login, change_pin, me, consent, set_lang and logout returns `consent_required`.
 
 ### `me` `{token}` → journey
 ```
@@ -48,7 +49,7 @@ New PIN: 6 digits, not all the same digit, not `123456`/`654321`, not equal to t
     blink_url,                                         // course playlist link (may be "")
     episodes: [ { ep, minutes, blink_url, embed_url, watched } ],   // ep 0 = trailer
     predict:    { done, attempts, last_pct },
-    checkpoint: { status: "not_started"|"in_progress"|"not_yet"|"passed",
+    checkpoint: { status: "not_started"|"in_progress"|"not_yet"|"passed",   // reveal of correct answers: only once passed (D5)
                   attempts, best_pct, passed_at, next_retake_at, needs_unlock, gate_closed,
                   open_attempt_id, last_attempt_id },
     recall: [ { day: 2|7|30, due_date, status: "upcoming"|"due"|"done", score_pct, attempt_id } ]
@@ -98,14 +99,14 @@ recall:     { assessment, course, day, n_items, n_correct, score_pct, review: [R
 
 ### `team_summary` `{token}` → averages (any signed-in user)
 ```
-{ updated_at, min_n, wave,
+{ updated_at, min_n, wave, baseline_published, baseline_publish_after,
   baseline:    [ { group: "all"|"demand"|"supply"|"materials"|"cs", n, courses: { A2: {self: 1.8, pct: 52}, … } } ],
   checkpoints: [ { group, n, courses: { A2: {first_try_pass: 60, passed_by_forum: 90}, … } } ] }
 ```
-Groups with n < `min_n` are left out; managers and test users are never counted.
+Groups with n < `min_n` are left out; a metric counted for fewer than `min_n` people is `null`; managers and test users are never counted. Baseline groups stay empty until the window has closed (`baseline_published`); a course's checkpoint metrics stay `null` until its late window has closed (decision F21).
 
 ### `team_status` `{token}` → manager only (`forbidden` otherwise)
-`{ reports: [ { code, first_name, baseline: "done"|"not_done", courses: { A2: "passed"|"not_yet"|"not_started", … } } ] }` — no scores.
+`{ reports: [ { code, first_name, baseline: "done"|"not_done", courses: { A2: "passed"|"not_yet"|"not_started", … } } ] }` — no scores; reports who are managers are not listed.
 
 ### `capstone_get` `{token}` → `{ team: {team_id, project_title, members: [{code, first_name}], sponsor: {code, first_name}} | null, submissions: { pitch: Submission|null, capstone: Submission|null }, deadlines: {pitch, capstone} }`
 ### `capstone_submit` `{token, stage: "pitch"|"capstone", team_id, fields}` → `{submitted_at, submission: Submission}`
@@ -116,8 +117,8 @@ Submission { project_title, soi_situation, soi_observation, soi_implication, kpi
 Validation: caller is a member of `team_id`; stage deadline not passed (`gate_closed`); each SOI field ≤ 60 words; `evidence_url` empty or `https://…`; `value_vnd` digits only.
 
 ### `panel_list` `{token, stage}` → panel/admin only
-`{ stage, teams: [ { team_id, project_title, submission: Submission|null, my_score: {c1..c5, comment, scored_at}|null } ] }`
-### `panel_score` `{token, stage, team_id, scores: {c1..c5: 1–5}, comment}` → `{scored_at}`
+`{ stage, teams: [ { team_id, project_title, is_sponsor, submission: Submission|null, my_score: {c1..c5, comment, scored_at}|null } ] }`
+### `panel_score` `{token, stage, team_id, scores: {c1..c5: 1–5}, comment}` → `{scored_at}` (`forbidden` for a judge who is a member of that team)
 
 ## Demo mode (`docs/js/mock-api.js`)
 Same actions and shapes, state in `localStorage` (`hub.mock.v1`). Invented items only (`MOCK-…` ids, a `mockCorrect` field that is stripped before items reach page code). Demo accounts: `DEMO-L` (learner), `DEMO-M` (manager + panel), `DEMO-N` (first login, must change PIN), all with PIN `270127`. All courses are open; the retake wait is 1 minute instead of 24 h; "Reset demo" in the footer clears the state.

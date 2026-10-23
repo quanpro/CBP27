@@ -283,7 +283,12 @@ function navItems(profile) {
   return NAV.filter((n) => !n.roles || n.roles.some((r) => roles.includes(r)));
 }
 
-export function logout() {
+export async function logout() {
+  const s = getSession();
+  // Server-side sign-out (bumps session_ver so the token stops working everywhere); best effort, 4 s max.
+  if (s) await Promise.race([api.logout().catch(() => {}), new Promise((r) => setTimeout(r, 4000))]);
+  // On a shared PC, forget the employee code too unless the person chose "Keep me signed in".
+  if (!(s && s.remember)) { try { localStorage.removeItem('hub.lastCode'); } catch (e) { /* ignore */ } }
   clearSession();
   location.href = 'index.html';
 }
@@ -376,7 +381,7 @@ export async function mountShell(o = {}) {
     location.replace(`index.html?next=${next}`);
     return new Promise(() => {}); // never resolves; the page is leaving
   }
-  if (o.auth !== false && session && session.profile && session.profile.must_change_pin && o.page !== 'home') {
+  if (o.auth !== false && session && session.profile && (session.profile.must_change_pin || session.profile.consent_needed) && o.page !== 'home') {
     location.replace('index.html');
     return new Promise(() => {});
   }

@@ -3,7 +3,7 @@
 import { h, render, icon, chip, emptyState, errorState, mountShell } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
-import { loadCatalog, fmtShortDate, fmtDateTime, todayVN } from '../courses.js';
+import { loadCatalog, fmtShortDate, fmtLongDate, fmtDateTime, todayVN } from '../courses.js';
 
 const GROUPS = ['all', 'demand', 'supply', 'materials', 'cs'];
 const PCT_CUTS = [40, 55, 70, 85];
@@ -83,7 +83,7 @@ function heatSection() {
   else {
     const rows = ((sum && sum.baseline) || []).filter((r) => r && r.courses).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
     if (!rows.length) {
-      body = h('div', { class: 'card' }, emptyState({ iconName: 'grid', title: t('team.heat.empty_title'), body: t('team.heat.empty_body', { n: (sum && sum.min_n) || 3 }) }));
+      body = h('div', { class: 'card' }, emptyState({ iconName: 'grid', title: t('team.heat.empty_title'), body: t('team.heat.empty_body', { n: (sum && sum.min_n) || 3, date: fmtLongDate((sum && sum.baseline_publish_after) || '2026-11-27') }) }));
     } else body = heatCard(sum, rows);
   }
   return h('section', { 'aria-labelledby': 'heat-title' }, head, body);

@@ -5,6 +5,9 @@ import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, serverNow } from '../api.js';
 import { loadCatalog, journey, courseStatus, courseProgress, courseSteps, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 
+// Links and embeds come from the Sheet: only https URLs are used (anything else is treated as missing).
+const safeUrl = (u) => (typeof u === 'string' && /^https:\/\/[^\s]+$/i.test(u.trim()) ? u.trim() : '');
+
 const TZ = 'Asia/Ho_Chi_Minh';
 const EMBED_TIMEOUT_MS = 8000;
 const RUBRIC = ['applied', 'method', 'evidence', 'explained'];
@@ -148,7 +151,7 @@ function renderHero() {
   if (cta && cta.href.startsWith('course.html')) cta = { label: cta.label, href: '#episodes' };
   if (!cta && c.open && st.key !== 'passed') cta = { label: t('cta.watch'), href: '#episodes' };
   if (!cta && st.key === 'passed' && c.checkpoint.last_attempt_id) cta = { label: t('course.cp.review'), href: quizHref('checkpoint', `&review=${encodeURIComponent(c.checkpoint.last_attempt_id)}`) };
-  const blink = c.blink_url ? h('a', { class: 'btn btn-outline-light btn-lg', href: c.blink_url, target: '_blank', rel: 'noopener' }, icon('external'), t('course.playlist')) : null;
+  const blink = safeUrl(c.blink_url) ? h('a', { class: 'btn btn-outline-light btn-lg', href: safeUrl(c.blink_url), target: '_blank', rel: 'noopener' }, icon('external'), t('course.playlist')) : null;
   render(S.els.hero, h('div', { class: 'pad' },
     h('div', { class: 'course-hero-grid' },
       h('div', { class: 'stack' },
@@ -197,7 +200,7 @@ function selectEp(ep, scroll) {
 
 function posterEl(e, failed) {
   const c = S.course;
-  const url = e.blink_url || c.blink_url || '';
+  const url = safeUrl(e.blink_url) || safeUrl(c.blink_url);
   const kicker = h('p', { class: 'poster-kicker' }, epLabel(e), e.minutes ? ` · ${t('common.minutes', { n: e.minutes })}` : '');
   let action;
   if (!c.open) {
@@ -232,7 +235,7 @@ function renderPlayer(force) {
     clearTimeout(S.player.timer);
     stage = h('div', { class: 'player' });
     if (canEmbed) {
-      const fr = h('iframe', { src: e.embed_url, title: t('course.player.iframe_title', { label: epLabel(e), title: epTitle(e) }), allow: 'fullscreen; picture-in-picture', referrerpolicy: 'no-referrer' });
+      const fr = h('iframe', { src: e.embed_url, title: t('course.player.iframe_title', { label: epLabel(e), title: epTitle(e) }), allow: 'fullscreen; picture-in-picture', referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin allow-presentation allow-popups' });
       let loaded = false;
       fr.addEventListener('load', () => { loaded = true; clearTimeout(S.player.timer); });
       S.player.timer = setTimeout(() => { if (!loaded && S.sel === e.ep) { S.embedFailed.add(e.ep); renderPlayer(true); } }, EMBED_TIMEOUT_MS);

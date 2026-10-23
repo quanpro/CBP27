@@ -6,8 +6,9 @@
 //   - contains an item id from the private bank (e.g. A2-A-03, BL-xx-01)
 //   - (local only) contains an item stem, option or case sentence from the private bank,
 //     when the bank is available at $PRIVATE_BANK or ./content-private/item_bank.json
-// Usage: node tools/check_no_private.mjs            # staged files (pre-commit)
+// Usage: node tools/check_no_private.mjs            # staged content (pre-commit)
 //        node tools/check_no_private.mjs --all      # every tracked file (CI)
+//        node tools/check_no_private.mjs --history  # every blob ever committed (CI)
 //        node tools/check_no_private.mjs <files...> # explicit files
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -15,14 +16,35 @@ import { join } from 'node:path';
 
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
 const args = process.argv.slice(2);
-let files;
+const git = (a, opts = {}) => execFileSync('git', a, { cwd: ROOT, maxBuffer: 256 * 1024 * 1024, ...opts });
+// Each entry: { name, read() → Buffer|null }. Staged mode reads the index (what will be committed),
+// history mode reads every blob reachable from any ref.
+let entries;
 if (args[0] === '--all') {
-  files = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
+  entries = git(['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean).map((f) => ({ name: f, read: () => fromDisk(f) }));
+} else if (args[0] === '--history') {
+  const seen = new Set();
+  entries = [];
+  for (const line of git(['rev-list', '--objects', '--all'], { encoding: 'utf8' }).split('\n')) {
+    const [sha, ...rest] = line.split(' ');
+    const name = rest.join(' ');
+    if (!sha || !name || seen.has(sha)) continue;
+    seen.add(sha);
+    if (git(['cat-file', '-t', sha], { encoding: 'utf8' }).trim() !== 'blob') continue;
+    entries.push({ name: `${name} (${sha.slice(0, 8)})`, path: name, read: () => git(['cat-file', 'blob', sha]) });
+  }
 } else if (args.length) {
-  files = args;
+  entries = args.map((f) => ({ name: f, read: () => fromDisk(f) }));
 } else {
-  files = execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
+  entries = git(['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean)
+    .map((f) => ({ name: f, read: () => { try { return git(['show', `:${f}`]); } catch (e) { return null; } } }));
 }
+function fromDisk(f) {
+  const abs = join(ROOT, f);
+  if (!existsSync(abs) || statSync(abs).isDirectory()) return null;
+  return readFileSync(abs);
+}
+const files = entries;
 
 const ANSWER_KEY = /"answer"\s*:\s*"[a-d]"/;
 const ITEM_ID = /\b(A[123]|C1|P[1-6]|BL)-(A|B|PR|[A-Z0-9]{2,4})-[0-9]{2}\b/;
@@ -47,21 +69,21 @@ if (existsSync(bankPath)) {
 }
 
 const problems = [];
-for (const f of files) {
-  const rel = f.replace(/\\/g, '/');
-  if (/(^|\/)content-private(\/|$)/.test(rel)) { problems.push(`${rel}: lives under content-private/`); continue; }
-  if (/\.(csv|xlsx)$/i.test(rel)) { problems.push(`${rel}: .csv/.xlsx files are never committed`); continue; }
+for (const entry of files) {
+  const rel = (entry.path || entry.name).replace(/\\/g, '/');
+  const label = entry.name.replace(/\\/g, '/');
+  if (/(^|\/)content-private(\/|$)/.test(rel)) { problems.push(`${label}: lives under content-private/`); continue; }
+  if (/\.(csv|xlsx)$/i.test(rel)) { problems.push(`${label}: .csv/.xlsx files are never committed`); continue; }
   if (rel === SELF) continue;
-  const abs = join(ROOT, rel);
-  if (!existsSync(abs) || statSync(abs).isDirectory()) continue;
-  const buf = readFileSync(abs);
+  const buf = entry.read();
+  if (!buf) continue;
   if (buf.includes(0)) continue; // binary (logo)
   const text = buf.toString('utf8');
-  if (ANSWER_KEY.test(text)) problems.push(`${rel}: contains a literal answer key ("answer": "x")`);
+  if (ANSWER_KEY.test(text)) problems.push(`${label}: contains a literal answer key ("answer": "x")`);
   const id = text.match(ITEM_ID);
-  if (id) problems.push(`${rel}: contains a private item id (${id[0]})`);
+  if (id) problems.push(`${label}: contains a private item id (${id[0]})`);
   for (const fp of fingerprints) {
-    if (text.includes(fp)) { problems.push(`${rel}: contains text from the private item bank`); break; }
+    if (text.includes(fp)) { problems.push(`${label}: contains text from the private item bank`); break; }
   }
 }
 
@@ -70,4 +92,4 @@ if (problems.length) {
   console.error('Move private material to content-private/ (git-ignored) or the private Google Sheet.');
   process.exit(1);
 }
-console.log(`✔ Privacy check passed (${files.length} file${files.length === 1 ? '' : 's'}${fingerprints.length ? ', bank fingerprint on' : ''}).`);
+console.log(`✔ Privacy check passed (${files.length} ${args[0] === '--history' ? 'blob' : 'file'}${files.length === 1 ? '' : 's'}${fingerprints.length ? ', bank fingerprint on' : ''}).`);
