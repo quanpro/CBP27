@@ -150,15 +150,17 @@ function toDate(v) {
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
 }
-/** "Tue 26 Jan" / "T3, 26/1" */
+/** "Tue 26 Jan" / "T3, 26/1"; the year is added when it is not the current year ("Tue 26 Jan 2027"). */
 export function fmtShortDate(v) {
   const d = toDate(v); if (!d) return '';
+  const year = (x) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric' }).format(x);
+  const otherYear = year(d) !== year(new Date(serverNow()));
   if (locale() === 'vi-VN') {
     const wd = new Intl.DateTimeFormat('vi-VN', { timeZone: TZ, weekday: 'short' }).format(d);
-    const dm = new Intl.DateTimeFormat('vi-VN', { timeZone: TZ, day: 'numeric', month: 'numeric' }).format(d);
+    const dm = new Intl.DateTimeFormat('vi-VN', { timeZone: TZ, day: 'numeric', month: 'numeric', ...(otherYear ? { year: 'numeric' } : {}) }).format(d);
     return `${wd}, ${dm}`;
   }
-  return new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }).format(d).replace(',', '');
+  return new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short', ...(otherYear ? { year: 'numeric' } : {}) }).format(d).replace(',', '');
 }
 /** "Tuesday 26 January 2027" / "Thứ Ba, 26 tháng 1, 2027" */
 export function fmtLongDate(v) {

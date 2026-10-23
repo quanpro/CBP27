@@ -72,10 +72,12 @@ async function load() {
 }
 
 function renderUnknown() {
-  render(S.app, h('div', { class: 'card course-missing' }, emptyState({
-    iconName: 'book', title: t('course.unknown_title'), body: t('course.unknown_body', { code: S.code || '—' }),
-    action: h('a', { class: 'btn btn-primary', href: 'index.html' }, icon('chevron-left'), t('course.back_home')),
-  })));
+  // Same markup as ui.emptyState, but with the page's h1.
+  render(S.app, h('div', { class: 'card course-missing' }, h('div', { class: 'empty' },
+    h('div', { class: 'em-icon' }, icon('book', 'lg')),
+    h('h1', { class: 'empty-title', text: t('course.unknown_title') }),
+    h('p', { text: t('course.unknown_body', { code: S.code || '—' }) }),
+    h('a', { class: 'btn btn-primary', href: 'index.html' }, icon('chevron-left'), t('course.back_home')))));
 }
 function renderError() {
   render(S.app, h('div', { class: 'stack lg' }, backLink(), h('h1', { text: t('course.error_title') }), errorState(S.error, () => { render(S.app, skeletonView()); load(); })));
@@ -103,18 +105,27 @@ function buildLayout() {
     forum: h('section', { class: 'card pad stack', 'aria-labelledby': 'forum-title' }),
     field: h('section', { class: 'card pad stack', 'aria-labelledby': 'field-title' }),
     cp: h('section', { class: 'card cp-card', 'aria-labelledby': 'cp-title' }),
-    predict: h('section', { class: 'card pad stack', 'aria-labelledby': 'pr-title' }),
-    recall: h('section', { class: 'card pad stack', 'aria-labelledby': 'rc-title' }),
-    dates: h('section', { class: 'card pad stack', 'aria-labelledby': 'kd-title' }),
+    predict: h('section', { class: 'card pad stack pr-card', 'aria-labelledby': 'pr-title' }),
+    recall: h('section', { class: 'card pad stack rc-card', 'aria-labelledby': 'rc-title' }),
+    dates: h('section', { class: 'card pad stack kd-card', 'aria-labelledby': 'kd-title' }),
     live: h('p', { class: 'sr-only', 'aria-live': 'polite', role: 'status' }),
   };
   const E = S.els;
-  render(S.app, h('div', { class: 'stack lg course-page' },
-    E.back, E.hero, E.steps,
-    h('div', { class: 'layout-side' },
-      h('div', { class: 'stack lg course-main' }, E.player, E.eps, E.about, E.forum, E.field),
-      h('aside', { class: 'side stack course-side', 'aria-label': t('course.side_aria') }, E.cp, E.predict, E.recall, E.dates)),
-    E.live));
+  E.main = h('div', { class: 'stack lg course-main' }, E.player, E.eps, E.about, E.forum, E.field);
+  E.side = h('aside', { class: 'side stack course-side', 'aria-label': t('course.side_aria') });
+  render(S.app, h('div', { class: 'stack lg course-page' }, E.back, E.hero, E.steps, h('div', { class: 'layout-side' }, E.main, E.side), E.live));
+  placeSide();
+  WIDE.addEventListener('change', placeSide);
+}
+
+// Phones: the checkpoint, Predict, recall and dates cards follow the episode list in the DOM itself,
+// so reading and focus order match what is on screen. Wide screens: they sit in the side column.
+const WIDE = matchMedia('(min-width: 960px)');
+function placeSide() {
+  const E = S.els; if (!E) return;
+  const cards = [E.cp, E.predict, E.recall, E.dates];
+  if (WIDE.matches) { E.side.append(...cards); E.side.hidden = false; }
+  else { E.eps.after(...cards); E.side.hidden = true; }
 }
 
 function renderAll(langChange) {
@@ -195,11 +206,11 @@ function posterEl(e, failed) {
   } else if (url) {
     action = h('div', { class: 'poster-actions' },
       h('a', { class: 'play-btn', href: url, target: '_blank', rel: 'noopener', 'aria-label': t('course.player.watch_aria', { label: epLabel(e), title: epTitle(e) }) }, icon('play')),
-      h('a', { class: 'btn btn-light btn-sm', href: url, target: '_blank', rel: 'noopener', tabindex: '-1', 'aria-hidden': 'true' }, t('course.player.watch'), icon('external', 'sm')));
+      h('a', { class: 'btn btn-light', href: url, target: '_blank', rel: 'noopener', tabindex: '-1', 'aria-hidden': 'true' }, t('course.player.watch'), icon('external', 'sm')));
   } else {
     action = h('div', { class: 'poster-actions' },
       h('span', { class: 'play-btn is-off', 'aria-hidden': 'true' }, icon('play')),
-      h('button', { class: 'btn btn-light btn-sm', type: 'button', disabled: true }, t('course.player.soon')),
+      h('button', { class: 'btn btn-light', type: 'button', disabled: true }, t('course.player.soon')),
       h('p', { class: 'poster-note', text: t('course.player.soon_note') }));
   }
   return h('div', { class: 'poster' },
@@ -221,7 +232,7 @@ function renderPlayer(force) {
     clearTimeout(S.player.timer);
     stage = h('div', { class: 'player' });
     if (canEmbed) {
-      const fr = h('iframe', { src: e.embed_url, title: t('course.player.iframe_title', { label: epLabel(e), title: epTitle(e) }), allow: 'fullscreen; picture-in-picture', allowfullscreen: true, referrerpolicy: 'no-referrer' });
+      const fr = h('iframe', { src: e.embed_url, title: t('course.player.iframe_title', { label: epLabel(e), title: epTitle(e) }), allow: 'fullscreen; picture-in-picture', referrerpolicy: 'no-referrer' });
       let loaded = false;
       fr.addEventListener('load', () => { loaded = true; clearTimeout(S.player.timer); });
       S.player.timer = setTimeout(() => { if (!loaded && S.sel === e.ep) { S.embedFailed.add(e.ep); renderPlayer(true); } }, EMBED_TIMEOUT_MS);
@@ -234,10 +245,10 @@ function renderPlayer(force) {
   const lessonList = lessons();
   const idx = S.course.episodes.indexOf(e);
   const next = S.course.episodes[idx + 1];
-  const watchBtn = h('button', { class: `btn btn-sm ${e.watched ? 'btn-success' : 'btn-secondary'} watch-toggle`, type: 'button', 'aria-pressed': String(!!e.watched), disabled: !S.course.open || S.pending.has(e.ep) },
+  const watchBtn = h('button', { class: `btn ${e.watched ? 'btn-success' : 'btn-secondary'} watch-toggle`, type: 'button', 'aria-pressed': String(!!e.watched), disabled: !S.course.open || S.pending.has(e.ep) },
     icon(e.watched ? 'check-circle' : 'circle'), t(e.watched ? 'course.player.watched' : 'course.player.mark'));
   watchBtn.addEventListener('click', () => toggleWatched(e.ep));
-  const nextBtn = next ? h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => selectEp(next.ep, false) }, t('course.player.next'), icon('arrow-right')) : null;
+  const nextBtn = next ? h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => selectEp(next.ep, false) }, t('course.player.next'), icon('arrow-right')) : null;
   const meta = h('div', { class: 'player-meta' },
     h('div', { class: 'stack sm' },
       h('p', { class: 'eyebrow', text: `${epLabel(e)}${!e.trailer && lessonList.length ? ` / ${lessonList.length}` : ''}${e.minutes ? ` · ${t('common.minutes', { n: e.minutes })}` : ''}` }),
@@ -266,7 +277,7 @@ function renderEpisodes() {
   }));
   render(E.eps,
     h('div', { class: 'card-head eps-head' },
-      h('div', { class: 'grow' }, h('h2', { id: 'eps-title', class: 'h3', text: t('course.eps.title') }),
+      h('div', { class: 'grow' }, h('h2', { id: 'eps-title', class: 'title-sm', text: t('course.eps.title') }),
         h('p', { class: 'small muted', text: t('course.eps.count', { n: p.watched, total: p.total }) })),
       ring(p.total ? (100 * p.watched) / p.total : 0, { size: 44, stroke: 5, label: `${p.watched}/${p.total}`, ariaLabel: t('course.eps.count', { n: p.watched, total: p.total }) })),
     h('div', { class: 'eps-body' }, list,
@@ -349,7 +360,7 @@ function renderForum() {
   render(S.els.forum,
     h('div', { class: 'row top' }, tile('users'), h('div', { class: 'grow stack sm' },
       h('p', { class: 'eyebrow', text: t('course.forum.eyebrow') }),
-      h('h2', { id: 'forum-title', class: 'h3', text: pick(f, 'title') || t('course.forum.eyebrow') }),
+      h('h2', { id: 'forum-title', class: 'title-sm', text: pick(f, 'title') || t('course.forum.eyebrow') }),
       c.forum_date ? h('p', { class: 'strong ink' }, fmtLongDate(c.forum_date), h('span', { class: 'muted small', text: upcoming ? ` · ${relDay(c.forum_date)}` : '' })) : null)),
     h('p', { class: 'small muted', text: t(c.code === 'C1' ? 'course.forum.format_pitch' : 'course.forum.format') }),
     pick(f, 'summary') ? h('p', { text: pick(f, 'summary') }) : null,
@@ -361,7 +372,7 @@ function renderField() {
   render(S.els.field,
     h('div', { class: 'row top' }, tile('edit'), h('div', { class: 'grow stack sm' },
       h('p', { class: 'eyebrow', text: t('course.field.eyebrow') }),
-      h('h2', { id: 'field-title', class: 'h3', text: t('course.field.title') }),
+      h('h2', { id: 'field-title', class: 'title-sm', text: t('course.field.title') }),
       c.field_until ? h('p', { class: 'small muted', text: t('course.field.until', { date: fmtLongDate(c.field_until) }) }) : null)),
     h('dl', { class: 'kv' },
       h('dt', { text: t('course.field.task') }), h('dd', { text: getLang() === 'vi' ? (f.vi || f.en || '') : (f.en || '') }),
@@ -421,7 +432,7 @@ function renderCheckpoint() {
     body = [gateMeter(cp.best_pct, false),
       h('p', { class: 'small' }, t('course.cp.attempts', { count: cp.attempts || 1 }), ' · ', t('course.cp.other_form')),
       wait ? h('div', { class: 'callout warn' }, icon('clock'), h('p', { class: 'small', text: t('course.cp.retake_from', { time: fmtDateTime(cp.next_retake_at) }) })) : btn(t('cta.retake'), quizHref('checkpoint')),
-      reviewHref ? btn(t('course.cp.revisit'), reviewHref, 'btn-ghost') : null];
+      reviewHref ? btn(t('course.cp.revisit'), reviewHref, wait ? 'btn-secondary' : 'btn-ghost') : null];
   } else {
     stateChip = chip(t('course.cp.not_started'), '', 'flag');
     const ready = p.total && p.watched === p.total;
@@ -430,20 +441,20 @@ function renderCheckpoint() {
       btn(t('cta.checkpoint'), quizHref('checkpoint'))];
   }
   render(S.els.cp,
-    h('div', { class: 'card-head' }, tile('flag'), h('h2', { id: 'cp-title', class: 'h3 grow', text: t('course.cp.title') }), stateChip),
+    h('div', { class: 'card-head' }, tile('flag'), h('h2', { id: 'cp-title', class: 'title-sm grow', text: t('course.cp.title') }), stateChip),
     h('div', { class: 'pad stack' }, body));
 }
 
 function renderPredict() {
   const c = S.course; const pr = c.predict || {};
   render(S.els.predict,
-    h('div', { class: 'row' }, tile('zap'), h('h2', { id: 'pr-title', class: 'h3 grow', text: t('course.pr.title') }),
+    h('div', { class: 'row' }, tile('zap'), h('h2', { id: 'pr-title', class: 'title-sm grow', text: t('course.pr.title') }),
       pr.done ? chip(t('course.pr.done'), 'pass', 'check') : null),
     h('p', { class: 'small muted', text: t('course.pr.body') }),
     !c.open ? null : pr.done
       ? h('div', { class: 'row between' },
         h('p', { class: 'small' }, t('course.pr.last', { pct: pct(pr.last_pct) }), pr.attempts > 1 ? ` · ${t('course.pr.tries', { count: pr.attempts })}` : ''),
-        h('a', { class: 'btn btn-ghost btn-sm', href: quizHref('predict') }, icon('refresh', 'sm'), t('course.pr.again')))
+        h('a', { class: 'btn btn-ghost', href: quizHref('predict') }, icon('refresh', 'sm'), t('course.pr.again')))
       : h('a', { class: 'btn btn-primary btn-block', href: quizHref('predict') }, t('cta.predict'), icon('arrow-right')));
 }
 
@@ -460,7 +471,7 @@ function renderRecall() {
     body = [h('ul', { class: 'recall-list' }, rows.map((r) => {
       let state;
       if (r.status === 'done') state = chip(t('course.rc.done', { pct: r.score_pct !== null && r.score_pct !== undefined ? pct(r.score_pct) : '' }).trim(), 'pass', 'check');
-      else if (r.status === 'due') state = h('a', { class: 'btn btn-primary btn-sm', href: quizHref('recall', `&day=${r.day}`), 'aria-label': t('course.rc.start_aria', { n: r.day }) }, t('course.rc.start'));
+      else if (r.status === 'due') state = h('a', { class: 'btn btn-primary', href: quizHref('recall', `&day=${r.day}`), 'aria-label': t('course.rc.start_aria', { n: r.day }) }, t('course.rc.start'));
       else state = chip(relDay(r.due_date), 'locked', 'clock');
       return h('li', { class: r.status },
         h('span', { class: 'day-pill', text: t('course.rc.day', { n: r.day }) }),
@@ -469,7 +480,7 @@ function renderRecall() {
     }))];
   }
   render(S.els.recall,
-    h('div', { class: 'row' }, tile('refresh'), h('h2', { id: 'rc-title', class: 'h3 grow', text: t('course.rc.title') })),
+    h('div', { class: 'row' }, tile('refresh'), h('h2', { id: 'rc-title', class: 'title-sm grow', text: t('course.rc.title') })),
     h('p', { class: 'small muted', text: t('course.rc.body') }),
     body);
 }
@@ -487,7 +498,7 @@ function renderDates() {
   ].filter((r) => r && r.d);
   const nextIdx = rows.findIndex((r) => (r.end || r.d) >= today);
   render(S.els.dates,
-    h('div', { class: 'row' }, tile('calendar'), h('h2', { id: 'kd-title', class: 'h3 grow', text: t('course.kd.title') })),
+    h('div', { class: 'row' }, tile('calendar'), h('h2', { id: 'kd-title', class: 'title-sm grow', text: t('course.kd.title') })),
     h('ul', { class: 'kd-list' }, rows.map((r, i) => {
       const past = (r.end || r.d) < today;
       return h('li', { class: past ? 'past' : i === nextIdx ? 'next' : null },

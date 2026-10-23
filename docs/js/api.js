@@ -95,6 +95,7 @@ async function transport(payload) {
     body: JSON.stringify(payload),
     redirect: 'follow',
     cache: 'no-store',
+    keepalive: payload.action === 'save', // a save started as the page hides still reaches the server (bodies are ~2 KB)
   });
   if (!res.ok) throw new ApiError('server_error', `HTTP ${res.status}`);
   return res.json();

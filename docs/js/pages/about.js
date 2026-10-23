@@ -143,7 +143,7 @@ function faq() {
 function contact() {
   return h('div', { class: 'card pad contact-card' },
     h('span', { class: 'tile-icon' }, icon('help')),
-    h('div', { class: 'stack sm' }, h('h2', { class: 'h3', text: t('about.contact.title') }), p('about.contact.body', null, 'small muted')),
+    h('div', { class: 'stack sm' }, h('h2', { class: 'title-sm', text: t('about.contact.title') }), p('about.contact.body', null, 'small muted')),
     getSession() ? h('a', { class: 'btn btn-primary', href: 'index.html' }, t('about.contact.home'), icon('arrow-right')) : h('a', { class: 'btn btn-primary', href: 'index.html' }, t('about.contact.signin'), icon('arrow-right')));
 }
 

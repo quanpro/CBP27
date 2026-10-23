@@ -288,7 +288,14 @@ export function logout() {
   location.href = 'index.html';
 }
 
+// The user menu of the current header. Document listeners are registered once (the header is rebuilt
+// on every language or theme change) and always act on the latest menu.
+let openMenu = null;
+document.addEventListener('click', (e) => { if (openMenu && !openMenu.menu.hidden && !openMenu.menu.contains(e.target)) openMenu.close(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openMenu && !openMenu.menu.hidden) { openMenu.close(); openMenu.btn.focus(); } });
+
 function headerEl({ page, focus, session, exitHref }) {
+  openMenu = null;
   const profile = session && session.profile;
   const brand = h('a', { class: 'brand', href: 'index.html', 'aria-label': t('brand.home_aria') },
     h('img', { src: 'assets/marico-logo.png', alt: '', width: 38, height: 38 }),
@@ -318,8 +325,7 @@ function headerEl({ page, focus, session, exitHref }) {
       h('button', { type: 'button', role: 'menuitem', onclick: logout }, icon('logout'), t('menu.logout')));
     const closeMenu = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
     btn.addEventListener('click', (e) => { e.stopPropagation(); const open = menu.hidden; menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); if (open) menu.querySelector('[role="menuitem"]').focus(); });
-    document.addEventListener('click', (e) => { if (!menu.contains(e.target)) closeMenu(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { closeMenu(); btn.focus(); } });
+    openMenu = { menu, btn, close: closeMenu };
     actions.append(btn, menu);
   }
   const header = h('header', { class: 'app-header' }, h('div', { class: 'container' }, brand, nav, actions));

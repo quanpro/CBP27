@@ -102,6 +102,8 @@ function show(view) {
 function draw() {
   const kept = captureInputs(S.app);
   const v = { login: viewLogin, pin: viewPin, consent: viewConsent, dash: viewDash }[S.view] || viewDash;
+  // While the PIN / privacy gates are open, hide the navigation so nobody skips them by accident.
+  document.body.classList.toggle('onboarding', S.view === 'pin' || S.view === 'consent');
   render(S.app, v());
   restoreInputs(S.app, kept);
   if (S.animate) { S.animate = false; animateIn(S.app); }
@@ -319,8 +321,8 @@ function viewDash() {
     heroNext(ns),
     statRow(me, courses),
     h('div', { class: 'dash-grid' },
-      h('div', { class: 'dash-main stack xl' }, baselineCard(me.baseline), coursesSection(courses, ns)),
       h('div', { class: 'dash-up' }, comingUp(me, courses)),
+      h('div', { class: 'dash-main stack xl' }, baselineCard(me.baseline), coursesSection(courses, ns)),
       h('div', { class: 'dash-side stack' }, capstoneCard(me.capstone), me.profile && me.profile.is_manager ? managerCard() : null, privacyCard())),
     certPath(me),
   ];
@@ -393,10 +395,12 @@ function heroNext(ns) {
         aside)));
 }
 
-function statTile({ k, kIcon, v, d, extra, cls }) {
+function statTile({ k, kIcon, v, d, extra, below, cls }) {
   return h('div', { class: `stat ${cls || ''}`.trim() },
     h('p', { class: 'k' }, kIcon ? icon(kIcon, 'sm') : null, h('span', { text: k })),
-    h('div', { class: 'stat-main' }, h('div', { class: 'stat-text' }, h('p', { class: 'v' }, v), d ? h('p', { class: 'd' }, d) : null), extra || null));
+    h('div', { class: 'stat-main' }, h('p', { class: 'v' }, v), extra || null),
+    below || null,
+    d ? h('p', { class: 'd' }, d) : null);
 }
 
 function statRow(me, courses) {
@@ -420,7 +424,8 @@ function statRow(me, courses) {
     k: t('home.stat.streak'), kIcon: 'flame', cls: 'stat-streak',
     v: t('streak.weeks', { count: st.current_weeks || 0 }),
     d: st.active_this_week ? h('span', { class: 'ok-line' }, icon('check', 'sm'), t('streak.active')) : t('streak.inactive'),
-    extra: h('div', { class: 'streak-side' }, h('span', { class: `flame${st.active_this_week ? ' on' : ''}` }, icon('flame')), weeks),
+    extra: h('span', { class: `flame${st.active_this_week ? ' on' : ''}` }, icon('flame')),
+    below: weeks,
   });
 
   const n = st.active_weeks_total || 0;
@@ -431,8 +436,8 @@ function statRow(me, courses) {
     k: t('streak.meter'), kIcon: 'trend-up', cls: 'stat-meter',
     v: `${fmtNum(st.multiplier || 1, 2)}×`,
     d: h('span', null, sup(fmtNum(1.01, 2), n), ' · ', t('streak.active_weeks', { count: n })),
+    below: meter,
   });
-  tMeter.append(meter);
 
   let bv; let bd;
   if (b.status === 'submitted' && b.result) { bv = pct(b.result.score_pct); bd = t('home.stat.baseline_done'); }
@@ -546,7 +551,7 @@ function coursesSection(courses, ns) {
         h('div', { class: 'cycle-head' },
           h('h3', { class: 'cycle-label' }, t('home.courses.cycle', { n: g.n }), h('span', { class: 'cycle-months', text: ` · ${cycleMonths(g.list)}` })),
           forum ? h('span', { class: 'xs muted' }, icon('calendar', 'sm'), ' ', t('home.courses.forum_on', { date: fmtShortDate(forum) })) : null),
-        h('div', { class: 'grid cols-2 cycle-grid' }, g.list.map(courseCard)));
+        h('div', { class: 'cycle-grid' }, g.list.map(courseCard)));
     })));
 }
 function courseCard(c) {
@@ -557,14 +562,15 @@ function courseCard(c) {
   return h('a', { class: `card hover card-link course-card fam-${c.code.charAt(0)}${locked ? ' locked' : ''}`, href },
     h('div', { class: 'band' }),
     h('div', { class: 'body' },
-      h('div', { class: 'top' }, codeBadge(c.code), h('span', { class: 'cc-family', text: t(`family.${c.family || c.code.charAt(0)}`) }), h('span', { class: 'spacer' }),
-        locked ? h('span', { class: 'cc-lock' }, icon('lock')) : ring(p.pct, { size: 44, stroke: 5, ariaLabel: t('home.courses.progress_aria', { pct: p.pct }) })),
-      h('h3', { text: pick(c, 'name') }),
+      h('div', { class: 'top' }, codeBadge(c.code), h('span', { class: 'cc-family', text: t(`family.${c.family || c.code.charAt(0)}`) })),
+      h('h4', { class: 'cc-name', text: pick(c, 'name') }),
       h('p', { class: 'promise', text: pick(c, 'promise') }),
       h('p', { class: 'meta' },
         c.online_from ? h('span', null, icon('video', 'sm'), t('home.courses.online', { date: fmtShortDate(c.online_from) })) : null,
         c.forum_date ? h('span', null, icon('users', 'sm'), t('home.courses.forum', { date: fmtShortDate(c.forum_date) })) : null)),
-    h('div', { class: 'foot' }, chip(s.label, s.variant, s.icon), h('span', { class: 'spacer' }), h('span', { class: 'cc-go' }, icon('chevron-right'))));
+    h('div', { class: 'foot' }, (() => { const el = chip(s.label, s.variant, s.icon); el.title = s.label; return el; })(), h('span', { class: 'spacer' }),
+      locked ? h('span', { class: 'cc-lock' }, icon('lock')) : ring(p.pct, { size: 44, stroke: 5, ariaLabel: t('home.courses.progress_aria', { pct: p.pct }) }),
+      h('span', { class: 'cc-go' }, icon('chevron-right'))));
 }
 
 // Coming up: next forum, checkpoint closing, recall due (and the baseline window / Pitch Day when relevant).
@@ -595,7 +601,7 @@ function comingUp(me, courses) {
   const list = items.slice(0, 5);
 
   return h('section', { class: 'card up-card', 'aria-labelledby': 'up-title' },
-    h('div', { class: 'card-head' }, icon('calendar'), h('h2', { id: 'up-title', class: 'h3', text: t('home.up.title') })),
+    h('div', { class: 'card-head' }, icon('calendar'), h('h2', { id: 'up-title', class: 'title-sm', text: t('home.up.title') })),
     list.length ? h('ul', { class: 'up-list' }, list.map((it) => {
       const inner = [
         h('span', { class: `date-tile${it.due ? ' due' : ''}`, 'aria-hidden': 'true' },
@@ -613,7 +619,7 @@ function capstoneCard(cap) {
   const c = cap || {};
   const submitted = !!c.pitch_submitted_at;
   return h('section', { class: 'card pad stack cap-card', 'aria-labelledby': 'cap-title' },
-    h('div', { class: 'row' }, h('span', { class: 'tile-icon' }, icon('trophy')), h('div', { class: 'grow' }, h('p', { class: 'eyebrow', text: t('home.cap.eyebrow') }), h('h2', { id: 'cap-title', class: 'h3', text: c.project_title || t('home.cap.no_team') }))),
+    h('div', { class: 'row' }, h('span', { class: 'tile-icon' }, icon('trophy')), h('div', { class: 'grow' }, h('p', { class: 'eyebrow', text: t('home.cap.eyebrow') }), h('h2', { id: 'cap-title', class: 'title-sm', text: c.project_title || t('home.cap.no_team') }))),
     h('p', { class: 'small muted', text: c.team_id ? t('home.cap.body', { date: fmtLongDate(prog.pitch_day || '2027-06-22') }) : t('home.cap.no_team_body') }),
     c.team_id ? h('div', { class: 'row tight' },
       submitted ? chip(t('home.cap.pitch_done'), 'pass', 'check') : chip(t('home.cap.pitch_due', { date: fmtShortDate(c.pitch_deadline || prog.pitch_day) }), 'info', 'clock')) : null,
@@ -621,7 +627,7 @@ function capstoneCard(cap) {
 }
 function managerCard() {
   return h('section', { class: 'card pad stack mgr-card', 'aria-labelledby': 'mgr-title' },
-    h('div', { class: 'row' }, h('span', { class: 'tile-icon' }, icon('users')), h('h2', { id: 'mgr-title', class: 'h3 grow', text: t('home.mgr.title') })),
+    h('div', { class: 'row' }, h('span', { class: 'tile-icon' }, icon('users')), h('h2', { id: 'mgr-title', class: 'title-sm grow', text: t('home.mgr.title') })),
     h('p', { class: 'small muted', text: t('home.mgr.body') }),
     h('div', null, h('a', { class: 'btn btn-secondary', href: 'team.html#gates' }, t('home.mgr.open'), icon('arrow-right'))));
 }

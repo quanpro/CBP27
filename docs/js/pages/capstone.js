@@ -3,7 +3,7 @@
 // (internal SharePoint, https); value in VND (digits) with a live preview and its basis; lessons.
 // Unsaved text is kept on this device until it is saved. Past the deadline the form is read-only.
 import { mountShell, h, icon, chip, render, loading, emptyState, errorState, errorMessage, toast } from '../ui.js';
-import { t, getLang, onLangChange } from '../i18n.js';
+import { t, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
 import { loadCatalog, fmtLongDate, fmtShortDate, fmtDateTime, todayVN } from '../courses.js';
 import { rubricCard, announce, fmtVND, countWords } from '../quiz.js';
@@ -96,7 +96,7 @@ function paintDirty() {
   el.hidden = !isDirty(stage);
 }
 
-function field(key, { textarea = false, rows = 3, hint, inputmode, autocomplete = 'off', type = 'text', words = false, wide = false, placeholder } = {}) {
+function field(key, { textarea = false, rows = 3, hint, inputmode, autocomplete = 'off', type = 'text', words = false, wide = false, placeholder, srLabel = false } = {}) {
   const ro = pastDeadline(stage);
   const id = `cap-${stage}-${key}`;
   const ids = { hint: `${id}-hint`, cnt: `${id}-cnt`, err: `${id}-err`, extra: `${id}-extra` };
@@ -144,7 +144,7 @@ function field(key, { textarea = false, rows = 3, hint, inputmode, autocomplete 
   paintCount(false);
   refs[key] = { input, err };
   const wrap = h('div', { class: `field${wide ? ' cap-wide' : ''}`, 'data-anchor': key },
-    h('div', { class: 'cap-label-row' }, h('label', { for: id, text: fieldLabel(key) }), cnt),
+    h('div', { class: 'cap-label-row' }, h('label', { for: id, class: srLabel ? 'sr-only' : null, text: fieldLabel(key) }), cnt),
     hint ? h('p', { class: 'hint', id: ids.hint, text: hint }) : null,
     input, extra, err);
   setTimeout(() => paintFieldError(key), 0);
@@ -222,7 +222,7 @@ function formCard() {
       h('div', null, h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => discardDraft() }, icon('x'), t('capstone.discard'))))));
   }
   const summary = errKeys.length ? h('div', { class: 'callout bad cap-summary', role: 'alert', tabindex: '-1' }, icon('alert'),
-    h('div', { class: 'stack sm' }, h('b', { text: t('capstone.fix_n', { count: errKeys.length }) }),
+    h('div', { class: 'stack sm' }, h('b', { text: t('capstone.fix', { count: errKeys.length }) }),
       h('ul', { class: 'cap-errlist' }, errKeys.map((k) => h('li', null, h('a', { href: `#cap-${stage}-${k}`, onclick: (e) => { e.preventDefault(); const el = document.getElementById(`cap-${stage}-${k}`); if (el) { el.focus(); } } }, `${fieldLabel(k)}: ${errs[k]}`)))))) : null;
   const form = h('form', { class: 'card cap-form', novalidate: true, 'aria-labelledby': 'cap-form-h' },
     h('div', { class: 'pad stack lg' },
@@ -248,7 +248,7 @@ function formCard() {
         field('value_vnd', { inputmode: 'numeric', hint: t('capstone.h.value_vnd') }),
         field('value_basis', { textarea: true, rows: 3, hint: t(stage === 'capstone' ? 'capstone.h.value_basis_cap' : 'capstone.h.value_basis') })),
       h('fieldset', { class: 'cap-set stack' }, h('legend', { class: 'cap-legend', text: t('capstone.set_lessons') }),
-        field('lessons', { textarea: true, rows: 4, hint: t('capstone.h.lessons') }))),
+        field('lessons', { textarea: true, rows: 4, hint: t('capstone.h.lessons'), srLabel: true }))),
     h('div', { class: 'card-foot cap-foot' },
       ro ? null : saveBtn,
       h('div', { class: 'stack sm cap-saved' },
@@ -308,6 +308,7 @@ async function save(btn) {
     vals[stage] = { ...base[stage] };
     notes[stage] = null;
     dropLocal(DRAFT(data.team.team_id, stage));
+    if (stage === 'pitch' && !data.submissions.capstone && !isDirty('capstone')) initStage('capstone');
     toast(t('capstone.saved_toast'), 'ok');
     keepPlace(renderPage);
     const line = document.getElementById('cap-saved-line');

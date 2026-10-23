@@ -175,8 +175,9 @@ function checkpointSection() {
               h('th', { scope: 'col' }, t('team.cp.col_forum'), h('span', { class: 'th-sub', text: t('team.cp.target_forum') })))),
             h('tbody', null, (list.length ? list : Object.keys(g.courses).map((code) => ({ code }))).map((c) => {
               const x = g.courses[c.code] || {};
-              return h('tr', null,
-                h('th', { scope: 'row' }, h('span', { class: `code-badge sm fam-${c.code.charAt(0)}`, text: c.code }), c.name_en ? h('span', { class: 'cp-name', text: pick(c, 'name') }) : null),
+              const none = !isNum(x.first_try_pass) && !isNum(x.passed_by_forum);
+              return h('tr', { class: none ? 'no-data' : null },
+                h('th', { scope: 'row' }, h('span', { class: 'cp-course' }, h('span', { class: `code-badge sm fam-${c.code.charAt(0)}`, text: c.code }), c.name_en ? h('span', { class: 'cp-name', text: pick(c, 'name') }) : null)),
                 bar(x.first_try_pass, 70), bar(x.passed_by_forum, 100));
             })))),
         h('p', { class: 'xs muted pad-x note-line' }, icon('info', 'sm'), ' ', t('team.cp.note', { n: g.n })));
@@ -223,9 +224,19 @@ function gateTable(reports) {
         set.map((c, i) => t('team.gs.next_count', { code: c.code, n: done[i], total: reports.length })).join(' · ')));
   }
   const blDone = reports.filter((r) => r.baseline === 'done').length;
+  // Phones: one card per report, statuses grouped (passed / not yet / not started) with course codes.
+  const cards = h('ul', { class: 'gs-cards' }, reports.map((r) => h('li', { class: 'gs-card' },
+    h('div', { class: 'row between' }, h('h3', { text: r.first_name || r.code }),
+      r.baseline === 'done' ? chip(`${t('team.gs.col_baseline')}: ${t('team.gs.bl_done')}`, 'pass', 'check') : chip(`${t('team.gs.col_baseline')}: ${t('team.gs.bl_not')}`, 'locked', 'circle')),
+    ['passed', 'not_yet', 'not_started'].map((st) => {
+      const list = codes.filter((code) => ((r.courses || {})[code] || 'not_started') === st);
+      if (!list.length) return null;
+      return h('p', { class: 'gs-line' }, cellChip(st), list.map((code) => h('span', { class: `code-badge sm fam-${code.charAt(0)}`, title: byCode.has(code) ? pick(byCode.get(code), 'name') : code, text: code })));
+    }))));
   return h('div', { class: 'card pad stack' },
     nextLine,
-    h('div', { class: 'table-wrap status-wrap', role: 'region', tabindex: '0', 'aria-labelledby': 'gates-title' },
+    cards,
+    h('div', { class: 'table-wrap status-wrap gs-table', role: 'region', tabindex: '0', 'aria-labelledby': 'gates-title' },
       h('table', { class: 'data status-table' },
         h('caption', { class: 'sr-only', text: t('team.gs.caption') }),
         h('thead', null, h('tr', null,

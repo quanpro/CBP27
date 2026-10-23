@@ -154,7 +154,7 @@ function setup() {
     onLow: () => toast(t('baseline.low_toast')),
     onExpire: () => autoSubmit(),
   });
-  if (start.resumed) toast(t('baseline.resumed'), 'ok');
+  if (start.resumed) announce(t('baseline.resumed'));
   const part = runner.pos.part;
   if (allRated() && (part === 'B' || part === 'C')) viewQ(part);
   else if (allRated() && part === 'review') viewReview();
@@ -169,7 +169,7 @@ function milestones(ms) {
 function partHeader(part) {
   const min = { A: 6, B: 40, C: 14 }[part];
   return h('header', { class: 'bl-part-head stack sm', 'data-anchor': `head-${part}` },
-    h('div', { class: 'row tight' }, h('span', { class: 'bl-part-k', 'aria-hidden': 'true', text: part }), h('span', { class: 'eyebrow', text: t('baseline.part_n', { part }) }), chip(t('baseline.about_min', { n: min }), '', 'clock')),
+    h('div', { class: 'row tight' }, h('span', { class: 'bl-part-k', 'aria-hidden': 'true', text: part }), h('span', { class: 'eyebrow', text: t('baseline.part_n', { part }) }), h('span', { class: 'xs muted bl-pace', text: t('baseline.pace', { n: min }) })),
     h('h1', { class: 'qz-h1', text: t(`baseline.part_${part.toLowerCase()}_name`) }),
     h('p', { class: 'muted', text: t(`baseline.part_${part.toLowerCase()}_hint`) }));
 }
@@ -342,11 +342,13 @@ function renderReview(err) {
   const rowFor = (part, done, all, left, onOpen, jump, labelOf) => h('li', { class: `bl-rev-row${left.length ? ' has-left' : ''}` },
     h('span', { class: 'bl-rev-ico', 'aria-hidden': 'true' }, icon(left.length ? 'alert' : 'check-circle')),
     h('div', { class: 'stack sm bl-rev-main' },
-      h('b', { class: 'ink', text: `${t('baseline.part_n', { part })} · ${t(`baseline.part_${part.toLowerCase()}_name`)}` }),
+      h('div', { class: 'bl-rev-head' },
+        h('b', { class: 'ink', text: `${t('baseline.part_n', { part })} · ${t(`baseline.part_${part.toLowerCase()}_name`)}` }),
+        h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: onOpen }, t('baseline.open_part'), icon('chevron-right', 'sm'))),
       h('span', { class: 'small', text: part === 'A' ? t('baseline.rated', { n: done, total: all }) : t('quiz.answered', { n: done, total: all }) }),
+      part === 'B' && left.length ? h('span', { class: 'small muted', text: t('baseline.jump_course_hint') }) : null,
       left.length && jump ? h('div', { class: 'row tight qz-jumps' }, h('span', { class: 'small muted', text: t('quiz.review.jump_label') }),
-        left.map((it) => h('button', { class: 'btn btn-secondary btn-sm', type: 'button', 'aria-label': t('baseline.jump_aria', { label: labelOf(it) }), onclick: () => jump(it) }, labelOf(it)))) : null),
-    h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: onOpen }, t('baseline.open_part'), icon('chevron-right', 'sm')));
+        left.map((it) => h('button', { class: 'btn btn-secondary btn-sm', type: 'button', 'aria-label': t('baseline.jump_aria', { label: labelOf(it) }), onclick: () => jump(it) }, labelOf(it)))) : null));
   const numB = new Map(itemsB.map((it, i) => [it.item_id, i + 1]));
   const numC = new Map(itemsC.map((it, i) => [it.item_id, i + 1]));
   const leftTotal = leftB.length + leftC.length;
@@ -355,7 +357,7 @@ function renderReview(err) {
       h('h1', { id: 'bl-rev-h', class: 'qz-h1', text: t('baseline.review_title') }),
       h('ul', { class: 'bl-rev' },
         rowFor('A', nA, self.length, [], () => viewA()),
-        rowFor('B', itemsB.length - leftB.length, itemsB.length, leftB, () => viewQ('B', 'first'), jumpB, (it) => `${it.course} · ${t('quiz.q_short', { n: numB.get(it.item_id) })}`),
+        rowFor('B', itemsB.length - leftB.length, itemsB.length, firstPerCourse(leftB), () => viewQ('B', 'first'), jumpB, (it) => t('baseline.jump_course', { code: it.course, count: leftB.filter((x) => x.course === it.course).length })),
         rowFor('C', itemsC.length - leftC.length, itemsC.length, leftC, () => viewQ('C', 'first'), jumpC, (it) => t('quiz.q_short', { n: numC.get(it.item_id) }))),
       h('div', { class: `callout ${leftTotal ? 'warn' : 'info'}` }, icon(leftTotal ? 'alert' : 'lock'),
         h('span', { text: leftTotal ? t('baseline.review_left', { count: leftTotal }) : t('baseline.review_done') })),
@@ -367,6 +369,12 @@ function renderReview(err) {
   const focusEl = err ? app.querySelector('.qz-submit-err') : app.querySelector('h1');
   if (focusEl) { focusEl.setAttribute('tabindex', '-1'); focusEl.focus({ preventScroll: true }); }
   window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+/** One jump per course: its first unanswered question. */
+function firstPerCourse(items) {
+  const seen = new Set();
+  return items.filter((it) => (seen.has(it.course) ? false : (seen.add(it.course), true)));
 }
 
 async function doSubmit() {
@@ -440,6 +448,7 @@ function renderResult(res, prev) {
   const self = res.self || {};
   const gaps = (res.gaps || []).slice(0, 2);
   const lvText = (n) => { const lv = levelOf(n); return lv ? `${lv.level} · ${lv.abbr || lv.label}` : '–'; };
+  const lvFull = (n) => { const lv = levelOf(n); return lv ? `${lv.level} · ${lv.label}` : '–'; };
   const bars = order.filter((c) => by[c] !== undefined).map((c) => {
     const pct = Math.max(0, Math.min(100, Number(by[c]) || 0));
     const lv = isRated(self[c]) ? Number(self[c]) : null;
@@ -449,10 +458,10 @@ function renderResult(res, prev) {
     return h('div', { class: 'bar-row bl-bar', 'data-anchor': `bar-${c}` },
       codeBadge(c),
       h('div', { class: 'bl-bar-main' },
-        h('div', { class: 'bl-bar-label' }, h('span', { class: 'bl-bar-name', text: courseName(c) }), lv !== null ? h('span', { class: 'bl-bar-self', 'aria-hidden': 'true', text: t('baseline.self_short', { lv: lvText(lv) }) }) : null),
+        h('span', { class: 'bl-bar-name', 'aria-hidden': 'true', text: courseName(c) }),
         h('div', { class: 'track', 'aria-hidden': 'true' }, fill, mark),
         h('span', { class: 'sr-only', text: t('baseline.bar_sr', { name: courseName(c), pct, lv: lv !== null ? lvText(lv) : '–' }) })),
-      h('span', { class: 'bl-bar-val', 'aria-hidden': 'true', text: `${pct}%` }));
+      h('span', { class: 'bl-bar-val', 'aria-hidden': 'true' }, h('b', { text: `${pct}%` }), lv !== null ? h('span', { class: 'bl-bar-self', text: t('baseline.self_short', { lv: lv.toString() }) }) : null));
   });
   const delta = prev && typeof prev.score_pct === 'number' ? res.score_pct - prev.score_pct : null;
   render(app, h('div', { class: 'qz bl stack lg' },
@@ -465,12 +474,13 @@ function renderResult(res, prev) {
       h('h1', { id: 'bl-res-h', class: 'qz-hero-title', text: t('baseline.result_title') }),
       h('p', { class: 'qz-hero-body', text: t('baseline.result_body') }),
       delta !== null ? h('p', { class: 'qz-next' }, icon('trend-up', 'sm'), h('span', { text: t('baseline.result_prev', { prev: prev.score_pct, wave: waveLabel(prev.wave), delta: delta >= 0 ? `+${delta}` : String(delta) }) })) : null),
-    gaps.length ? h('section', { class: 'callout success bl-gaps', 'aria-labelledby': 'bl-gaps-h' }, icon('target'),
+    gaps.length ? h('section', { class: 'callout warn bl-gap-card', 'aria-labelledby': 'bl-gaps-h' }, icon('target'),
       h('div', { class: 'stack sm' },
         h('h2', { id: 'bl-gaps-h', class: 'bl-h3', text: t('baseline.gaps_title') }),
         h('ol', { class: 'bl-gap-list' }, gaps.map((c) => h('li', null, codeBadge(c),
           h('span', { class: 'stack sm' }, h('b', { class: 'ink', text: courseName(c) }),
-            h('span', { class: 'small', text: t('baseline.gap_line', { pct: by[c] !== undefined ? by[c] : '–', lv: isRated(self[c]) ? lvText(self[c]) : '–' }) }))))),
+            h('span', { class: 'small', text: t('baseline.gap_score', { pct: by[c] !== undefined ? by[c] : '–' }) }),
+            h('span', { class: 'small', text: t('baseline.gap_self', { lv: isRated(self[c]) ? lvFull(self[c]) : '–' }) }))))),
         h('p', { class: 'strong ink', text: t('baseline.gaps_idp') }))) : null,
     h('section', { class: 'card pad stack', 'aria-labelledby': 'bl-bars-h' },
       h('h2', { id: 'bl-bars-h', text: t('baseline.bars_title') }),

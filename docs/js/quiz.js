@@ -228,8 +228,8 @@ export function buildTop({ title, pill, timerEl, n = 0, total = 0, countText }) 
   const pct = total ? Math.round((100 * n) / total) : 0;
   const bar = progressBar(pct, { blue: true, label: t('quiz.progress_aria') });
   const count = h('span', { class: 'qz-count', text: countText || t('quiz.answered', { n, total }) });
-  const el = h('div', { class: 'quiz-top qz-top' },
-    h('div', { class: 'qz-top-row' }, h('span', { class: 'qz-top-title', text: title }), h('span', { class: 'qz-top-tools' }, pill || null, timerEl || null)),
+  const el = h('div', { class: `quiz-top qz-top${timerEl ? ' has-timer' : ''}` },
+    h('div', { class: 'qz-top-row' }, h('span', { class: 'qz-top-title', text: title }), pill || null, timerEl || null),
     h('div', { class: 'qz-top-row qz-top-progress' }, bar, count));
   return {
     el,
@@ -386,15 +386,15 @@ export class QuizRunner {
   renderView({ anchor, toAnchor = false, toTop = false, focusScreen = false } = {}) {
     if (!this.view) return;
     const { container, cfg } = this.view;
-    const keep = toTop || toAnchor ? null : this.captureAnchor();
+    const keep = toTop || toAnchor || focusScreen ? null : this.captureAnchor();
     const fk = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
     const all = cfg.groups.flatMap((g) => g.items);
     const num = new Map(all.map((it, i) => [it.item_id, i + 1]));
     const screens = this.screensOf(cfg);
     let idx = Math.min(Math.max(0, this.index[cfg.key] || 0), Math.max(0, screens.length - 1));
     const anc = anchor || keep;
-    if (anc && this.mode === 'paged') {
-      const si = screens.findIndex((s) => s.items.some((i) => i.item_id === anc.id));
+    if (anchor && this.mode === 'paged') {
+      const si = screens.findIndex((s) => s.items.some((i) => i.item_id === anchor.id));
       if (si >= 0) idx = si;
     }
     this.index[cfg.key] = idx;
@@ -428,7 +428,7 @@ export class QuizRunner {
     const s = screens[idx];
     const isFirst = idx === 0; const isLast = idx === screens.length - 1;
     const showHeader = s && s.group && s.group.header && (cfg.paging === 'group' || s.group.items[0] === s.items[0]);
-    const screen = h('div', { class: 'qz-screen stack', 'data-screen': String(idx) },
+    const screen = h('div', { class: `qz-screen stack${this.animNext ? ' qz-anim' : ''}`, 'data-screen': String(idx) },
       isFirst && cfg.intro ? cfg.intro('paged') : null,
       cfg.aside ? cfg.aside('paged') : null,
       showHeader ? s.group.header() : null,
@@ -492,7 +492,9 @@ export class QuizRunner {
     const screens = this.screensOf(this.view.cfg);
     this.index[this.view.cfg.key] = Math.max(0, Math.min(screens.length - 1, i));
     this.persist();
+    this.animNext = true;
     this.renderView({ focusScreen: true });
+    this.animNext = false;
   }
   /** Show the screen holding `itemId` and focus that question. */
   jumpTo(itemId) {

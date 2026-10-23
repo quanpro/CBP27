@@ -156,7 +156,8 @@ function introView(err) {
     h('article', { class: 'card qz-intro-card', 'aria-labelledby': 'qz-intro-title' },
       h('div', { class: 'qz-band', 'aria-hidden': 'true' }),
       h('div', { class: 'pad stack' },
-        kicker(kick),
+        kicker(),
+        h('p', { class: 'eyebrow qz-eyebrow', text: kick }),
         h('h1', { id: 'qz-intro-title', text: title }),
         h('p', { class: 'lead', text: lead }),
         h('ul', { class: 'qz-facts' }, facts.map(([ic, text]) => h('li', null, h('span', { class: 'qz-fact-ico', 'aria-hidden': 'true' }, icon(ic)), h('span', { text })))),
@@ -180,7 +181,7 @@ async function begin(btn) {
     }
     return show(() => introView(e));
   }
-  if (startRes.resumed) toast(t('quiz.resumed'), 'ok');
+  if (startRes.resumed) announce(t('quiz.resumed'));
   runQuestions();
   return undefined;
 }
@@ -282,16 +283,17 @@ function hero({ variant, iconName, eyebrow, title, body, actions, res, extra }) 
     extra || null,
     actions && actions.length ? h('div', { class: 'row qz-actions' }, actions) : null);
 }
-function reviewCard(r, n, { reveal }) {
+function reviewCard(r, n, { reveal, missed = false }) {
   const ok = !!r.is_correct;
   const lines = [answerLine('your', r.your, { correct: ok })];
   if (!ok && reveal && r.correct) lines.push(answerLine('right', r.correct));
   const why = reveal ? pick(r, 'why') : '';
-  return h('article', { class: 'q-card qz-rcard', 'aria-label': t('quiz.q_short', { n }) },
+  const label = missed ? t('result.missed_n', { n }) : t('quiz.q_short', { n });
+  return h('article', { class: 'q-card qz-rcard', 'aria-label': label },
     h('div', { class: 'row tight qz-rcard-head' },
-      h('span', { class: 'q-meta', text: t('quiz.q_short', { n }) }),
-      chip(ok ? t('result.correct_chip') : t('result.wrong_chip'), ok ? 'pass' : 'warn', ok ? 'check' : 'x'),
-      r.objective ? chip(t('result.objective_n', { n: r.objective })) : null),
+      missed ? null : h('span', { class: 'q-meta', text: label }),
+      missed ? null : chip(ok ? t('result.correct_chip') : t('result.wrong_chip'), ok ? 'pass' : 'warn', ok ? 'check' : 'x'),
+      r.objective ? chip(missed ? t('result.objective_n_text', { n: r.objective, text: objText(r.objective) }) : t('result.objective_n', { n: r.objective }), missed ? 'qz-obj-chip' : '') : null),
     h('p', { class: 'qz-rstem', text: pick(r, 'stem') }),
     h('div', { class: 'opts' }, lines),
     why ? h('div', { class: 'qz-why' }, icon('info', 'sm'), h('p', null, h('b', { text: `${t('result.why')} ` }), h('span', { text: why }))) : null);
@@ -384,7 +386,7 @@ function checkpointResult(res) {
       h('h2', { id: 'qz-missed-h', text: missed.length ? t('result.missed_title', { count: missed.length }) : t('result.missed_none_title') }),
       !missed.length ? h('p', { class: 'muted', text: t('result.missed_none') }) : null,
       missed.length && !reveal ? h('div', { class: 'callout info' }, icon('lock'), h('span', { text: t('result.locked_note') })) : null,
-      missed.map((r, i) => reviewCard(r, i + 1, { reveal }))),
+      missed.map((r, i) => reviewCard(r, i + 1, { reveal, missed: true }))),
     h('div', { class: 'row qz-actions' }, backToCourse())));
 }
 

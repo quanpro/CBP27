@@ -6,7 +6,7 @@ import { mountShell, h, icon, chip, render, loading, emptyState, errorState, err
 import { t, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
 import { fmtDateTime, fmtShortDate } from '../courses.js';
-import { CRITERIA, isDouble, rubricAnchors, announce, fmtVND, fmtTime } from '../quiz.js';
+import { CRITERIA, isDouble, rubricAnchors, fmtVND, fmtTime } from '../quiz.js';
 
 const { app, session } = await mountShell({ page: 'panel' });
 
@@ -137,7 +137,8 @@ function teamCard(tm) {
         isDouble(stage, c) ? chip(t('rubric.double'), 'info', 'star') : null),
       h('p', { class: 'small muted', text: t(`rubric.${c}.what`) }),
       sp.group,
-      rubricAnchors(c));
+      window.matchMedia('(min-width: 640px)').matches ? rubricAnchors(c)
+        : h('details', { class: 'pn-anchors' }, h('summary', { text: t('panel.anchors') }), rubricAnchors(c)));
   });
   const cid = `pn-c-${stage}-${tm.team_id}`;
   const comment = h('textarea', { class: 'textarea', id: cid, rows: 3, 'aria-describedby': `${cid}-hint` });
