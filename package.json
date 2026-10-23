@@ -7,6 +7,14 @@
     "gen:seed": "node tools/gen_seed.mjs",
     "bundle:backend": "node tools/bundle_backend.mjs",
     "dev:backend": "node backend/dev/server.mjs --port 8787",
-    "check:private": "node tools/check_no_private.mjs --all"
+    "check:private": "node tools/check_no_private.mjs --all",
+    "test:e2e": "playwright test",
+    "test:e2e:mock": "playwright test --project=mock",
+    "test:e2e:real": "playwright test --project=real",
+    "test": "node tools/check_no_private.mjs --all && npm run test:backend && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0"
   }
 }
