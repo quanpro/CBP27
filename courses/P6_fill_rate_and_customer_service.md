@@ -11,7 +11,7 @@ _Every lost case has an owner._ · Vietnamese name: Tỷ lệ đáp ứng và d�
 | Faculty | Quân facilitates; the CS manager owns the S&OE segment. |
 
 ## The business problem
-Most lost sales sit in Modern Trade; losses are discussed as one percentage instead of owned branches with values and actions to closure.
+Lost sales are discussed as one percentage instead of owned branches with values and actions to closure.
 
 ## After this course you can
 1. Define fill rate, OTIF and case fill correctly (line, case, value; on time AND in full)  
@@ -22,8 +22,8 @@ Most lost sales sit in Modern Trade; losses are discussed as one percentage inst
    _Phân bổ khi thiếu hàng theo quy tắc đã thống nhất và báo khách hàng sớm_
 4. Run the S&OE rhythm with actions to closure  
    _Vận hành nhịp S&OE với các hành động đến khi hoàn tất_
-5. Explain why MT carries most lost sales and where the fixes are  
-   _Giải thích vì sao MT chiếm phần lớn doanh số bị mất và giải pháp nằm ở đâu_
+5. Explain where lost sales come from by channel and where the fixes are  
+   _Giải thích doanh số bị mất đến từ kênh nào và giải pháp nằm ở đâu_
 
 Self-rating statement (baseline Part A): "I measure fill rate correctly, find the loss and its owner in the loss tree, and close S&OE actions so the loss does not come back."
 
@@ -53,10 +53,10 @@ Every episode follows the house format from A1/C1: cold open with a hook → 8-s
 | 2 | Build the fill-rate loss tree and give each loss one owner | 2 | 3 |
 | 3 | Allocate in shortage with an agreed rule and tell customers early | 2 | 2 |
 | 4 | Run the S&OE rhythm with actions to closure | 2 | 2 |
-| 5 | Explain why MT carries most lost sales and where the fixes are | 2 | 1 |
+| 5 | Explain where lost sales come from by channel and where the fixes are | 2 | 1 |
 
 ## Offline forum (4 h, Vietnamese, Quân)
-Fill-rate loss-tree clinic: teams run the loss tree for the top MT accounts in our Fill-rate & Service Loss-tree dashboard, pick the fixes worth most, and set owners and dates.
+Fill-rate loss-tree clinic: teams run the loss tree for the top MT accounts in our fill-rate loss-tree dashboard, pick the fixes worth most, and set owners and dates.
 
 Run-sheet: `templates/forum_kit_template.md`.
 
@@ -69,4 +69,4 @@ Evidence for sign-off: Loss-tree extract, fix with value, action log; manager si
 MT fill rate; lost sales value.
 
 ## Assets
-To build: 7 episodes; uses the existing Fill-rate & Service Loss-tree dashboard as the model-factory tool.
+To build: 7 episodes; uses the existing fill-rate loss-tree dashboard as the model-factory tool.

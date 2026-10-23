@@ -67,8 +67,8 @@ Status: ✅ built (videos rendered; A1 also has its forum deck and pre-work page
 - Field: SLOB root-cause and action plan for your category; one phase-out stock overview. KPI: SLOB value, write-offs, cover days. Timed before year-end and the Tết 2028 build.
 
 **P6 · Fill Rate & Customer Service** 🛠 (Priority 3 · Cycle 8 · Oct–Nov)
-- After this course you can: (1) define fill rate, OTIF and case fill correctly (line, case, value; on time AND in full); (2) build the fill-rate loss tree (no stock, allocation cut, picking, late dispatch, transport, customer slot) and give each loss one owner; (3) allocate in shortage with an agreed rule and tell customers early; (4) run the S&OE rhythm (Wednesday loss-tree review, Thursday S&OE) with actions to closure; (5) explain why MT carries most of our lost sales and where the fixes are.
-- Field: loss tree for your top MT accounts with one fix and an owner; S&OE action log for 4 weeks. KPI: MT fill rate, lost sales value. Tool: our Fill-rate & Service Loss-tree dashboard (model factory).
+- After this course you can: (1) define fill rate, OTIF and case fill correctly (line, case, value; on time AND in full); (2) build the fill-rate loss tree (no stock, allocation cut, picking, late dispatch, transport, customer slot) and give each loss one owner; (3) allocate in shortage with an agreed rule and tell customers early; (4) run the S&OE rhythm (Wednesday loss-tree review, Thursday S&OE) with actions to closure; (5) explain where lost sales come from by channel and where the fixes are.
+- Field: loss tree for your top MT accounts with one fix and an owner; S&OE action log for 4 weeks. KPI: MT fill rate, lost sales value. Tool: our fill-rate loss-tree dashboard (model factory).
 
 
 Full course pages: `courses/`.

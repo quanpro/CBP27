@@ -1243,8 +1243,8 @@
      "ep": 7,
      "title_en": "Tết, Launches and Other Shocks",
      "title_vi": "Tết, sản phẩm mới và những cú sốc khác",
-     "ideas_en": "Events and new portfolio (including Candid); moving peaks.",
-     "ideas_vi": "Sự kiện và danh mục sản phẩm mới (gồm cả Candid); đỉnh nhu cầu dịch chuyển.",
+     "ideas_en": "Events and new portfolio launches; moving peaks.",
+     "ideas_vi": "Sự kiện và các sản phẩm mới ra mắt; đỉnh nhu cầu dịch chuyển.",
      "try_en": "Move the peak.",
      "try_vi": "Dời đỉnh nhu cầu."
     },
@@ -1424,8 +1424,8 @@
    "name_vi": "Tỷ lệ đáp ứng và dịch vụ khách hàng",
    "promise_en": "Every lost case has an owner.",
    "promise_vi": "Mỗi thùng hàng bị mất đều có người chịu trách nhiệm.",
-   "problem_en": "Most lost sales sit in Modern Trade; losses are discussed as one percentage instead of owned branches with values and actions to closure.",
-   "problem_vi": "Phần lớn doanh số bị mất nằm ở kênh MT (Modern Trade); tổn thất chỉ được bàn như một con số phần trăm chung, thay vì tách thành từng nhánh có người phụ trách, có giá trị và có hành động theo đến khi hoàn tất.",
+   "problem_en": "Lost sales are discussed as one percentage instead of owned branches with values and actions to closure.",
+   "problem_vi": "Doanh số bị mất chỉ được bàn như một con số phần trăm chung, thay vì tách thành từng nhánh có người phụ trách, có giá trị và có hành động theo đến khi hoàn tất.",
    "used_at_en": "S&OE: Wednesday loss-tree review and Thursday S&OE; allocation in shortage.",
    "used_at_vi": "S&OE: rà soát cây tổn thất thứ Tư và họp S&OE thứ Năm; phân bổ khi thiếu hàng.",
    "self_en": "I measure fill rate correctly, find the loss and its owner in the loss tree, and close S&OE actions so the loss does not come back.",
@@ -1467,8 +1467,8 @@
     },
     {
      "n": 5,
-     "en": "Explain why MT carries most lost sales and where the fixes are",
-     "vi": "Giải thích vì sao MT chiếm phần lớn doanh số bị mất và giải pháp nằm ở đâu",
+     "en": "Explain where lost sales come from by channel and where the fixes are",
+     "vi": "Giải thích doanh số bị mất đến từ kênh nào và giải pháp nằm ở đâu",
      "episodes": [
       7
      ]
@@ -1543,8 +1543,8 @@
    "forum": {
     "title_en": "Fill-rate loss-tree clinic",
     "title_vi": "Clinic cây tổn thất tỷ lệ đáp ứng",
-    "summary_en": "Fill-rate loss-tree clinic: teams run the loss tree for the top MT accounts in our Fill-rate & Service Loss-tree dashboard, pick the fixes worth most, and set owners and dates.",
-    "summary_vi": "Clinic cây tổn thất tỷ lệ đáp ứng: các nhóm chạy cây tổn thất cho các khách hàng MT lớn nhất trên dashboard Fill-rate & Service Loss-tree của chúng ta, chọn những giải pháp mang lại giá trị lớn nhất, rồi giao người phụ trách và hạn hoàn thành."
+    "summary_en": "Fill-rate loss-tree clinic: teams run the loss tree for the top MT accounts in our fill-rate loss-tree dashboard, pick the fixes worth most, and set owners and dates.",
+    "summary_vi": "Clinic cây tổn thất tỷ lệ đáp ứng: các nhóm chạy cây tổn thất cho các khách hàng MT lớn nhất trên dashboard cây tổn thất tỷ lệ đáp ứng của chúng ta, chọn những giải pháp mang lại giá trị lớn nhất, rồi giao người phụ trách và hạn hoàn thành."
    },
    "field": {
     "en": "Loss tree for your top MT accounts with one fix and an owner; S&OE action log for 4 weeks.",

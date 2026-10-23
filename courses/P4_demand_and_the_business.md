@@ -38,7 +38,7 @@ Every episode follows the house format from A1/C1: cold open with a hook → 8-s
 | 04 | Accurate or Just Lucky? | Lag-1 wMAPE, bias, tracking signal; aggregation. | Bias or noise? |
 | 05 | Inside the Machine | What the ML forecast sees and cannot see; feeding it drivers. | Can the model see this? |
 | 06 | Five Rules for Touching the Forecast | FVA; no small tweaks, careful going up, one owner, reason first, review without blame. | Which override is allowed? |
-| 07 | Tết, Launches and Other Shocks | Events and new portfolio (including Candid); moving peaks. | Move the peak. |
+| 07 | Tết, Launches and Other Shocks | Events and new portfolio launches; moving peaks. | Move the peak. |
 | 08 | The Demand Review That Decides | Consensus in money; the forecast story told answer-first. | Write the Demand Review headline. |
 
 ## On the Hub
