@@ -1,0 +1,181 @@
+{
+ "brand": {
+  "name": "The 1% Planner",
+  "tagline": "Mỗi tuần tốt hơn một chút",
+  "program": "Chương trình phát triển năng lực 2027",
+  "home_aria": "The 1% Planner, trang chủ"
+ },
+ "nav": {
+  "home": "Học tập của tôi",
+  "home_short": "Học tập",
+  "team": "Bức tranh đội",
+  "team_short": "Đội",
+  "capstone": "Capstone",
+  "capstone_short": "Capstone",
+  "panel": "Hội đồng",
+  "panel_short": "Hội đồng",
+  "about": "Bảo mật & trợ giúp",
+  "about_short": "Giới thiệu",
+  "aria": "Chính",
+  "aria_mobile": "Điều hướng chính"
+ },
+ "lang": {
+  "aria": "Ngôn ngữ"
+ },
+ "theme": {
+  "aria": "Giao diện: {mode}. Đổi giao diện",
+  "system": "Theo hệ thống",
+  "light": "Giao diện sáng",
+  "dark": "Giao diện tối"
+ },
+ "menu": {
+  "change_pin": "Đổi PIN",
+  "privacy": "Bảo mật",
+  "logout": "Đăng xuất"
+ },
+ "role": {
+  "demand": "Hoạch định nhu cầu",
+  "supply": "Hoạch định cung ứng",
+  "materials": "Hoạch định vật tư",
+  "cs": "Dịch vụ khách hàng",
+  "undefined": "Planning & CS"
+ },
+ "footer": {
+  "privacy": "Kết quả của bạn được bảo mật: chỉ bạn, Planning Director và HR L&D xem được.",
+  "about": "Cách Hub hoạt động",
+  "program": "Marico Đông Nam Á · Planning & Customer Service"
+ },
+ "demo": {
+  "label": "Chế độ demo",
+  "body": "Câu hỏi giả lập; không dữ liệu nào được ghi vào chương trình. Đăng nhập bằng DEMO-L (học viên), DEMO-M (quản lý và hội đồng) hoặc DEMO-N (đăng nhập lần đầu), PIN 270127.",
+  "reset": "Đặt lại demo"
+ },
+ "common": {
+  "loading": "Đang tải…",
+  "retry": "Thử lại",
+  "confirm": "Xác nhận",
+  "cancel": "Huỷ",
+  "exit": "Thoát",
+  "close": "Đóng",
+  "back": "Quay lại",
+  "next": "Tiếp",
+  "previous": "Trước",
+  "save": "Lưu",
+  "saved": "Đã lưu",
+  "continue": "Tiếp tục",
+  "minutes": "{n} phút",
+  "of": "{n} / {total}",
+  "today": "Hôm nay",
+  "tomorrow": "Ngày mai",
+  "in_days": "Còn {n} ngày",
+  "days_ago": "{n} ngày trước",
+  "yes": "Có",
+  "no": "Không",
+  "optional": "Không bắt buộc",
+  "required": "Bắt buộc"
+ },
+ "a11y": {
+  "skip": "Chuyển đến nội dung",
+  "percent": "{pct} phần trăm",
+  "progress": "Tiến độ"
+ },
+ "login": {
+  "code": "Mã nhân viên",
+  "pin": "PIN",
+  "submit": "Đăng nhập",
+  "expired_title": "Vui lòng đăng nhập lại",
+  "expired_body": "Phiên làm việc đã kết thúc. Câu trả lời của bạn vẫn được giữ trên thiết bị này; đăng nhập để làm tiếp."
+ },
+ "pin": {
+  "title": "Đổi PIN",
+  "intro": "Chọn một PIN mới gồm 6 chữ số mà chỉ bạn biết.",
+  "forced_intro": "Chào mừng bạn! Trước tiên, hãy thay PIN do HR cấp bằng PIN 6 chữ số của riêng bạn.",
+  "current": "PIN hiện tại",
+  "current_issued": "PIN do HR cấp",
+  "new": "PIN mới (6 chữ số)",
+  "repeat": "Nhập lại PIN mới",
+  "rules": "6 chữ số. Không trùng cả 6 số, không phải 123456 hay 654321 và không trùng PIN cũ.",
+  "save": "Lưu PIN mới",
+  "six_digits": "Nhập đủ 6 chữ số.",
+  "mismatch": "Hai lần nhập PIN mới không khớp.",
+  "changed": "Đã đổi PIN. Các thiết bị khác đã được đăng xuất."
+ },
+ "status": {
+  "opens": "Mở ngày {date}",
+  "locked": "Chưa mở",
+  "passed": "Đã đạt",
+  "recall_due": "Đến hạn ôn tập",
+  "closed": "Checkpoint đã đóng",
+  "needs_unlock": "Trao đổi với quản lý",
+  "cp_in_progress": "Đang làm checkpoint",
+  "retake_at": "Làm lại từ {time}",
+  "retake_now": "Có thể làm lại",
+  "predict_first": "Bắt đầu với Predict",
+  "watch": "Xem trên Blink · {n}/{total}",
+  "checkpoint_ready": "Sẵn sàng làm checkpoint"
+ },
+ "cta": {
+  "recall": "Làm bài ôn tập",
+  "continue_checkpoint": "Tiếp tục checkpoint",
+  "retake": "Làm lại checkpoint",
+  "predict": "Bắt đầu Predict",
+  "watch": "Xem các tập",
+  "checkpoint": "Làm checkpoint",
+  "continue": "Tiếp tục",
+  "start_baseline": "Bắt đầu đánh giá đầu vào",
+  "open_course": "Mở khoá học"
+ },
+ "next": {
+  "baseline": "Làm bài đánh giá đầu vào",
+  "baseline_continue": "Hoàn thành bài đánh giá đầu vào",
+  "baseline_body": "60 phút, chỉ riêng bạn xem kết quả. Mở đến {date}.",
+  "wait": "Tiếp theo: {code} · {name}",
+  "wait_body": "Mở ngày {date}. Trong lúc chờ, hãy duy trì ôn tập và bài thực hành.",
+  "done": "Bạn đã hoàn thành mọi việc",
+  "done_body": "Hiện chưa có việc gì đến hạn. Hẹn gặp bạn ở forum tiếp theo."
+ },
+ "steps": {
+  "predict": "Predict",
+  "watch": "Xem",
+  "checkpoint": "Checkpoint",
+  "forum": "Forum",
+  "field": "Thực hành",
+  "recall": "Ôn tập"
+ },
+ "family": {
+  "A": "Phân tích & AI",
+  "C": "Giao tiếp",
+  "P": "Hoạch định cốt lõi"
+ },
+ "errors": {
+  "generic": "Đã có lỗi xảy ra. Vui lòng thử lại.",
+  "network": "Không kết nối được với Hub. Kiểm tra mạng và thử lại.",
+  "bad_request": "Yêu cầu chưa hợp lệ. Vui lòng kiểm tra và thử lại.",
+  "auth_failed": "Mã nhân viên hoặc PIN chưa đúng.",
+  "locked": "Bạn đã thử quá nhiều lần. Mã này bị khoá đến {until}.",
+  "session_expired": "Phiên làm việc đã kết thúc. Vui lòng đăng nhập lại.",
+  "pin_change_required": "Vui lòng đổi PIN trước.",
+  "pin_weak": "Hãy chọn PIN mạnh hơn: 6 chữ số, không trùng cả 6 số, không phải 123456 hay 654321, không trùng PIN cũ.",
+  "not_open": "Mục này chưa mở.",
+  "gate_closed": "Thời gian làm checkpoint đã kết thúc. Hãy trao đổi với quản lý.",
+  "retake_too_soon": "Bạn có thể làm lại từ {next_retake_at}.",
+  "unlock_needed": "Lần thử thứ ba cần một buổi trao đổi 15 phút với quản lý trước.",
+  "already_submitted": "Bài này đã được nộp.",
+  "already_passed": "Bạn đã đạt checkpoint này.",
+  "not_due": "Bài ôn tập này chưa đến hạn.",
+  "not_found": "Không tìm thấy nội dung.",
+  "forbidden": "Bạn không có quyền truy cập mục này.",
+  "busy": "Hub đang bận. Vui lòng thử lại.",
+  "server_error": "Hub gặp sự cố. Vui lòng thử lại sau một phút."
+ },
+ "title": {
+  "home": "Học tập của tôi",
+  "course": "Khoá học",
+  "quiz": "Bài kiểm tra",
+  "baseline": "Đánh giá đầu vào",
+  "capstone": "Capstone",
+  "panel": "Hội đồng",
+  "team": "Bức tranh đội",
+  "about": "Bảo mật & trợ giúp"
+ }
+}

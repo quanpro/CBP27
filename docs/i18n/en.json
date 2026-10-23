@@ -1,0 +1,181 @@
+{
+ "brand": {
+  "name": "The 1% Planner",
+  "tagline": "Better every week",
+  "program": "Capability Building Program 2027",
+  "home_aria": "The 1% Planner, home"
+ },
+ "nav": {
+  "home": "My learning",
+  "home_short": "Learning",
+  "team": "Team picture",
+  "team_short": "Team",
+  "capstone": "Capstone",
+  "capstone_short": "Capstone",
+  "panel": "Panel",
+  "panel_short": "Panel",
+  "about": "Privacy & help",
+  "about_short": "About",
+  "aria": "Main",
+  "aria_mobile": "Main navigation"
+ },
+ "lang": {
+  "aria": "Language"
+ },
+ "theme": {
+  "aria": "Theme: {mode}. Change theme",
+  "system": "System theme",
+  "light": "Light theme",
+  "dark": "Dark theme"
+ },
+ "menu": {
+  "change_pin": "Change PIN",
+  "privacy": "Privacy",
+  "logout": "Sign out"
+ },
+ "role": {
+  "demand": "Demand planning",
+  "supply": "Supply planning",
+  "materials": "Materials planning",
+  "cs": "Customer service",
+  "undefined": "Planning & CS"
+ },
+ "footer": {
+  "privacy": "Your results are private: only you, the Planning Director and HR L&D see them.",
+  "about": "How it works",
+  "program": "Marico South East Asia · Planning & Customer Service"
+ },
+ "demo": {
+  "label": "Demo mode",
+  "body": "Invented questions; nothing reaches the program. Sign in with DEMO-L (learner), DEMO-M (manager and panel) or DEMO-N (first sign-in), PIN 270127.",
+  "reset": "Reset demo"
+ },
+ "common": {
+  "loading": "Loading…",
+  "retry": "Try again",
+  "confirm": "Confirm",
+  "cancel": "Cancel",
+  "exit": "Exit",
+  "close": "Close",
+  "back": "Back",
+  "next": "Next",
+  "previous": "Previous",
+  "save": "Save",
+  "saved": "Saved",
+  "continue": "Continue",
+  "minutes": "{n} min",
+  "of": "{n} of {total}",
+  "today": "Today",
+  "tomorrow": "Tomorrow",
+  "in_days": "In {n} days",
+  "days_ago": "{n} days ago",
+  "yes": "Yes",
+  "no": "No",
+  "optional": "Optional",
+  "required": "Required"
+ },
+ "a11y": {
+  "skip": "Skip to content",
+  "percent": "{pct} percent",
+  "progress": "Progress"
+ },
+ "login": {
+  "code": "Employee code",
+  "pin": "PIN",
+  "submit": "Sign in",
+  "expired_title": "Please sign in again",
+  "expired_body": "Your session ended. Your answers are kept on this device; sign in to carry on."
+ },
+ "pin": {
+  "title": "Change your PIN",
+  "intro": "Choose a new 6-digit PIN that only you know.",
+  "forced_intro": "Welcome! First, replace the PIN from HR with your own 6-digit PIN.",
+  "current": "Current PIN",
+  "current_issued": "PIN from HR",
+  "new": "New 6-digit PIN",
+  "repeat": "Repeat new PIN",
+  "rules": "6 digits. Not all the same digit, not 123456 or 654321, and not your old PIN.",
+  "save": "Save new PIN",
+  "six_digits": "Enter 6 digits.",
+  "mismatch": "The two new PINs don't match.",
+  "changed": "PIN changed. Any other device is signed out."
+ },
+ "status": {
+  "opens": "Opens {date}",
+  "locked": "Locked",
+  "passed": "Passed",
+  "recall_due": "Recall due",
+  "closed": "Checkpoint closed",
+  "needs_unlock": "Talk to your manager",
+  "cp_in_progress": "Checkpoint in progress",
+  "retake_at": "Retake from {time}",
+  "retake_now": "Retake ready",
+  "predict_first": "Start with Predict",
+  "watch": "Watch on Blink · {n}/{total}",
+  "checkpoint_ready": "Ready for the checkpoint"
+ },
+ "cta": {
+  "recall": "Do the recall",
+  "continue_checkpoint": "Continue checkpoint",
+  "retake": "Retake checkpoint",
+  "predict": "Start Predict",
+  "watch": "Watch episodes",
+  "checkpoint": "Take the checkpoint",
+  "continue": "Continue",
+  "start_baseline": "Start the baseline",
+  "open_course": "Open course"
+ },
+ "next": {
+  "baseline": "Take your baseline",
+  "baseline_continue": "Finish your baseline",
+  "baseline_body": "60 minutes, private to you. Open until {date}.",
+  "wait": "Next up: {code} · {name}",
+  "wait_body": "Opens {date}. Until then, keep up your recall and field work.",
+  "done": "You're all caught up",
+  "done_body": "Nothing is due right now. See you at the next forum."
+ },
+ "steps": {
+  "predict": "Predict",
+  "watch": "Watch",
+  "checkpoint": "Checkpoint",
+  "forum": "Forum",
+  "field": "Field",
+  "recall": "Recall"
+ },
+ "family": {
+  "A": "Analytics & AI",
+  "C": "Communication",
+  "P": "Planning core"
+ },
+ "errors": {
+  "generic": "Something went wrong. Please try again.",
+  "network": "Can't reach the Hub. Check your connection and try again.",
+  "bad_request": "That request wasn't valid. Please check and try again.",
+  "auth_failed": "That employee code or PIN isn't right.",
+  "locked": "Too many tries. This code is locked until {until}.",
+  "session_expired": "Your session has ended. Please sign in again.",
+  "pin_change_required": "Please change your PIN first.",
+  "pin_weak": "Choose a stronger PIN: 6 digits, not all the same, not 123456 or 654321, not your old PIN.",
+  "not_open": "This isn't open yet.",
+  "gate_closed": "The checkpoint window has closed. Talk to your manager.",
+  "retake_too_soon": "You can retake from {next_retake_at}.",
+  "unlock_needed": "A third try needs a 15-minute chat with your manager first.",
+  "already_submitted": "This was already submitted.",
+  "already_passed": "You have already passed this checkpoint.",
+  "not_due": "This recall isn't due yet.",
+  "not_found": "We couldn't find that.",
+  "forbidden": "You don't have access to this.",
+  "busy": "The Hub is busy. Please try again.",
+  "server_error": "The Hub had a problem. Please try again in a minute."
+ },
+ "title": {
+  "home": "My learning",
+  "course": "Course",
+  "quiz": "Quiz",
+  "baseline": "Baseline",
+  "capstone": "Capstone",
+  "panel": "Panel",
+  "team": "Team picture",
+  "about": "Privacy & help"
+ }
+}

@@ -61,7 +61,7 @@ Every episode follows the house format from A1/C1: cold open with a hook → 8-s
 | 6 | Conduct work items with sufficient precision, check the five biases, and iterate | 1 | 2 |
 
 ## Offline forum (4 h, Vietnamese, Quân)
-Forum as designed in the A1 forum deck (4 h): solve the Plant B cold case, then a topic Quân chooses; MECE race 'How do you get into BCG?' and the petrol-station estimate. Each team project is chartered as a one-day answer (SOI) with an issue tree.
+Forum as designed in the A1 forum deck (4 h): solve the Plant B cold case, then a topic Quân chooses; a timed MECE race and the petrol-station estimate. Each team project is chartered as a one-day answer (SOI) with an issue tree.
 
 Run-sheet: `templates/forum_kit_template.md`.
 
