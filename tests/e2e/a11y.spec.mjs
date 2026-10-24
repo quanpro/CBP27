@@ -44,6 +44,7 @@ for (const width of WIDTHS) {
         await page.locator('#pin-new').fill('135792');
         await page.locator('#pin-rep').fill('135792');
         await page.locator('.onboard form button[type="submit"]').click();
+        await expect(page.locator('#pin-old')).toHaveCount(0);
         expect(await hub.homeView()).toBe('consent');
         expect(await axeSerious(page), 'privacy gate').toEqual([]);
       });

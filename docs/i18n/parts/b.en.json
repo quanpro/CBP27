@@ -1,0 +1,66 @@
+{
+ "quiz": {
+  "save_short": {
+   "idle": "Autosave on",
+   "local": "Kept on this device",
+   "saving": "Saving…",
+   "saved": "Saved {time}",
+   "saved_now": "Saved",
+   "offline": "Offline · kept on this device",
+   "error": "Not synced · kept on this device"
+  },
+  "timer": {
+   "hide": "Hide timer",
+   "show": "Show timer",
+   "show_aria": "Show timer ({n} min left)"
+  },
+  "sr_h1": "{name}, question {n} of {total}",
+  "sr_h1_group": "{name}, questions {from}–{to} of {total}",
+  "sr_h1_list": "{name}, {total} questions",
+  "state": {
+   "unlock_body": "Talk to your manager for 15 minutes; they reopen it for you on the Team page."
+  }
+ },
+ "result": {
+  "notyet_suffix": "not this time",
+  "see_answers_one": "See your answer",
+  "see_answers_other": "See your {count} answers",
+  "cert_progress": "{n} of {total} checkpoints → 1% Practitioner",
+  "next_course": "Next: {code} · {name}",
+  "unlock_note": "Talk to your manager for 15 minutes; they reopen it for you on the Team page.",
+  "recall_h": {
+   "all": "Still sharp",
+   "most": "Nearly there",
+   "few": "Worth a quick review"
+  },
+  "recall_b": {
+   "all": "You got {n} of {total}. The why lines below keep it that way.",
+   "most": "You got {n} of {total}. Read the why lines below; that's where the memory sticks.",
+   "few": "You got {n} of {total}. Read the why lines below, then rewatch the episode if the idea still feels new."
+  }
+ },
+ "baseline": {
+  "timer_back_one": "1 minute left — the timer is showing again.",
+  "timer_back_other": "{count} minutes left — the timer is showing again.",
+  "overall_line": "Overall {pct}% · {k} of {n} questions right",
+  "words_title": "What your baseline says",
+  "strengths_title": "Your two strengths",
+  "strength_title_one": "Your strength",
+  "k_right": "{k} of {n} right",
+  "k_of_n": "{k} of {n}",
+  "bar_sr_n": "{name}: {k} of {n} right ({pct} percent), self-rating {lv}.",
+  "bars_body": "Questions right in each course: 4 in Part B, plus 1 from the case for six courses. The line shows how you rated yourself."
+ },
+ "panel": {
+  "draft_kept": "Draft kept on this device",
+  "discard": "Discard draft",
+  "leave_title": "Leave these scores unsaved?",
+  "leave_body_one": "One team on this tab has scores the panel hasn't received yet. They stay as a draft on this device until you save.",
+  "leave_body_other": "{count} teams on this tab have scores the panel hasn't received yet. They stay as drafts on this device until you save.",
+  "leave_yes": "Switch anyway",
+  "leave_no": "Stay and save",
+  "err_own_team": "You're on this team, so you don't score it.",
+  "own_chip": "Your team",
+  "err_offline_draft": "You seem to be offline. Your scores are kept on this device — save again when you're back online."
+ }
+}

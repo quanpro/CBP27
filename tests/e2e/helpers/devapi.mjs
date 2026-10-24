@@ -20,10 +20,11 @@ export async function call(action, params = {}) {
   return res.json();
 }
 
-/** Sign in from Node; returns the token (consent is not needed for API calls). */
+/** Sign in from Node and acknowledge the privacy notice (the server refuses other actions before it); returns the token. */
 export async function token(code, pin = PINS.real) {
   const r = await call('login', { code, pin });
   if (!r.ok) throw new Error(`dev login ${code} failed: ${r.error && r.error.code}`);
+  if (r.profile && r.profile.consent_needed) await call('consent', { token: r.token });
   return r.token;
 }
 

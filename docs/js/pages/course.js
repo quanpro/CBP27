@@ -1,9 +1,11 @@
-// course.html?c=CODE · one course: hero, journey stepper, Blink player + episode list,
-// objectives, forum, field assignment; side: checkpoint, predict, recall, key dates.
-import { h, render, icon, chip, codeBadge, ring, emptyState, errorState, errorMessage, toast, mountShell, qs } from '../ui.js';
+// course.html?c=CODE · one course in the order the cycle runs: hero, journey stepper, Predict,
+// Blink player + episode list, checkpoint, forum, field assignment, recall, key dates, then
+// "About this course" (folded on phones). Wide screens keep Predict, checkpoint, recall and dates
+// in a side column.
+import { h, render, icon, chip, codeBadge, ring, stepMeter, emptyState, errorState, errorMessage, toast, mountShell, qs } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, serverNow } from '../api.js';
-import { loadCatalog, journey, courseStatus, courseProgress, courseSteps, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
+import { loadCatalog, journey, courseStatus, courseProgress, courseSteps, stepInfo, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 
 // Links and embeds come from the Sheet: only https URLs are used (anything else is treated as missing).
 const safeUrl = (u) => (typeof u === 'string' && /^https:\/\/[^\s]+$/i.test(u.trim()) ? u.trim() : '');
@@ -41,6 +43,8 @@ const quizHref = (type, extra = '') => `quiz.html?type=${type}&c=${encodeURIComp
 const epLabel = (e) => (e.trailer ? t('course.trailer') : t('course.ep_n', { n: e.ep }));
 const epTitle = (e) => (e.trailer ? t('course.trailer_title') : pick(e, 'title'));
 const lessons = () => S.course.episodes.filter((e) => !e.trailer);
+// No Blink link at all yet (course playlist or any episode): no empty player, one short note instead.
+const hasLinks = () => !!safeUrl(S.course.blink_url) || S.course.episodes.some((e) => safeUrl(e.blink_url) || safeUrl(e.embed_url));
 function announce(msg) { if (S.els) { S.els.live.textContent = ''; setTimeout(() => { S.els.live.textContent = msg; }, 30); } }
 function tile(ic, cls = '') { return h('span', { class: `tile-icon ${cls}`.trim() }, icon(ic)); }
 
@@ -104,7 +108,7 @@ function buildLayout() {
     steps: h('section', { class: 'card steps-card', 'aria-labelledby': 'steps-title' }),
     player: h('section', { id: 'episodes', class: `stack player-sec ${fam}`, 'aria-labelledby': 'player-title' }),
     eps: h('section', { class: 'card eps-card', 'aria-labelledby': 'eps-title' }),
-    about: h('section', { class: `card pad stack about-card ${fam}`, 'aria-labelledby': 'about-title' }),
+    about: h('details', { class: `card about-card fold-card ${fam}` }),
     forum: h('section', { class: 'card pad stack', 'aria-labelledby': 'forum-title' }),
     field: h('section', { class: 'card pad stack', 'aria-labelledby': 'field-title' }),
     cp: h('section', { class: 'card cp-card', 'aria-labelledby': 'cp-title' }),
@@ -114,21 +118,28 @@ function buildLayout() {
     live: h('p', { class: 'sr-only', 'aria-live': 'polite', role: 'status' }),
   };
   const E = S.els;
-  E.main = h('div', { class: 'stack lg course-main' }, E.player, E.eps, E.about, E.forum, E.field);
+  E.main = h('div', { class: 'stack lg course-main' });
   E.side = h('aside', { class: 'side stack course-side', 'aria-label': t('course.side_aria') });
   render(S.app, h('div', { class: 'stack lg course-page' }, E.back, E.hero, E.steps, h('div', { class: 'layout-side' }, E.main, E.side), E.live));
   placeSide();
   WIDE.addEventListener('change', placeSide);
 }
 
-// Phones: the checkpoint, Predict, recall and dates cards follow the episode list in the DOM itself,
-// so reading and focus order match what is on screen. Wide screens: they sit in the side column.
+// Sections follow the order the cycle runs. Phones: one column in that order, so reading and focus
+// order match the screen, with "About this course" folded at the end. Wide screens: Predict,
+// checkpoint, recall and dates sit in the side column and "About" starts open.
 const WIDE = matchMedia('(min-width: 960px)');
 function placeSide() {
   const E = S.els; if (!E) return;
-  const cards = [E.cp, E.predict, E.recall, E.dates];
-  if (WIDE.matches) { E.side.append(...cards); E.side.hidden = false; }
-  else { E.eps.after(...cards); E.side.hidden = true; }
+  if (WIDE.matches) {
+    E.main.replaceChildren(E.player, E.eps, E.forum, E.field, E.about);
+    E.side.replaceChildren(E.predict, E.cp, E.recall, E.dates);
+    E.side.hidden = false;
+  } else {
+    E.main.replaceChildren(E.predict, E.player, E.eps, E.cp, E.forum, E.field, E.recall, E.dates, E.about);
+    E.side.hidden = true;
+  }
+  E.about.open = WIDE.matches;
 }
 
 function renderAll(langChange) {
@@ -146,10 +157,12 @@ function renderAll(langChange) {
 
 // ---------- hero + stepper ----------
 function renderHero() {
-  const c = S.course; const st = courseStatus(c); const p = courseProgress(c);
+  const c = S.course; const st = courseStatus(c);
   let cta = st.cta;
   if (cta && cta.href.startsWith('course.html')) cta = { label: cta.label, href: '#episodes' };
-  if (!cta && c.open && st.key !== 'passed') cta = { label: t('cta.watch'), href: '#episodes' };
+  const waiting = st.key === 'unlock' || st.key === 'closed';
+  if (!cta && waiting && c.checkpoint.last_attempt_id) cta = { label: t('course.cp.revisit'), href: quizHref('checkpoint', `&review=${encodeURIComponent(c.checkpoint.last_attempt_id)}`) };
+  if (!cta && c.open && st.key !== 'passed' && !waiting) cta = { label: t('cta.watch'), href: '#episodes' };
   if (!cta && st.key === 'passed' && c.checkpoint.last_attempt_id) cta = { label: t('course.cp.review'), href: quizHref('checkpoint', `&review=${encodeURIComponent(c.checkpoint.last_attempt_id)}`) };
   const blink = safeUrl(c.blink_url) ? h('a', { class: 'btn btn-outline-light btn-lg', href: safeUrl(c.blink_url), target: '_blank', rel: 'noopener' }, icon('external'), t('course.playlist')) : null;
   render(S.els.hero, h('div', { class: 'pad' },
@@ -163,8 +176,8 @@ function renderHero() {
           c.online_from ? chip(t('course.online', { range: fmtRange(c.online_from, c.online_to) }), '', 'video') : null,
           c.forum_date ? chip(t('course.forum_chip', { date: fmtShortDate(c.forum_date) }), '', 'users') : null,
           chip(st.label, `st ${st.variant}`, st.icon)),
-        cta || blink ? h('div', { class: 'row hero-ctas' }, cta ? h('a', { class: 'btn btn-light btn-lg', href: cta.href }, cta.label, icon('arrow-right')) : null, blink) : null),
-      h('div', { class: 'hero-aside' }, ring(p.pct, { size: 104, stroke: 9, ariaLabel: t('course.progress_aria', { pct: p.pct }) }), h('span', { class: 'small', text: t('course.progress_label') })))));
+        c.open ? stepMeter(stepInfo(c), { onHero: true }) : null,
+        cta || blink ? h('div', { class: 'row hero-ctas' }, cta ? h('a', { class: 'btn btn-light btn-lg', href: cta.href }, cta.label, icon('arrow-right')) : null, blink) : null))));
 }
 
 function renderSteps() {
@@ -189,6 +202,13 @@ function renderSteps() {
 // ---------- player ----------
 function selected() { return S.course.episodes.find((e) => e.ep === S.sel) || S.course.episodes[0]; }
 function selectEp(ep, scroll) {
+  if (!hasLinks()) { // no player: take the reader to that row of the episode list
+    const r = S.rows.get(ep); if (!r) return;
+    r.li.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    r.li.classList.remove('flash'); void r.li.offsetWidth; r.li.classList.add('flash');
+    r.tick.focus({ preventScroll: true });
+    return;
+  }
   if (S.sel === ep) { if (scroll) S.els.player.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
   S.sel = ep;
   renderPlayer(true);
@@ -227,6 +247,15 @@ function renderPlayer(force) {
   const e = selected();
   const E = S.els;
   if (!e) { render(E.player, emptyState({ iconName: 'video', title: t('course.player.none') })); return; }
+  if (!hasLinks()) {
+    clearTimeout(S.player.timer); S.player = { ep: null, iframe: false, timer: null };
+    const soon = S.course.online_from && S.course.online_from > todayVN();
+    render(E.player, h('div', { class: 'callout info eps-callout' }, icon('video'),
+      h('div', { class: 'stack sm' },
+        h('h2', { id: 'player-title', class: 'title-sm', text: t('course.player.no_links_title') }),
+        h('p', { class: 'small', text: soon ? t('course.player.no_links_future', { date: fmtLongDate(S.course.online_from) }) : t('course.player.no_links_now') }))));
+    return;
+  }
   const canEmbed = S.course.open && e.embed_url && /^https:\/\//i.test(e.embed_url) && !S.embedFailed.has(e.ep);
   const keepFrame = !force && S.player.iframe && S.player.ep === e.ep && canEmbed && E.player.querySelector('iframe');
   let stage;
@@ -266,14 +295,19 @@ function renderPlayer(force) {
 function renderEpisodes() {
   const E = S.els; const c = S.course; const p = courseProgress(c);
   S.rows = new Map();
-  const list = h('ul', { class: 'ep-list' }, c.episodes.map((e) => {
-    const open = h('button', { class: 'ep-open', type: 'button', 'aria-current': e.ep === S.sel ? 'true' : 'false', onclick: () => selectEp(e.ep, true) },
+  const linked = hasLinks();
+  const list = h('ul', { class: `ep-list${linked ? '' : ' no-links'}` }, c.episodes.map((e) => {
+    const inner = [
       h('span', { class: 'ep-title' }, h('span', { class: 'sr-only', text: `${epLabel(e)}: ` }), epTitle(e)),
-      h('span', { class: 'ep-sub' }, h('span', { class: 'ep-ideas', text: e.trailer ? t('course.trailer_sub') : pick(e, 'ideas') }), e.minutes ? h('span', { class: 'ep-min', text: t('common.minutes', { n: e.minutes }) }) : null));
+      h('span', { class: 'ep-sub' }, h('span', { class: 'ep-ideas', text: e.trailer ? t('course.trailer_sub') : pick(e, 'ideas') }), e.minutes ? h('span', { class: 'ep-min', text: t('common.minutes', { n: e.minutes }) }) : null),
+    ];
+    const open = linked
+      ? h('button', { class: 'ep-open', type: 'button', 'aria-current': e.ep === S.sel ? 'true' : 'false', onclick: () => selectEp(e.ep, true) }, inner)
+      : h('div', { class: 'ep-open' }, inner);
     const tick = h('button', { class: 'tick', type: 'button', 'aria-pressed': String(!!e.watched), 'aria-label': t('course.eps.tick_aria', { label: epLabel(e), title: epTitle(e) }), title: t('course.eps.tick_title'), disabled: !c.open },
       icon(e.watched ? 'check-circle' : 'circle'));
     tick.addEventListener('click', () => toggleWatched(e.ep));
-    const li = h('li', { class: `ep${e.watched ? ' watched' : ''}${e.trailer ? ' trailer' : ''}`, 'aria-current': String(e.ep === S.sel) },
+    const li = h('li', { class: `ep${e.watched ? ' watched' : ''}${e.trailer ? ' trailer' : ''}`, 'aria-current': linked ? String(e.ep === S.sel) : null },
       h('span', { class: 'ep-num', 'aria-hidden': 'true' }, e.watched ? icon('check', 'sm') : e.trailer ? icon('play', 'sm') : String(e.ep)), open, tick);
     S.rows.set(e.ep, { li, tick, open });
     return li;
@@ -338,7 +372,8 @@ function renderAbout() {
   const c = S.course;
   const byEp = new Map(c.episodes.map((e) => [Number(e.ep), e]));
   render(S.els.about,
-    h('h2', { id: 'about-title', text: t('course.about.title') }),
+    h('summary', { class: 'fold-sum' }, h('h2', { id: 'about-title', text: t('course.about.title') }), icon('chevron-down', 'fold-chev')),
+    h('div', { class: 'pad stack about-body' },
     h('div', { class: 'stack sm' }, h('h3', { text: t('course.about.problem') }), h('p', { text: pick(c, 'problem') })),
     h('div', { class: 'stack' }, h('h3', { text: t('course.about.can') }),
       h('ol', { class: 'obj-list' }, (c.objectives || []).map((o) => h('li', null,
@@ -352,7 +387,7 @@ function renderAbout() {
             })) : null))))),
     h('div', { class: 'grid cols-2 about-meta' },
       h('div', { class: 'stack sm' }, h('h3', null, icon('target', 'sm'), ' ', t('course.about.used_at')), h('p', { class: 'small', text: pick(c, 'used_at') })),
-      pick(c, 'kpi') ? h('div', { class: 'stack sm' }, h('h3', null, icon('trend-up', 'sm'), ' ', t('course.about.kpi')), h('p', { class: 'small', text: pick(c, 'kpi') })) : null));
+      pick(c, 'kpi') ? h('div', { class: 'stack sm' }, h('h3', null, icon('trend-up', 'sm'), ' ', t('course.about.kpi')), h('p', { class: 'small', text: pick(c, 'kpi') })) : null)));
 }
 
 function renderForum() {
@@ -416,15 +451,15 @@ function renderCheckpoint() {
       h('p', { class: 'small' }, t('course.cp.passed_on', { date: fmtShortDate(cp.passed_at) }), cp.attempts ? ` · ${t('course.cp.attempts', { count: cp.attempts })}` : ''),
       c.forum_date && c.forum_date >= todayVN() ? h('p', { class: 'small muted', text: t('course.cp.see_you', { date: fmtLongDate(c.forum_date) }) }) : null,
       reviewHref ? btn(t('course.cp.review'), reviewHref, 'btn-secondary') : null];
-  } else if (cp.gate_closed) {
-    stateChip = chip(t('status.closed'), 'bad', 'alert');
-    body = [cp.best_pct !== null && cp.best_pct !== undefined ? gateMeter(cp.best_pct, false) : null,
-      h('div', { class: 'callout bad' }, icon('alert'), h('p', { class: 'small', text: t('course.cp.gate_closed', { date: fmtShortDate(c.late_until) }) })),
-      reviewHref ? btn(t('course.cp.revisit'), reviewHref, 'btn-secondary') : null];
   } else if (cp.needs_unlock) {
     stateChip = chip(t('status.needs_unlock'), 'warn', 'users');
     body = [cp.best_pct !== null && cp.best_pct !== undefined ? gateMeter(cp.best_pct, false) : null,
       h('div', { class: 'callout warn' }, icon('users'), h('p', { class: 'small', text: t('course.cp.unlock') })),
+      reviewHref ? btn(t('course.cp.revisit'), reviewHref, 'btn-secondary') : null];
+  } else if (cp.gate_closed) {
+    stateChip = chip(t('status.closed'), 'bad', 'alert');
+    body = [cp.best_pct !== null && cp.best_pct !== undefined ? gateMeter(cp.best_pct, false) : null,
+      h('div', { class: 'callout bad' }, icon('alert'), h('p', { class: 'small', text: t('course.cp.gate_closed', { date: fmtShortDate(c.late_until) }) })),
       reviewHref ? btn(t('course.cp.revisit'), reviewHref, 'btn-secondary') : null];
   } else if (cp.status === 'in_progress') {
     stateChip = chip(t('status.cp_in_progress'), 'info', 'edit');

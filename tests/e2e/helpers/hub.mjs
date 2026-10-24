@@ -8,8 +8,8 @@
 //     threw, or an i18n key was missing,
 //   - puts the dev server clock back if the test moved it.
 import { test as base, expect } from '@playwright/test';
-import { ACCOUNTS, PINS } from './accounts.mjs';
-import { ORIGIN, PAGE_API, moveClock, fixtureKey } from './devapi.mjs';
+import { ACCOUNTS, COURSES, PINS } from './accounts.mjs';
+import { ORIGIN, PAGE_API, moveClock, fixtureKey, call as devCall } from './devapi.mjs';
 import { findLeaks, itemShapeProblems } from './scan.mjs';
 
 export { expect };
@@ -43,6 +43,13 @@ export class Hub {
     this.errors = [];      // uncaught page errors
     this.missingKeys = []; // "[i18n] missing" console warnings
     this.clockHours = 0;
+  }
+
+  /** Course code for a purpose in accounts.mjs. */
+  course(purpose) {
+    const c = COURSES[purpose];
+    if (!c) throw new Error(`unknown course purpose ${purpose}`);
+    return c[this.mode];
   }
 
   /** Account code for a purpose in accounts.mjs. */
@@ -134,16 +141,33 @@ export class Hub {
     await page.locator('#login-pin').fill(pin);
     await page.locator('#app form button[type="submit"]').click();
     let view = await this.homeView();
-    if (view === 'consent' && consent) {
-      await page.locator('.onboard .btn-primary').click();
-      view = await this.homeView();
-    }
+    if (view === 'consent' && consent) view = await this.acceptConsent();
     return view;
+  }
+
+  /** On the privacy gate: "I understand", then wait for the next view. */
+  async acceptConsent() {
+    await this.page.locator('.onboard .btn-primary').click();
+    await expect(this.page.locator('.onboard')).toHaveCount(0, { timeout: 15_000 });
+    return this.homeView();
   }
 
   /** The page's current session token (sessionStorage). */
   async token() {
     return this.page.evaluate(() => { try { return JSON.parse(sessionStorage.getItem('hub.session') || 'null').token; } catch (e) { return null; } });
+  }
+
+  /**
+   * Call an action directly as the signed-in person (default: the page's own token) — to check a
+   * server-side rule the UI would not let you try. Demo mode calls the page's mock `handle()`.
+   */
+  async callApi(action, params = {}, token) {
+    const tk = token === undefined ? await this.token() : token;
+    if (this.isReal) return devCall(action, { ...params, token: tk });
+    return this.page.evaluate(async ({ action, params, tk }) => {
+      const m = await import('./js/mock-api.js');
+      return m.handle({ ...params, action, token: tk });
+    }, { action, params, tk });
   }
 
   /** If the "Please sign in again" dialog is open, sign in there. */

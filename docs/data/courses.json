@@ -38,7 +38,7 @@
   {
    "level": 2,
    "en": "Working knowledge",
-   "vi": "Nắm vững",
+   "vi": "Vận dụng được",
    "abbr": "WK",
    "desc_en": "Diagnoses issues, challenges specialists",
    "desc_vi": "Chẩn đoán được vấn đề, phản biện được chuyên gia"
@@ -198,8 +198,8 @@
    "forum": {
     "title_en": "Kick-off + Data & AI Lab",
     "title_vi": "Lễ khởi động + Data & AI Lab",
-    "summary_en": "Data & AI Lab (with A3). Teams rebuild the same messy weekly report from a raw extract with Power Query; race to a 5-minute refresh; then Copilot drafts the commentary and the team fact-checks it. Show-and-tell slot opens the program (kick-off).",
-    "summary_vi": "Data & AI Lab (chung với A3). Các nhóm dựng lại cùng một báo cáo tuần lộn xộn từ dữ liệu thô bằng Power Query; thi xem nhóm nào làm mới được báo cáo trong 5 phút; sau đó Copilot viết nháp phần nhận xét và cả nhóm kiểm tra lại từng dữ kiện. Phần show-and-tell mở màn cho cả chương trình (kick-off)."
+    "summary_en": "You open the program at the kick-off, then join the Data & AI Lab with A3: in teams you rebuild a messy weekly report from a raw extract with Power Query and race to make it refresh in five minutes. Then Copilot drafts the commentary and your team checks every fact before you present.",
+    "summary_vi": "Bạn mở màn chương trình tại buổi kick-off, rồi tham gia Data & AI Lab cùng A3: theo nhóm, bạn dựng lại một báo cáo tuần lộn xộn từ dữ liệu thô bằng Power Query và thi xem nhóm nào làm mới được báo cáo trong năm phút. Sau đó Copilot viết nháp phần nhận xét, và cả nhóm kiểm tra lại từng dữ kiện trước khi trình bày."
    },
    "field": {
     "en": "Rebuild one weekly report you own in Power Query; prove it refreshes in under 5 minutes; log hours saved.",
@@ -334,8 +334,8 @@
    "forum": {
     "title_en": "Kick-off + Data & AI Lab",
     "title_vi": "Lễ khởi động + Data & AI Lab",
-    "summary_en": "Shared with A2 (Data & AI Lab): Copilot drafts the commentary for the rebuilt report; teams verify every number, then present.",
-    "summary_vi": "Chung với A2 (Data & AI Lab): Copilot viết nháp phần nhận xét cho báo cáo vừa dựng lại; các nhóm kiểm chứng từng con số rồi mới trình bày."
+    "summary_en": "You share the Data & AI Lab with A2: once your team has rebuilt the weekly report, Copilot drafts the commentary for it. You check every number it wrote, fix what is wrong, then present the result.",
+    "summary_vi": "Bạn học chung Data & AI Lab với A2: khi nhóm đã dựng lại báo cáo tuần, Copilot sẽ viết nháp phần nhận xét. Bạn kiểm tra từng con số Copilot đưa ra, sửa chỗ sai, rồi mới trình bày kết quả."
    },
    "field": {
     "en": "Three Copilot use cases in your own job; save your best prompt to the team library; log minutes saved for 4 weeks.",
@@ -508,8 +508,8 @@
    "forum": {
     "title_en": "The Right Question",
     "title_vi": "Câu hỏi đúng",
-    "summary_en": "Forum as designed in the A1 forum deck (4 h): solve the Plant B cold case, then a topic Quân chooses; a timed MECE race and the petrol-station estimate. Each team project is chartered as a one-day answer (SOI) with an issue tree.",
-    "summary_vi": "Forum theo đúng thiết kế trong deck forum A1 (4 giờ): giải cold case Plant B, sau đó là một chủ đề do Quân chọn; thi MECE tính giờ và bài ước tính trạm xăng. Dự án của mỗi nhóm được lập charter dưới dạng câu trả lời một ngày (SOI) kèm cây vấn đề (issue tree)."
+    "summary_en": "In a four-hour session you crack the Plant B cold case, work a second live problem, race to build a MECE issue tree against the clock and size the petrol-station estimate. Before you leave, your team charters its own project as a one-day answer (SOI) with an issue tree.",
+    "summary_vi": "Trong buổi học bốn giờ, bạn giải cold case Plant B, xử lý thêm một vấn đề thực tế nữa, thi dựng cây vấn đề MECE tính giờ và làm bài ước tính trạm xăng. Trước khi ra về, nhóm bạn lập charter cho dự án của mình dưới dạng câu trả lời một ngày (SOI) kèm cây vấn đề."
    },
    "field": {
     "en": "Charter your team project: problem statement passing the six characteristics, issue tree, prioritised branches, 2–4-week work plan; play it back to the sponsor manager within 24 h.",
@@ -666,8 +666,8 @@
    "forum": {
     "title_en": "Capacity lab + charter clinic",
     "title_vi": "Lab năng lực + clinic charter",
-    "summary_en": "Capacity lab: teams re-sequence a real (anonymised) week with the changeover matrix, run an RCCP for next month and cost the gap; factory walk or video walk; 45-minute A1 charter clinic at the start.",
-    "summary_vi": "Lab năng lực: các nhóm sắp xếp lại trình tự sản xuất của một tuần thật (đã ẩn danh) bằng ma trận chuyển đổi, chạy RCCP cho tháng tới và tính chi phí phần thiếu hụt; đi thực tế nhà máy hoặc xem video nhà máy; mở đầu bằng 45 phút clinic charter của A1."
+    "summary_en": "You start with a 45-minute clinic on your team's A1 charter, then walk the factory floor (or follow the video walk). In the capacity lab you re-sequence a real, anonymised week with the changeover matrix, run a rough-cut capacity check (RCCP) for next month and put a cost on the gap.",
+    "summary_vi": "Bạn bắt đầu bằng 45 phút clinic về charter A1 của nhóm, rồi đi thực tế nhà máy (hoặc xem video đi nhà máy). Trong lab năng lực, bạn sắp xếp lại trình tự sản xuất của một tuần thật đã ẩn danh bằng ma trận chuyển đổi, chạy RCCP cho tháng tới và tính chi phí cho phần thiếu hụt."
    },
    "field": {
     "en": "Re-sequence one real week for your line or category with the changeover matrix; RCCP for next month; cost one supply gap for the DSR.",
@@ -812,8 +812,8 @@
    "forum": {
     "title_en": "Pitch Day (VPSC panel, project mid-point)",
     "title_vi": "Pitch Day (hội đồng VPSC, giữa kỳ dự án)",
-    "summary_en": "Pitch Day (replaces the cycle forum; C1 Forum 1 'Build the pyramid' is folded into its first hour as a storyline clinic per team): each team pitches its project charter and mid-point results in ≤ 8 slides with action titles; VPSC and managers on the panel; scored with the capstone rubric (communication-weighted).",
-    "summary_vi": "Pitch Day (thay cho buổi forum của chu kỳ; Forum 1 'Xây kim tự tháp' của C1 được gộp vào giờ đầu tiên thành buổi clinic dựng storyline cho từng nhóm): mỗi nhóm trình bày charter dự án và kết quả giữa kỳ trong tối đa 8 slide có tiêu đề hành động; VPSC và các quản lý ngồi hội đồng; chấm theo rubric capstone (trọng số nghiêng về giao tiếp)."
+    "summary_en": "Pitch Day takes the place of the cycle forum, and its first hour is a storyline clinic where your team shapes its pyramid. Then you pitch your project charter and mid-point results in eight slides or fewer with action titles to a panel of the VP Supply Chain and managers, who score it with the capstone rubric weighted towards communication.",
+    "summary_vi": "Pitch Day thay cho buổi forum của chu kỳ, và giờ đầu tiên là buổi clinic dựng storyline để nhóm bạn hoàn thiện kim tự tháp thông điệp. Sau đó nhóm trình bày charter dự án và kết quả giữa kỳ trong tối đa tám slide có tiêu đề hành động trước hội đồng gồm VP Supply Chain và các quản lý, chấm theo rubric capstone nghiêng về kỹ năng giao tiếp."
    },
    "field": {
     "en": "Three real emails rewritten top-down; one recurring pack with a one-page executive summary and action titles; charter deck ≤ 8 slides.",
@@ -959,8 +959,8 @@
    "forum": {
     "title_en": "Plan the line, feed the line",
     "title_vi": "Lập kế hoạch cho line, cấp vật tư cho line",
-    "summary_en": "Plan the line, feed the line (with P3): one Tết-style scenario run end to end from MPS to purchase orders in our MPS/MRP tool; teams defend their plan's cost, stock and service.",
-    "summary_vi": "Lập kế hoạch cho line, cấp vật tư cho line (chung với P3): chạy trọn một tình huống kiểu mùa Tết từ MPS đến đơn mua hàng trên công cụ MPS/MRP của chúng ta; các nhóm bảo vệ kế hoạch của mình về chi phí, tồn kho và mức dịch vụ."
+    "summary_en": "Together with P3, you run one Tết-style scenario end to end, from the MPS to purchase orders, in our MPS/MRP tool. Your team then defends its plan on cost, stock and service.",
+    "summary_vi": "Cùng với P3, bạn chạy trọn một tình huống kiểu mùa Tết từ MPS đến đơn mua hàng trên công cụ MPS/MRP của chúng ta. Sau đó nhóm bạn bảo vệ kế hoạch của mình về chi phí, tồn kho và mức dịch vụ."
    },
    "field": {
     "en": "Build next month's MPS for one line in our MPS tool; count and cost frozen-zone changes for 4 weeks.",
@@ -1105,8 +1105,8 @@
    "forum": {
     "title_en": "Plan the line, feed the line",
     "title_vi": "Lập kế hoạch cho line, cấp vật tư cho line",
-    "summary_en": "Shared with P2 (plan the line, feed the line): teams turn the MPS into purchase orders, find the exceptions and avoid both a line stop and an obsolete label.",
-    "summary_vi": "Chung với P2 (lập kế hoạch cho line, cấp vật tư cho line): các nhóm chuyển MPS thành đơn mua hàng, tìm các ngoại lệ và tránh được cả dừng line lẫn nhãn bị lỗi thời."
+    "summary_en": "You share the day with P2 and pick up where the MPS leaves off: your team turns it into purchase orders and works through the exceptions. The aim is to avoid both a line stop and an obsolete label.",
+    "summary_vi": "Bạn học chung buổi này với P2 và nối tiếp từ chỗ MPS dừng lại: nhóm bạn chuyển MPS thành đơn mua hàng và xử lý từng ngoại lệ. Mục tiêu là tránh được cả dừng line lẫn nhãn bị lỗi thời."
    },
    "field": {
     "en": "Master-data health check for your top 20 RPMs (lead time, MOQ, rounding, safety stock); one phase-out stock overview.",
@@ -1261,8 +1261,8 @@
    "forum": {
     "title_en": "Demand & the Business",
     "title_vi": "Nhu cầu và hiệu quả kinh doanh",
-    "summary_en": "Demand & the Business: teams take one category's forecast, rebuild it as a business plan in VND, find the bias drivers, decide which overrides survive the five rules, and present the Demand Review headline answer-first.",
-    "summary_vi": "Nhu cầu và hiệu quả kinh doanh: các nhóm lấy dự báo của một ngành hàng, dựng lại thành kế hoạch kinh doanh bằng VND, tìm các yếu tố gây lệch, quyết định điều chỉnh nào vượt qua được năm nguyên tắc, và trình bày thông điệp chính của Demand Review theo lối kết luận trước."
+    "summary_en": "Your team takes one category's forecast, rebuilds it as a business plan in VND and finds what drives the bias. You decide which overrides survive the five rules, then present the Demand Review headline answer-first.",
+    "summary_vi": "Nhóm bạn lấy dự báo của một ngành hàng, dựng lại thành kế hoạch kinh doanh bằng VND và tìm ra các yếu tố gây lệch. Bạn quyết định điều chỉnh nào vượt qua được năm nguyên tắc, rồi trình bày thông điệp chính của Demand Review theo lối kết luận trước."
    },
    "field": {
     "en": "Bias root cause on your top 10 SKUs with a driver log; one full cycle of override log with FVA.",
@@ -1397,8 +1397,8 @@
    "forum": {
     "title_en": "SLOB war game",
     "title_vi": "Sa bàn SLOB (war game)",
-    "summary_en": "SLOB war game: teams receive a category's stock, ageing and change calendar, choose levers under a cash target, and write two prevention rules.",
-    "summary_vi": "Sa bàn SLOB: các nhóm nhận dữ liệu tồn kho, tuổi tồn kho và lịch thay đổi mã của một ngành hàng, chọn đòn bẩy trong giới hạn mục tiêu dòng tiền, và viết hai quy tắc phòng ngừa."
+    "summary_en": "In the SLOB war game your team gets a category's stock, ageing and change calendar, and chooses which levers to pull under a cash target. You finish by writing two rules that stop the same stock building up again.",
+    "summary_vi": "Trong sa bàn SLOB, nhóm bạn nhận dữ liệu tồn kho, tuổi tồn kho và lịch thay đổi mã của một ngành hàng, rồi chọn đòn bẩy để đạt mục tiêu dòng tiền. Cuối buổi, bạn viết hai quy tắc để lượng hàng đó không tồn đọng lại lần nữa."
    },
    "field": {
     "en": "SLOB root-cause and action plan for your category; one phase-out stock overview.",
@@ -1543,8 +1543,8 @@
    "forum": {
     "title_en": "Fill-rate loss-tree clinic",
     "title_vi": "Clinic cây tổn thất tỷ lệ đáp ứng",
-    "summary_en": "Fill-rate loss-tree clinic: teams run the loss tree for the top MT accounts in our fill-rate loss-tree dashboard, pick the fixes worth most, and set owners and dates.",
-    "summary_vi": "Clinic cây tổn thất tỷ lệ đáp ứng: các nhóm chạy cây tổn thất cho các khách hàng MT lớn nhất trên dashboard cây tổn thất tỷ lệ đáp ứng của chúng ta, chọn những giải pháp mang lại giá trị lớn nhất, rồi giao người phụ trách và hạn hoàn thành."
+    "summary_en": "In the fill-rate clinic your team runs the loss tree for the top MT accounts in our fill-rate loss-tree dashboard and picks the fixes worth the most. You leave with an owner and a date for each fix.",
+    "summary_vi": "Trong clinic tỷ lệ đáp ứng, nhóm bạn chạy cây tổn thất cho các khách hàng MT lớn nhất trên dashboard cây tổn thất tỷ lệ đáp ứng của chúng ta, rồi chọn những giải pháp mang lại giá trị lớn nhất. Bạn ra về với người phụ trách và hạn hoàn thành cho từng giải pháp."
    },
    "field": {
     "en": "Loss tree for your top MT accounts with one fix and an owner; S&OE action log for 4 weeks.",

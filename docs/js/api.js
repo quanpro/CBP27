@@ -163,6 +163,8 @@ export const api = {
   review: (attempt_id) => call('review', { attempt_id }),
   teamSummary: () => call('team_summary'),
   teamStatus: () => call('team_status'),
+  /** Manager records the 15-minute chat for a report's checkpoint; one more attempt opens. */
+  unlockRetake: (code, course, note) => call('unlock_retake', { code, course, note: note || '' }),
   capstoneGet: () => call('capstone_get'),
   capstoneSubmit: (stage, team_id, fields) => call('capstone_submit', { stage, team_id, fields }),
   panelList: (stage) => call('panel_list', { stage }),

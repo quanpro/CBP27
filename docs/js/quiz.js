@@ -17,6 +17,8 @@ export const MIN_GAP_MS = 20000;
 const WIDE_MQ = '(min-width: 900px)';
 const TZ = 'Asia/Ho_Chi_Minh';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Button labels may be functions so a language switch re-reads them on the next render. */
+const label = (v) => (typeof v === 'function' ? v() : v);
 
 // ---------- Formatting ----------
 const localeOf = () => (getLang() === 'vi' ? 'vi-VN' : 'en-GB');
@@ -165,6 +167,9 @@ export function createAutosave({ save, onStatus, onGone, debounceMs = DEBOUNCE_M
 }
 
 // ---------- Save status pill ----------
+// Short labels so the pill shares one line with the progress; the full sentence is the tooltip.
+// Calm states (idle, saving, saved, kept locally) may shrink to the icon on narrow screens; offline
+// and error always show their words.
 const PILL_ICON = { idle: 'cloud', local: 'check', saving: 'refresh', saved: 'cloud', offline: 'wifi-off', error: 'alert' };
 export function createSavePill() {
   const ico = h('span', { class: 'qz-pill-ico', 'aria-hidden': 'true' });
@@ -172,9 +177,12 @@ export function createSavePill() {
   const el = h('span', { class: 'save-status qz-pill', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }, ico, text);
   let state = 'idle'; let at = null;
   function paint() {
-    el.className = `save-status qz-pill is-${state}${state === 'saved' ? ' ok' : ''}${state === 'offline' || state === 'error' ? ' off' : ''}`;
+    const off = state === 'offline' || state === 'error';
+    el.className = `save-status qz-pill is-${state}${state === 'saved' ? ' ok' : ''}${off ? ' off' : ' is-calm'}`;
     render(ico, icon(PILL_ICON[state] || 'cloud', 'sm'));
-    text.textContent = state === 'saved' && at ? t('quiz.save.saved', { time: fmtTime(at) }) : t(`quiz.save.${state === 'saved' ? 'saved_now' : state}`);
+    const key = state === 'saved' && !at ? 'saved_now' : state;
+    text.textContent = state === 'saved' && at ? t('quiz.save_short.saved', { time: fmtTime(at) }) : t(`quiz.save_short.${key}`);
+    el.title = state === 'saved' && at ? t('quiz.save.saved', { time: fmtTime(at) }) : t(`quiz.save.${key}`);
   }
   paint();
   return {
@@ -205,39 +213,81 @@ export function createTimer({ deadlineAt, lowMs = 5 * 60000, onTick, onLow, onEx
   return { left, stop() { done = true; cleanup(); }, get expired() { return done && left() <= 0; } };
 }
 
-/** The visible countdown chip (.timer, .low under 5 min). */
-export function timerChip() {
+/**
+ * The visible countdown chip (.timer, .low under 5 min) in a box with a "Hide timer" toggle.
+ * hidden: start hidden · onHide(hidden, msLeft): remember the choice (per attempt, by the page).
+ * While hidden, the box shows a small "Show timer" button; reveal(ms) brings the clock back.
+ * Hiding is not offered in the last 5 minutes.
+ */
+export function timerChip({ hidden = false, onHide = null } = {}) {
   const num = h('span', { class: 'num' }, '60:00');
-  const el = h('span', { class: 'timer qz-timer', role: 'timer' }, icon('clock', 'sm'), num);
-  let lastMin = null;
+  const clock = h('span', { class: 'timer qz-timer', role: 'timer' }, icon('clock', 'sm'), num);
+  const hideBtn = h('button', { class: 'qz-timer-btn qz-timer-hide', type: 'button', 'data-fk': 'timer-hide' }, icon('eye-off', 'sm'));
+  const showLabel = h('span', { class: 'qz-timer-show-text' });
+  const showBtn = h('button', { class: 'qz-timer-btn qz-timer-show', type: 'button', 'data-fk': 'timer-show' }, h('span', { class: 'qz-timer-show-pill' }, icon('clock', 'sm'), showLabel));
+  const el = h('span', { class: 'qz-timerbox' }, clock, hideBtn, showBtn);
+  let lastMin = null; let isHidden = !!hidden; let msLeft = Infinity;
+  function paint() {
+    const low = msLeft <= 5 * 60000;
+    el.classList.toggle('is-hidden', isHidden);
+    clock.hidden = isHidden;
+    hideBtn.hidden = isHidden || low;
+    showBtn.hidden = !isHidden;
+    hideBtn.setAttribute('aria-label', t('quiz.timer.hide'));
+    hideBtn.title = t('quiz.timer.hide');
+    showLabel.textContent = t('quiz.timer.show');
+    showBtn.setAttribute('aria-label', Number.isFinite(msLeft) ? t('quiz.timer.show_aria', { n: Math.ceil(msLeft / 60000) }) : t('quiz.timer.show'));
+  }
+  function setHidden(v, { user = false } = {}) {
+    if (isHidden === v) return;
+    const hadFocus = el.contains(document.activeElement);
+    isHidden = v;
+    paint();
+    if (user && onHide) { try { onHide(isHidden, msLeft); } catch (e) { console.error(e); } }
+    const next = isHidden ? showBtn : (hideBtn.hidden ? null : hideBtn);
+    if (hadFocus && next) next.focus({ preventScroll: true });
+  }
+  hideBtn.addEventListener('click', () => setHidden(true, { user: true }));
+  showBtn.addEventListener('click', () => setHidden(false, { user: true }));
+  paint();
   return {
     el,
     set(ms) {
+      msLeft = ms;
       num.textContent = fmtClock(ms);
-      el.classList.toggle('low', ms <= 5 * 60000);
+      clock.classList.toggle('low', ms <= 5 * 60000);
       const min = Math.ceil(ms / 60000);
-      if (min !== lastMin) { lastMin = min; el.setAttribute('aria-label', t('quiz.time_left', { n: min })); }
+      if (min !== lastMin) { lastMin = min; clock.setAttribute('aria-label', t('quiz.time_left', { n: min })); paint(); }
     },
-    repaint() { lastMin = null; },
+    /** Show the clock again (milestones); returns true if it was hidden. */
+    reveal() { if (!isHidden) return false; setHidden(false); return true; },
+    get hidden() { return isHidden; },
+    repaint() { lastMin = null; paint(); },
   };
 }
 
 // ---------- Sticky top bar ----------
-/** quiz-top: title · save pill · timer, then the progress bar and "n of total answered". */
+/**
+ * quiz-top, one compact line: title · "n/total" · save pill · timer, with a thin progress line under
+ * it. The full "n of total answered" is read by screen readers and shown on wide screens.
+ */
 export function buildTop({ title, pill, timerEl, n = 0, total = 0, countText }) {
   const pct = total ? Math.round((100 * n) / total) : 0;
-  const bar = progressBar(pct, { blue: true, label: t('quiz.progress_aria') });
-  const count = h('span', { class: 'qz-count', text: countText || t('quiz.answered', { n, total }) });
+  const bar = progressBar(pct, { blue: true, thin: true, label: t('quiz.progress_aria') });
+  const short = h('span', { class: 'qz-count-short', 'aria-hidden': 'true', text: `${n}/${total}` });
+  const long = h('span', { class: 'qz-count-long', text: countText || t('quiz.answered', { n, total }) });
+  const count = h('span', { class: 'qz-count' }, short, long);
   const el = h('div', { class: `quiz-top qz-top${timerEl ? ' has-timer' : ''}` },
-    h('div', { class: 'qz-top-row' }, h('span', { class: 'qz-top-title', text: title }), pill || null, timerEl || null),
-    h('div', { class: 'qz-top-row qz-top-progress' }, bar, count));
+    h('div', { class: 'qz-top-row' }, h('span', { class: 'qz-top-title', text: title }), count, pill || null, timerEl || null),
+    bar);
   return {
     el,
     update(nn, tt, text) {
       const p = tt ? Math.round((100 * nn) / tt) : 0;
       bar.setAttribute('aria-valuenow', String(p));
       bar.firstChild.style.width = `${p}%`;
-      count.textContent = text || t('quiz.answered', { n: nn, total: tt });
+      short.textContent = `${nn}/${tt}`;
+      long.textContent = text || t('quiz.answered', { n: nn, total: tt });
     },
   };
 }
@@ -359,7 +409,7 @@ export class QuizRunner {
    * Show one part as questions.
    * cfg: key, groups:[{key, items, header?()}], paging:'item'|'group', title(), timerEl?, metaKey?,
    *      intro?(mode), aside?(mode), countLabel?(n,total), dotLabel?(screen,i),
-   *      backLabel?, onBack?, doneLabel, onDone, startAt?: 'first'|'last'|itemId
+   *      backLabel?, onBack?, doneLabel, onDone, startAt?: 'first'|'last'|itemId  (labels: string or () => string)
    */
   show(container, cfg) {
     this.view = { container, cfg };
@@ -424,22 +474,33 @@ export class QuizRunner {
     }
   }
 
+  /** Visually hidden page heading for question screens ("Checkpoint P5, question 3 of 10"). */
+  srHeading(cfg, s, num, total) {
+    const name = cfg.srName ? cfg.srName() : cfg.title();
+    let text;
+    if (!s) text = t('quiz.sr_h1_list', { name, total });
+    else if (s.items.length === 1) text = t('quiz.sr_h1', { name, n: num.get(s.items[0].item_id), total });
+    else text = t('quiz.sr_h1_group', { name, from: num.get(s.items[0].item_id), to: num.get(s.items[s.items.length - 1].item_id), total });
+    return h('h1', { class: 'sr-only qz-sr-h1', text });
+  }
+
   renderPaged(cfg, screens, idx, num, total) {
     const s = screens[idx];
     const isFirst = idx === 0; const isLast = idx === screens.length - 1;
     const showHeader = s && s.group && s.group.header && (cfg.paging === 'group' || s.group.items[0] === s.items[0]);
     const screen = h('div', { class: `qz-screen stack${this.animNext ? ' qz-anim' : ''}`, 'data-screen': String(idx) },
+      isFirst && cfg.intro ? null : this.srHeading(cfg, s, num, total),
       isFirst && cfg.intro ? cfg.intro('paged') : null,
       cfg.aside ? cfg.aside('paged') : null,
       showHeader ? s.group.header() : null,
       s ? s.items.map((it) => this.renderItem(it, num.get(it.item_id), total, cfg.metaKey)) : null);
     const prev = isFirst
       ? (cfg.onBack
-        ? h('button', { class: 'btn btn-ghost', type: 'button', 'data-fk': 'nav-prev', onclick: () => cfg.onBack() }, icon('chevron-left'), h('span', { text: cfg.backLabel }))
+        ? h('button', { class: 'btn btn-ghost', type: 'button', 'data-fk': 'nav-prev', onclick: () => cfg.onBack() }, icon('chevron-left'), h('span', { text: label(cfg.backLabel) }))
         : h('button', { class: 'btn btn-ghost', type: 'button', disabled: true }, icon('chevron-left'), h('span', { text: t('quiz.prev') })))
       : h('button', { class: 'btn btn-ghost', type: 'button', 'data-fk': 'nav-prev', onclick: () => this.go(idx - 1) }, icon('chevron-left'), h('span', { text: t('quiz.prev') }));
     const next = isLast
-      ? h('button', { class: 'btn btn-primary', type: 'button', 'data-fk': 'nav-done', onclick: () => cfg.onDone() }, h('span', { text: cfg.doneLabel }), icon('arrow-right'))
+      ? h('button', { class: 'btn btn-primary', type: 'button', 'data-fk': 'nav-done', onclick: () => cfg.onDone() }, h('span', { text: label(cfg.doneLabel) }), icon('arrow-right'))
       : h('button', { class: 'btn btn-primary', type: 'button', 'data-fk': 'nav-next', onclick: () => this.go(idx + 1) }, h('span', { text: t('quiz.next') }), icon('chevron-right'));
     const dots = screens.map((sc, i) => {
       const btn = h('button', { type: 'button', 'data-fk': `dot|${i}`, 'aria-current': i === idx ? 'step' : null, onclick: () => this.go(i) },
@@ -450,7 +511,7 @@ export class QuizRunner {
     this.paintDots();
     const foot = h('div', { class: 'qz-foot' },
       h('nav', { class: 'qz-dots', 'aria-label': t('quiz.dots_aria') }, h('div', { class: 'q-dots' }, dots)),
-      !isLast && cfg.reviewLinkLabel ? h('button', { class: 'link-btn qz-review-link', type: 'button', 'data-fk': 'nav-review', onclick: () => (cfg.onReviewLink || cfg.onDone)() }, cfg.reviewLinkLabel) : null,
+      !isLast && cfg.reviewLinkLabel ? h('button', { class: 'link-btn qz-review-link', type: 'button', 'data-fk': 'nav-review', onclick: () => (cfg.onReviewLink || cfg.onDone)() }, label(cfg.reviewLinkLabel)) : null,
       hasKeyboard() ? h('p', { class: 'qz-keys xs muted', text: t('quiz.keys_hint') }) : null);
     return h('div', { class: 'qz-paged stack' }, screen, h('div', { class: 'q-nav' }, prev, next), foot);
   }
@@ -460,9 +521,9 @@ export class QuizRunner {
       g.header ? g.header() : null,
       g.items.map((it) => this.renderItem(it, num.get(it.item_id), total, cfg.metaKey))));
     const foot = h('div', { class: 'q-nav qz-list-foot' },
-      cfg.onBack ? h('button', { class: 'btn btn-ghost', type: 'button', 'data-fk': 'nav-prev', onclick: () => cfg.onBack() }, icon('chevron-left'), h('span', { text: cfg.backLabel })) : h('span'),
-      h('button', { class: 'btn btn-primary btn-lg', type: 'button', 'data-fk': 'nav-done', onclick: () => cfg.onDone() }, h('span', { text: cfg.doneLabel }), icon('arrow-right')));
-    const intro = cfg.intro ? cfg.intro('list') : null;
+      cfg.onBack ? h('button', { class: 'btn btn-ghost', type: 'button', 'data-fk': 'nav-prev', onclick: () => cfg.onBack() }, icon('chevron-left'), h('span', { text: label(cfg.backLabel) })) : h('span'),
+      h('button', { class: 'btn btn-primary btn-lg', type: 'button', 'data-fk': 'nav-done', onclick: () => cfg.onDone() }, h('span', { text: label(cfg.doneLabel) }), icon('arrow-right')));
+    const intro = cfg.intro ? cfg.intro('list') : this.srHeading(cfg, null, num, total);
     if (cfg.aside) return h('div', { class: 'stack lg' }, intro, h('div', { class: 'qz-case-grid' }, cfg.aside('list'), h('div', { class: 'qz-list stack lg' }, groups, foot)));
     return h('div', { class: 'qz-list stack lg' }, intro, groups, foot);
   }
@@ -609,8 +670,11 @@ function hasKeyboard() {
 }
 
 // ---------- Result helpers (shared by quiz results) ----------
-/** One answer line: kind 'your' | 'right' | 'none' with icon + label + text (colour is never the only signal). */
-export function answerLine(kind, option, { correct = null } = {}) {
+/**
+ * One answer line: kind 'your' | 'right' | 'none' with icon + label + text (colour is never the only
+ * signal). soft: a not-yet checkpoint — amber "not this time" instead of red "not right".
+ */
+export function answerLine(kind, option, { correct = null, soft = false } = {}) {
   const blank = kind === 'your' && !option;
   const cls = kind === 'right' || (kind === 'your' && correct === true) ? 'is-correct' : (kind === 'your' && correct === false ? 'is-wrong' : 'is-neutral');
   const ico = cls === 'is-correct' ? 'check' : (cls === 'is-wrong' ? 'x' : 'circle');
@@ -618,8 +682,8 @@ export function answerLine(kind, option, { correct = null } = {}) {
   let status = '';
   if (blank) status = t('result.blank_suffix');
   else if (cls === 'is-correct') status = kind === 'right' ? '' : t('result.correct_suffix');
-  else if (cls === 'is-wrong') status = t('result.wrong_suffix');
-  return h('div', { class: `opt qz-static ${cls}` },
+  else if (cls === 'is-wrong') status = t(soft ? 'result.notyet_suffix' : 'result.wrong_suffix');
+  return h('div', { class: `opt qz-static ${cls}${soft && cls === 'is-wrong' ? ' is-soft' : ''}` },
     h('span', { class: 'letter', 'aria-hidden': 'true' }, icon(ico, 'sm')),
     h('span', { class: 'txt' }, h('span', { class: 'qz-ans-label', text: `${label}${status ? ` · ${status}` : ''}` }), h('span', { class: 'qz-ans-text', text: option ? optionText(option) : t('result.no_answer') })));
 }

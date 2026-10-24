@@ -7,7 +7,7 @@ let catalogPromise = null;
 
 export function loadCatalog() {
   if (!catalogPromise) {
-    catalogPromise = fetch(new URL('../data/courses.json', import.meta.url), { cache: 'no-cache' })
+    catalogPromise = fetch(new URL('../data/courses.json', import.meta.url))
       .then((r) => { if (!r.ok) throw new Error(`courses.json HTTP ${r.status}`); return r.json(); });
   }
   return catalogPromise;
@@ -55,7 +55,7 @@ export async function journey(me) {
 
 const lessonEps = (c) => c.episodes.filter((e) => !e.trailer);
 
-/** 0–100: predict 10 · episodes 40 · checkpoint 40 · recall 10. */
+/** Counts behind the stepper and the status chips (no course-progress percentage is shown anywhere). */
 export function courseProgress(c) {
   const eps = lessonEps(c);
   const watched = eps.filter((e) => e.watched).length;
@@ -84,6 +84,17 @@ export function courseSteps(c, today = todayVN()) {
 }
 
 /**
+ * Where the learner is in the six steps, for the mini stepper: "Step 3 of 6 · Checkpoint".
+ * { steps, n (1-based, the first step not done), total, key, done: count, all: every step done }
+ */
+export function stepInfo(c, today = todayVN()) {
+  const steps = courseSteps(c, today);
+  const idx = steps.findIndex((s) => !s.done);
+  const doneN = steps.filter((s) => s.done).length;
+  return { steps, n: idx < 0 ? steps.length : idx + 1, total: steps.length, key: idx < 0 ? null : steps[idx].key, done: doneN, all: idx < 0 };
+}
+
+/**
  * Status chip + call to action for one course.
  * Returns { key, variant: pass|warn|bad|info|locked, icon, label, cta?: {label, href} }.
  */
@@ -100,8 +111,9 @@ export function courseStatus(c, now = serverNow()) {
     if (due) return { key: 'recall', variant: 'info', icon: 'refresh', label: t('status.recall_due'), cta: { label: t('cta.recall'), href: href('recall', `&day=${due.day}`) } };
     return { key: 'passed', variant: 'pass', icon: 'check', label: t('status.passed') };
   }
-  if (cp.gate_closed) return { key: 'closed', variant: 'bad', icon: 'alert', label: t('status.closed') };
+  // A third try and a late try both reopen after a 15-minute chat with the manager (unlock_retake).
   if (cp.needs_unlock) return { key: 'unlock', variant: 'warn', icon: 'users', label: t('status.needs_unlock') };
+  if (cp.gate_closed) return { key: 'closed', variant: 'bad', icon: 'alert', label: t('status.closed') };
   if (cp.status === 'in_progress') return { key: 'cp_progress', variant: 'info', icon: 'edit', label: t('status.cp_in_progress'), cta: { label: t('cta.continue_checkpoint'), href: href('checkpoint') } };
   if (cp.status === 'not_yet') {
     if (cp.next_retake_at && Date.parse(cp.next_retake_at) > now) {

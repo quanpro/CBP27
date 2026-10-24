@@ -19,6 +19,7 @@ export async function visibleStrings(page) {
       const s = n.nodeValue.replace(/\s+/g, ' ').trim();
       const el = n.parentElement;
       if (!s || !el || el.closest('script, style, noscript, template, svg')) continue;
+      if (el.closest('.sr-only[aria-live]')) continue; // one-off screen-reader announcements, not page text
       if (!shown(el)) continue;
       out.push(s);
     }
@@ -36,12 +37,23 @@ function flat(o, p = '', out = {}) {
   for (const [k, v] of Object.entries(o)) { if (v && typeof v === 'object') flat(v, `${p}${k}.`, out); else out[`${p}${k}`] = v; }
   return out;
 }
-const EN = flat(readJson('i18n/en.json'));
-const VI = flat(readJson('i18n/vi.json'));
+// Same dictionaries the page builds: en.json / vi.json plus any build-time parts listed in i18n.js PARTS.
+const PARTS = ((readFileSync(DOCS + 'js/i18n.js', 'utf8').match(/const PARTS = \[([^\]]*)\]/) || [])[1] || '')
+  .split(',').map((x) => x.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+const dict = (lang) => {
+  const out = flat(readJson(`i18n/${lang}.json`));
+  for (const p of PARTS) { try { Object.assign(out, flat(readJson(`i18n/parts/${p}.${lang}.json`))); } catch (e) { /* part not present */ } }
+  return out;
+};
+const EN = dict('en');
+const VI = dict('vi');
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** en.json values equal to their vi.json value, as patterns ({vars} match anything). */
 const SAME_IN_BOTH = Object.keys(EN).filter((k) => typeof EN[k] === 'string' && EN[k] === VI[k] && EN[k].trim())
   .map((k) => new RegExp(`^${EN[k].trim().split(/\{\w+\}/).map(escapeRe).join('.*')}$`));
+/** en == vi values without variables ("Checkpoint", "Capstone" …), longest first, removed inside longer strings. */
+const SAME_WORDS = [...new Set(Object.keys(EN).filter((k) => typeof EN[k] === 'string' && EN[k] === VI[k] && EN[k].trim() && !/\{\w+\}/.test(EN[k]))
+  .map((k) => EN[k].trim()))].sort((a, b) => b.length - a.length);
 const CATALOG = readJson('data/courses.json');
 const CODES = CATALOG.courses.map((c) => c.code);
 // No letters left once course codes, option letters, units and the brand are removed.
@@ -55,7 +67,9 @@ const NEUTRAL_TOKENS = new RegExp(`\\b(${CODES.join('|')}|EN|VI|PIN|KPI|SOI|VND|
 export function isNeutral(s, dataStrings = new Set()) {
   if (dataStrings.has(s)) return true;
   if (SAME_IN_BOTH.some((re) => re.test(s))) return true;
-  const rest = s.replace(/https?:\/\/\S+/g, '').replace(NEUTRAL_TOKENS, '').replace(/[\d\s.,:;%×+\-–—·/()#?!'"’“”…|<>=≈≥≤✓₫*&_]/g, '');
+  let t = s.replace(/https?:\/\/\S+/g, '');
+  for (const w of SAME_WORDS) t = t.split(w).join(' ');
+  const rest = t.replace(NEUTRAL_TOKENS, '').replace(/[\d\s.,:;%×+\-–—·/()#?!'"’“”…|<>=≈≥≤✓₫*&_]/g, '');
   return rest === '';
 }
 

@@ -27,6 +27,7 @@ function show(fn) {
 onLangChange(() => {
   if (tchip) tchip.repaint();
   if (runner && runner.active) { runner.rerender(); return; }
+  if (runner) runner.pill.repaint(); // Part A and the review screen show the save pill outside the runner
   if (current) keepPlace(current);
 });
 /** Re-draw a page-level view keeping the scroll position and focus (language switch). */
@@ -147,7 +148,12 @@ function setup() {
     if (last && last.code === it.course) last.items.push(it); else groupsB.push({ code: it.course, items: [it] });
   }
   runner = new QuizRunner({ start, withSelf: true, onGone: () => gone() });
-  tchip = timerChip();
+  // "Hide timer" is remembered per attempt (in the attempt's local draft); it comes back by itself
+  // at 10 and 5 minutes left.
+  tchip = timerChip({
+    hidden: !!runner.pos.timerHidden,
+    onHide: (hidden, ms) => runner.setPos({ timerHidden: hidden, timerHiddenAt: hidden ? Math.round(ms) : null }),
+  });
   timer = createTimer({
     deadlineAt: start.deadline_at,
     onTick: (ms) => { tchip.set(ms); milestones(ms); },
@@ -161,6 +167,17 @@ function setup() {
   else viewA();
 }
 function milestones(ms) {
+  if (tchip && tchip.hidden) {
+    const at = Number(runner && runner.pos.timerHiddenAt) || Infinity;
+    const m = [10, 5].find((x) => at > x * 60000 && ms <= x * 60000);
+    if (m) {
+      tchip.reveal();
+      runner.setPos({ timerHidden: false, timerHiddenAt: null });
+      spoken.add(m);
+      announce(t('baseline.timer_back', { count: Math.max(1, Math.ceil(ms / 60000)) }));
+      return;
+    }
+  }
   for (const m of [10, 5, 1]) {
     if (ms <= m * 60000 && ms > (m - 1) * 60000 && !spoken.has(m)) { spoken.add(m); announce(t('baseline.minutes_left', { count: m })); }
   }
@@ -284,9 +301,9 @@ function cfgB(startAt) {
     intro: () => partHeader('B'),
     dotLabel: (sc) => sc.key,
     dotAria: (sc, i, answered) => t('baseline.dot_group', { code: sc.key, n: answered, total: sc.items.length }),
-    backLabel: t('baseline.back_a'), onBack: () => viewA(),
-    doneLabel: t('baseline.to_c'), onDone: () => viewQ('C', 'first'),
-    reviewLinkLabel: t('baseline.review_link'), onReviewLink: () => viewReview(),
+    backLabel: () => t('baseline.back_a'), onBack: () => viewA(),
+    doneLabel: () => t('baseline.to_c'), onDone: () => viewQ('C', 'first'),
+    reviewLinkLabel: () => t('baseline.review_link'), onReviewLink: () => viewReview(),
     startAt,
   };
 }
@@ -300,9 +317,9 @@ function cfgC(startAt) {
     metaKey: 'baseline.case_q_of',
     intro: () => partHeader('C'),
     aside: (mode) => casePanel(mode),
-    backLabel: t('baseline.back_b'), onBack: () => viewQ('B', 'last'),
-    doneLabel: t('baseline.to_review'), onDone: () => viewReview(),
-    reviewLinkLabel: t('baseline.review_link'), onReviewLink: () => viewReview(),
+    backLabel: () => t('baseline.back_b'), onBack: () => viewQ('B', 'last'),
+    doneLabel: () => t('baseline.to_review'), onDone: () => viewReview(),
+    reviewLinkLabel: () => t('baseline.review_link'), onReviewLink: () => viewReview(),
     startAt,
   };
 }
@@ -441,6 +458,13 @@ function showResult(res) {
   if (h1) { h1.setAttribute('tabindex', '-1'); h1.focus({ preventScroll: true }); }
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
+// Part B has 4 items per course; the 6 case items add one each to these courses (specs/14).
+const CASE_COURSES = ['P1', 'P2', 'A1', 'P4', 'C1', 'P3'];
+/** Items scored to a course: counted from this attempt's items when we have them, else the blueprint. */
+function itemsFor(code) {
+  const mine = itemsB.concat(itemsC).filter((it) => it.course === code).length;
+  return mine || 4 + (CASE_COURSES.includes(code) ? 1 : 0);
+}
 function renderResult(res, prev) {
   app.classList.add('narrow');
   const order = ORDER();
@@ -449,39 +473,58 @@ function renderResult(res, prev) {
   const gaps = (res.gaps || []).slice(0, 2);
   const lvText = (n) => { const lv = levelOf(n); return lv ? `${lv.level} · ${lv.abbr || lv.label}` : '–'; };
   const lvFull = (n) => { const lv = levelOf(n); return lv ? `${lv.level} · ${lv.label}` : '–'; };
-  const bars = order.filter((c) => by[c] !== undefined).map((c) => {
-    const pct = Math.max(0, Math.min(100, Number(by[c]) || 0));
+  const pctOf = (c) => Math.max(0, Math.min(100, Number(by[c]) || 0));
+  const count = (c) => { const n = itemsFor(c); return { n, k: Math.round((pctOf(c) * n) / 100) }; };
+  const courses = order.filter((c) => by[c] !== undefined);
+  // Two strengths: highest scores outside the gaps (tie → more right, then calendar order); never a 0.
+  const strengths = courses.filter((c) => !gaps.includes(c) && pctOf(c) > 0)
+    .map((c, i) => ({ c, i, p: pctOf(c), k: count(c).k }))
+    .sort((a, b) => b.p - a.p || b.k - a.k || a.i - b.i).slice(0, 2).map((x) => x.c);
+  const totalN = courses.reduce((a, c) => a + itemsFor(c), 0);
+  const totalK = Math.round((Number(res.score_pct) || 0) * totalN / 100);
+
+  const person = (c, kind) => {
+    const { k, n } = count(c);
+    return h('li', null, codeBadge(c),
+      h('span', { class: 'stack sm bl-word-main' }, h('b', { class: 'ink', text: courseName(c) }),
+        h('span', { class: 'small', text: t('baseline.k_right', { k, n }) }),
+        kind === 'gap' ? h('span', { class: 'small muted', text: t('baseline.gap_self', { lv: isRated(self[c]) ? lvFull(self[c]) : '–' }) }) : null));
+  };
+  const bars = courses.map((c) => {
+    const pct = pctOf(c);
+    const { k, n } = count(c);
     const lv = isRated(self[c]) ? Number(self[c]) : null;
     const fill = h('i'); fill.style.width = `${pct}%`;
     const mark = lv !== null ? h('b', { class: 'bl-mark' }) : null;
     if (mark) mark.style.left = lv === 0 ? '0px' : `calc(${Math.min(100, lv * 25)}% - 3px)`;
-    return h('div', { class: 'bar-row bl-bar', 'data-anchor': `bar-${c}` },
+    return h('div', { class: `bar-row bl-bar${gaps.includes(c) ? ' is-gap' : ''}`, 'data-anchor': `bar-${c}` },
       codeBadge(c),
       h('div', { class: 'bl-bar-main' },
         h('span', { class: 'bl-bar-name', 'aria-hidden': 'true', text: courseName(c) }),
         h('div', { class: 'track', 'aria-hidden': 'true' }, fill, mark),
-        h('span', { class: 'sr-only', text: t('baseline.bar_sr', { name: courseName(c), pct, lv: lv !== null ? lvText(lv) : '–' }) })),
-      h('span', { class: 'bl-bar-val', 'aria-hidden': 'true' }, h('b', { text: `${pct}%` }), lv !== null ? h('span', { class: 'bl-bar-self', text: t('baseline.self_short', { lv: lv.toString() }) }) : null));
+        h('span', { class: 'sr-only', text: t('baseline.bar_sr_n', { name: courseName(c), k, n, pct, lv: lv !== null ? lvText(lv) : '–' }) })),
+      h('span', { class: 'bl-bar-val', 'aria-hidden': 'true' }, h('b', { text: t('baseline.k_of_n', { k, n }) }), lv !== null ? h('span', { class: 'bl-bar-self', text: t('baseline.self_short', { lv: lv.toString() }) }) : null));
   });
   const delta = prev && typeof prev.score_pct === 'number' ? res.score_pct - prev.score_pct : null;
   render(app, h('div', { class: 'qz bl stack lg' },
-    h('section', { class: 'result-hero neutral qz-hero', 'aria-labelledby': 'bl-res-h' },
+    h('section', { class: 'result-hero neutral qz-hero bl-hero', 'aria-labelledby': 'bl-res-h' },
       h('div', { class: 'qz-hero-head' },
         h('span', { class: 'qz-hero-icon', 'aria-hidden': 'true' }, icon('flag', 'lg')),
-        h('div', { class: 'qz-hero-meta' },
-          h('p', { class: 'eyebrow', text: t('baseline.eyebrow', { wave: waveLabel(me && me.baseline ? me.baseline.wave : '') }) }),
-          h('div', { class: 'qz-score', role: 'img', 'aria-label': t('baseline.score_aria', { pct: res.score_pct }) }, h('span', { class: 'score-big', text: `${res.score_pct}%` }), h('span', { class: 'qz-score-pct', text: t('baseline.overall') })))),
+        h('p', { class: 'eyebrow', text: t('baseline.eyebrow', { wave: waveLabel(me && me.baseline ? me.baseline.wave : '') }) })),
       h('h1', { id: 'bl-res-h', class: 'qz-hero-title', text: t('baseline.result_title') }),
       h('p', { class: 'qz-hero-body', text: t('baseline.result_body') }),
-      delta !== null ? h('p', { class: 'qz-next' }, icon('trend-up', 'sm'), h('span', { text: t('baseline.result_prev', { prev: prev.score_pct, wave: waveLabel(prev.wave), delta: delta >= 0 ? `+${delta}` : String(delta) }) })) : null),
-    gaps.length ? h('section', { class: 'callout warn bl-gap-card', 'aria-labelledby': 'bl-gaps-h' }, icon('target'),
-      h('div', { class: 'stack sm' },
-        h('h2', { id: 'bl-gaps-h', class: 'bl-h3', text: t('baseline.gaps_title') }),
-        h('ol', { class: 'bl-gap-list' }, gaps.map((c) => h('li', null, codeBadge(c),
-          h('span', { class: 'stack sm' }, h('b', { class: 'ink', text: courseName(c) }),
-            h('span', { class: 'small', text: t('baseline.gap_score', { pct: by[c] !== undefined ? by[c] : '–' }) }),
-            h('span', { class: 'small', text: t('baseline.gap_self', { lv: isRated(self[c]) ? lvFull(self[c]) : '–' }) }))))),
-        h('p', { class: 'strong ink', text: t('baseline.gaps_idp') }))) : null,
+      h('p', { class: 'bl-overall small' }, icon('target', 'sm'), h('span', { text: t('baseline.overall_line', { pct: res.score_pct, k: totalK, n: totalN }) })),
+      delta !== null ? h('p', { class: 'bl-overall small' }, icon('trend-up', 'sm'), h('span', { text: t('baseline.result_prev', { prev: prev.score_pct, wave: waveLabel(prev.wave), delta: delta >= 0 ? `+${delta}` : String(delta) }) })) : null),
+    gaps.length || strengths.length ? h('section', { class: 'card pad stack bl-words', 'aria-labelledby': 'bl-words-h' },
+      h('h2', { id: 'bl-words-h', text: t('baseline.words_title') }),
+      h('div', { class: 'bl-words-grid' },
+        gaps.length ? h('div', { class: 'bl-word-col is-gap', 'data-anchor': 'gaps' },
+          h('h3', { id: 'bl-gaps-h', class: 'bl-h3' }, icon('target', 'sm'), h('span', { text: t('baseline.gaps_title') })),
+          h('ol', { class: 'bl-gap-list bl-word-list' }, gaps.map((c) => person(c, 'gap'))),
+          h('p', { class: 'bl-idp' }, icon('calendar', 'sm'), h('span', { class: 'strong ink', text: t('baseline.gaps_idp') }))) : null,
+        strengths.length ? h('div', { class: 'bl-word-col is-strength', 'data-anchor': 'strengths' },
+          h('h3', { id: 'bl-str-h', class: 'bl-h3' }, icon('star', 'sm'), h('span', { text: t(strengths.length === 1 ? 'baseline.strength_title_one' : 'baseline.strengths_title') })),
+          h('ol', { class: 'bl-str-list bl-word-list' }, strengths.map((c) => person(c, 'strength')))) : null)) : null,
     h('section', { class: 'card pad stack', 'aria-labelledby': 'bl-bars-h' },
       h('h2', { id: 'bl-bars-h', text: t('baseline.bars_title') }),
       h('p', { class: 'small muted', text: t('baseline.bars_body') }),

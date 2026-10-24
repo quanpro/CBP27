@@ -25,8 +25,8 @@ async function probe() {
   const cp = await login(ACCOUNTS.checkpoint.real);
   if (cp.ok) {
     const me = await call('me', { token: cp.token });
-    const c = me.ok && me.courses.find((x) => x.code === COURSES.checkpoint);
-    if (!c || c.checkpoint.status !== 'not_started') why.push(`${ACCOUNTS.checkpoint.real} already took the ${COURSES.checkpoint} checkpoint`);
+    const c = me.ok && me.courses.find((x) => x.code === COURSES.checkpoint.real);
+    if (!c || c.checkpoint.status !== 'not_started') why.push(`${ACCOUNTS.checkpoint.real} already took the ${COURSES.checkpoint.real} checkpoint`);
   }
   return why;
 }

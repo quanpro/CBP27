@@ -39,7 +39,7 @@ var SEED = {
     {
       "level": 2,
       "en": "Working knowledge",
-      "vi": "Nắm vững",
+      "vi": "Vận dụng được",
       "abbr": "WK",
       "desc_en": "Diagnoses issues, challenges specialists",
       "desc_vi": "Chẩn đoán được vấn đề, phản biện được chuyên gia"

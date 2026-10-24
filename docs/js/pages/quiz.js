@@ -5,7 +5,7 @@
 import { mountShell, h, icon, chip, codeBadge, render, qs, loading, emptyState, errorState, errorMessage, toast, confirmDialog } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, serverNow } from '../api.js';
-import { loadCatalog, objectiveEpisodes, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
+import { loadCatalog, objectiveEpisodes, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN, journey, courseSteps } from '../courses.js';
 import { QuizRunner, buildTop, answerLine, announce, fmtTime } from '../quiz.js';
 
 const TYPES = ['predict', 'checkpoint', 'recall'];
@@ -14,6 +14,7 @@ const code = (qs('c') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const dayParam = Number(qs('day')) || null;
 let reviewId = qs('review');
 const courseHref = code ? `course.html?c=${encodeURIComponent(code)}` : 'index.html';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const episodesHref = code ? `course.html?c=${encodeURIComponent(code)}#episodes` : 'index.html';
 
 const { app } = await mountShell({ page: 'quiz', focus: true, exitHref: courseHref });
@@ -23,6 +24,7 @@ let cat = null; let course = null; let live = null;
 let runner = null; let startRes = null;
 let current = null;
 let nextRecall = null; // {day, due_date} | 'none' | null (unknown)
+let after = null; // after a result: { certs, next: course|null, done: bool } from `me` (optional lines)
 
 function show(fn) {
   if (runner) runner.hide();
@@ -31,7 +33,7 @@ function show(fn) {
 }
 onLangChange(() => {
   if (runner && runner.active) runner.rerender();
-  else if (current) current();
+  else if (current) { if (runner) runner.pill.repaint(); current(); } // the review screen shows the save pill too
 });
 
 // ---------- helpers ----------
@@ -195,8 +197,9 @@ function runQuestions(startAt) {
     groups: [{ key: 'all', items: startRes.items || [] }],
     paging: 'item',
     title: () => `${typeLabel()} · ${code}`,
-    doneLabel: t('quiz.review_btn'),
-    reviewLinkLabel: t('quiz.review.link'),
+    srName: () => `${typeLabel()} ${code}`,
+    doneLabel: () => t('quiz.review_btn'),
+    reviewLinkLabel: () => t('quiz.review.link'),
     onDone: () => show(reviewView),
     startAt,
   });
@@ -251,6 +254,7 @@ async function doSubmit(btn) {
     const id = startRes.attempt_id;
     runner = null;
     try { history.replaceState(null, '', reviewHref(id) + (type === 'recall' && dayParam ? `&day=${dayParam}` : '')); } catch (e) { /* ignore */ }
+    await preloadAfter(res);
     showResult(res, id);
   } catch (e) {
     show(() => reviewView(e));
@@ -262,10 +266,18 @@ function showResult(res, attemptId) {
   reviewId = attemptId || reviewId;
   const kind = res.assessment || type;
   if (kind === 'predict') show(() => predictResult(res));
-  else if (kind === 'recall') { show(() => recallResult(res)); loadNextRecall(res); }
+  else if (kind === 'recall') show(() => recallResult(res));
   else show(() => checkpointResult(res));
   focusHeading();
   announce(app.querySelector('h1') ? app.querySelector('h1').textContent : '');
+  if (needsAfter(res) && !afterDone.has(res)) {
+    loadAfter(res).then(() => {
+      if (!current || !app.querySelector('.qz-hero')) return;
+      const had = document.activeElement;
+      current();
+      if (!had || had === document.body || !had.isConnected) { const el = app.querySelector('h1'); if (el) { el.setAttribute('tabindex', '-1'); el.focus({ preventScroll: true }); } }
+    });
+  }
 }
 
 function scoreBlock(res) {
@@ -283,17 +295,23 @@ function hero({ variant, iconName, eyebrow, title, body, actions, res, extra }) 
     extra || null,
     actions && actions.length ? h('div', { class: 'row qz-actions' }, actions) : null);
 }
-function reviewCard(r, n, { reveal, missed = false }) {
+/**
+ * One answered question. missed: the objective is a small line above the stem (no pill) ·
+ * soft: a not-yet checkpoint (amber "not this time"; never the right answer unless revealed).
+ */
+function reviewCard(r, n, { reveal, missed = false, soft = false }) {
   const ok = !!r.is_correct;
-  const lines = [answerLine('your', r.your, { correct: ok })];
+  const lines = [answerLine('your', r.your, { correct: ok, soft })];
   if (!ok && reveal && r.correct) lines.push(answerLine('right', r.correct));
   const why = reveal ? pick(r, 'why') : '';
   const label = missed ? t('result.missed_n', { n }) : t('quiz.q_short', { n });
-  return h('article', { class: 'q-card qz-rcard', 'aria-label': label },
-    h('div', { class: 'row tight qz-rcard-head' },
-      missed ? null : h('span', { class: 'q-meta', text: label }),
-      missed ? null : chip(ok ? t('result.correct_chip') : t('result.wrong_chip'), ok ? 'pass' : 'warn', ok ? 'check' : 'x'),
-      r.objective ? chip(missed ? t('result.objective_n_text', { n: r.objective, text: objText(r.objective) }) : t('result.objective_n', { n: r.objective }), missed ? 'qz-obj-chip' : '') : null),
+  return h('article', { class: `q-card qz-rcard${soft ? ' is-soft' : ''}`, 'aria-label': label },
+    missed
+      ? (r.objective ? h('p', { class: 'qz-rcard-obj', text: t('result.objective_n_text', { n: r.objective, text: objText(r.objective) }) }) : null)
+      : h('div', { class: 'row tight qz-rcard-head' },
+        h('span', { class: 'q-meta', text: label }),
+        chip(ok ? t('result.correct_chip') : t('result.wrong_chip'), ok ? 'pass' : 'warn', ok ? 'check' : 'x'),
+        r.objective ? chip(t('result.objective_n', { n: r.objective }), '') : null),
     h('p', { class: 'qz-rstem', text: pick(r, 'stem') }),
     h('div', { class: 'opts' }, lines),
     why ? h('div', { class: 'qz-why' }, icon('info', 'sm'), h('p', null, h('b', { text: `${t('result.why')} ` }), h('span', { text: why }))) : null);
@@ -348,6 +366,15 @@ function objectivesCard(res) {
     okList.length ? h('details', { class: 'qz-more' }, h('summary', { text: t('result.shown_title', { count: okList.length }) }), h('ol', { class: 'qz-objs' }, okList.map(row))) : null);
 }
 
+/** "3 of 10 checkpoints → 1% Practitioner" (from `me`, once loaded). */
+function certLine() {
+  const c = after && after.certs;
+  if (!c || typeof c.checkpoints_passed !== 'number') return null;
+  const total = c.checkpoints_total || 10;
+  return h('p', { class: 'qz-next qz-cert' }, icon('award', 'sm'),
+    h('span', { text: t('result.cert_progress', { n: c.checkpoints_passed, total }) }));
+}
+
 function checkpointResult(res) {
   const passed = !!res.passed;
   const reveal = !!res.reveal;
@@ -355,12 +382,18 @@ function checkpointResult(res) {
   const eyebrow = t('result.cp_eyebrow', { code: res.course || code, form: res.form || '', n: res.attempt_no || 1 });
   const retakeMs = res.next_retake_at ? Date.parse(res.next_retake_at) : NaN;
   const canRetakeNow = !passed && !res.needs_unlock && !Number.isNaN(retakeMs) && retakeMs <= serverNow();
-  let title; let body; let variant; let iconName; const actions = [];
+  let title; let body; let variant; let iconName; const actions = []; let extra = null;
   if (passed) {
     variant = 'pass'; iconName = 'check-circle';
     title = forum ? t('result.passed_title', { date: fmtLongDate(forum) }) : t('result.passed_title_nodate');
     body = t('result.passed_body', { n: res.n_correct, total: res.n_items });
-    actions.push(backToCourse('btn-primary'));
+    const nxt = after && after.done && after.next;
+    if (nxt) {
+      actions.push(h('a', { class: 'btn btn-primary', href: `course.html?c=${encodeURIComponent(nxt.code)}` },
+        h('span', { text: t('result.next_course', { code: nxt.code, name: pick(nxt, 'name') }) }), icon('arrow-right')));
+      actions.push(backToCourse());
+    } else actions.push(backToCourse('btn-primary'));
+    extra = certLine();
   } else {
     variant = 'notyet'; iconName = 'refresh';
     if (res.needs_unlock) title = t('result.notyet_title_unlock');
@@ -371,10 +404,26 @@ function checkpointResult(res) {
     if (canRetakeNow) actions.push(h('a', { class: 'btn btn-primary', href: `quiz.html?type=checkpoint&c=${encodeURIComponent(res.course || code)}` }, icon('refresh'), h('span', { text: t('result.retake_now') })));
     else if ((res.weak_objectives || []).length) actions.push(h('a', { class: 'btn btn-primary', href: episodesHref }, icon('play'), h('span', { text: t('result.rewatch_cta') })));
     actions.push(backToCourse(actions.length ? 'btn-ghost' : 'btn-primary'));
+    if (res.needs_unlock) extra = h('div', { class: 'callout warn' }, icon('users'), h('span', { text: t('result.unlock_note') }));
   }
   const missed = res.missed || [];
   const recallDates = (res.recall_dates || []).filter(Boolean);
-  const extra = !passed && res.needs_unlock ? h('div', { class: 'callout warn' }, icon('users'), h('span', { text: t('result.unlock_note') })) : null;
+  const cards = missed.map((r, i) => reviewCard(r, i + 1, { reveal, missed: true, soft: !passed }));
+  let missedSection;
+  if (passed || !missed.length) {
+    missedSection = h('section', { class: 'stack', 'aria-labelledby': 'qz-missed-h' },
+      h('h2', { id: 'qz-missed-h', text: missed.length ? t('result.missed_title', { count: missed.length }) : t('result.missed_none_title') }),
+      !missed.length ? h('p', { class: 'muted', text: t('result.missed_none') }) : null,
+      cards);
+  } else {
+    // Not yet: the answers wait behind a closed <details>, so the screen leads with what to do next.
+    missedSection = h('section', { class: 'card pad stack qz-missed-soft', 'aria-labelledby': 'qz-missed-h' },
+      h('h2', { id: 'qz-missed-h', class: 'bl-h3', text: t('result.missed_title', { count: missed.length }) }),
+      !reveal ? h('p', { class: 'qz-lock-line small' }, icon('lock', 'sm'), h('span', { text: t('result.locked_note') })) : null,
+      h('details', { class: 'qz-answers' },
+        h('summary', null, h('span', { text: t('result.see_answers', { count: missed.length }) }), icon('chevron-down', 'sm qz-answers-chev')),
+        h('div', { class: 'stack qz-answers-body' }, cards)));
+  }
   render(app, h('div', { class: `qz stack lg ${familyClass(res.course || code)}` },
     hero({ variant, iconName, eyebrow, title, body, actions, res, extra }),
     objectivesCard(res),
@@ -382,37 +431,68 @@ function checkpointResult(res) {
       h('h2', { id: 'qz-recall-h', text: t('result.recall_title') }),
       h('p', { class: 'muted', text: t('result.recall_body') }),
       h('ul', { class: 'qz-dates' }, recallDates.map((d, i) => h('li', null, icon('calendar', 'sm'), h('b', { text: t('result.recall_day', { day: [2, 7, 30][i] || '' }) }), h('span', { text: fmtLongDate(d) }))))) : null,
-    h('section', { class: 'stack', 'aria-labelledby': 'qz-missed-h' },
-      h('h2', { id: 'qz-missed-h', text: missed.length ? t('result.missed_title', { count: missed.length }) : t('result.missed_none_title') }),
-      !missed.length ? h('p', { class: 'muted', text: t('result.missed_none') }) : null,
-      missed.length && !reveal ? h('div', { class: 'callout info' }, icon('lock'), h('span', { text: t('result.locked_note') })) : null,
-      missed.map((r, i) => reviewCard(r, i + 1, { reveal, missed: true }))),
-    h('div', { class: 'row qz-actions' }, backToCourse())));
+    missedSection,
+    passed && missed.length ? h('div', { class: 'row qz-actions' }, backToCourse()) : null));
 }
 
+/** Recall heading by score: all right · most right · one or none. Never "nice" at 0/3. */
+function recallTone(res) {
+  const n = Number(res.n_correct) || 0; const total = Number(res.n_items) || 0;
+  if (total && n >= total) return 'all';
+  if (total && n / total >= 0.6) return 'most';
+  return 'few';
+}
 function recallResult(res) {
   let next = null;
   if (nextRecall && nextRecall !== 'none') next = t('result.next_recall', { day: nextRecall.day, date: fmtLongDate(nextRecall.due_date) });
   else if (nextRecall === 'none') next = t('result.recall_last');
+  const tone = recallTone(res);
+  const home = h('a', { class: 'btn btn-primary', href: 'index.html' }, icon('home'), h('span', { text: t('quiz.state.back_home') }));
+  const second = tone === 'few'
+    ? h('a', { class: 'btn btn-ghost', href: episodesHref }, icon('play'), h('span', { text: t('result.rewatch_cta') }))
+    : backToCourse();
   render(app, h('div', { class: `qz stack lg ${familyClass(res.course || code)}` },
-    hero({ variant: 'neutral', iconName: 'refresh', eyebrow: t('result.recall_eyebrow', { day: res.day || dayParam || '', code: res.course || code }), res,
-      title: t('result.recall_heading'), body: t('result.recall_body_score', { n: res.n_correct, total: res.n_items }),
+    hero({ variant: 'neutral', iconName: tone === 'all' ? 'check-circle' : 'refresh', eyebrow: t('result.recall_eyebrow', { day: res.day || dayParam || '', code: res.course || code }), res,
+      title: t(`result.recall_h.${tone}`), body: t(`result.recall_b.${tone}`, { n: res.n_correct, total: res.n_items }),
       extra: next ? h('p', { class: 'qz-next' }, icon('calendar', 'sm'), h('span', { text: next })) : null,
-      actions: [backToCourse('btn-primary')] }),
+      actions: [home, second] }),
     h('section', { class: 'stack', 'aria-labelledby': 'qz-ans-h' },
       h('h2', { id: 'qz-ans-h', text: t('result.review_title') }),
       (res.review || []).map((r, i) => reviewCard(r, i + 1, { reveal: true })))));
 }
-async function loadNextRecall(res) {
+
+/** After a pass or a recall: certificate progress, the next course, the next recall (optional lines). */
+const needsAfter = (res) => (res.assessment || type) === 'recall' || ((res.assessment || type) === 'checkpoint' && !!res.passed);
+const afterDone = new WeakSet();
+const afterLoads = new WeakMap();
+function loadAfter(res) {
+  if (!afterLoads.has(res)) afterLoads.set(res, fetchAfter(res).finally(() => afterDone.add(res)));
+  return afterLoads.get(res);
+}
+async function fetchAfter(res) {
   try {
     const me = await api.me();
-    const row = (me.courses || []).find((c) => c.code === (res.course || code));
-    const day = Number(res.day || dayParam || 0);
-    const nxt = row ? (row.recall || []).filter((r) => Number(r.day) > day && r.status !== 'done').sort((a, b) => a.day - b.day)[0] : null;
-    nextRecall = nxt || 'none';
-    if (current && app.querySelector('.qz-hero')) current();
-  } catch (e) { /* optional line */ }
+    const here = res.course || code;
+    const row = (me.courses || []).find((c) => c.code === here);
+    if ((res.assessment || type) === 'recall') {
+      const day = Number(res.day || dayParam || 0);
+      const nxt = row ? (row.recall || []).filter((r) => Number(r.day) > day && r.status !== 'done').sort((a, b) => a.day - b.day)[0] : null;
+      nextRecall = nxt || 'none';
+      return;
+    }
+    const list = await journey(me);
+    const mine = list.find((c) => c.code === here);
+    const steps = mine ? courseSteps(mine) : [];
+    // "Done" here = nothing left to do online in this course: predict, episodes and checkpoint.
+    const done = !!mine && ['predict', 'watch', 'checkpoint'].every((k) => (steps.find((s) => s.key === k) || {}).done);
+    const idx = list.findIndex((c) => c.code === here);
+    const open = (c) => c.code !== here && c.open && !(c.checkpoint && c.checkpoint.status === 'passed');
+    const next = list.slice(idx + 1).find(open) || list.find(open) || null;
+    after = { certs: me.certificates || null, done, next };
+  } catch (e) { /* optional lines */ }
 }
+/** Wait briefly for the optional lines so the main button does not change under the learner's thumb. */
+const preloadAfter = (res) => (needsAfter(res) ? Promise.race([loadAfter(res), sleep(2500)]) : Promise.resolve());
 
 function fatal(err, retry) {
   render(app, h('div', { class: 'qz stack lg' }, h('section', { class: 'card pad stack' }, h('h1', { class: 'qz-h1', text: t('quiz.error_title') }), errorState(err, retry), backToCourse())));
@@ -425,6 +505,7 @@ async function openReview(id) {
     const [c, res] = await Promise.all([loadCatalog(), api.review(id)]);
     cat = c;
     course = cat.courses.find((x) => x.code === (res.course || code)) || null;
+    await preloadAfter(res);
     showResult(res, id);
   } catch (e) {
     if (e.code === 'not_found') { show(() => stateView('not_found')); return; }

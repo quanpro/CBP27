@@ -15,15 +15,17 @@ function writeStored(v) {
   try { localStorage.setItem(STORE_KEY, v); } catch (e) { /* private mode */ }
 }
 
+// Default HTTP caching (GitHub Pages sends max-age=600): a planner on a slow phone downloads each
+// dictionary once, not on every page.
 async function loadDict(code) {
-  const res = await fetch(new URL(`../i18n/${code}.json`, import.meta.url), { cache: 'no-cache' });
+  const res = await fetch(new URL(`../i18n/${code}.json`, import.meta.url));
   if (!res.ok) throw new Error(`i18n ${code}: HTTP ${res.status}`);
   return res.json();
 }
 
 // Build-time only: page areas keep their strings in i18n/parts/<area>.<lang>.json until they are
 // merged into en.json / vi.json (tools/merge_parts.mjs). Empty in the shipped Hub.
-const PARTS = [];
+const PARTS = ['a', 'b'];
 
 function deepMerge(base, extra) {
   for (const [k, v] of Object.entries(extra || {})) {
@@ -33,21 +35,36 @@ function deepMerge(base, extra) {
   return base;
 }
 
+// Only the active language is fetched up front; the other one is fetched the first time someone
+// switches to it (about half the bytes on the first visit).
+const loading = {};
+function ensureLang(code) {
+  if (!loading[code]) {
+    const part = (p) => fetch(new URL(`../i18n/parts/${p}.${code}.json`, import.meta.url)).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+    loading[code] = Promise.all([loadDict(code), ...PARTS.map(part)]).then(([base, ...parts]) => {
+      parts.forEach((x) => deepMerge(base, x));
+      dicts[code] = base;
+      return base;
+    });
+    loading[code].catch(() => { delete loading[code]; }); // a failed fetch can be retried by the next switch
+  }
+  return loading[code];
+}
+
 export async function initI18n() {
-  const part = (p, code) => fetch(new URL(`../i18n/parts/${p}.${code}.json`, import.meta.url), { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
-  const [en, vi, ...parts] = await Promise.all([loadDict('en'), loadDict('vi').catch(() => ({})),
-    ...PARTS.flatMap((p) => [part(p, 'en'), part(p, 'vi')])]);
-  dicts.en = en; dicts.vi = vi;
-  PARTS.forEach((p, i) => { deepMerge(dicts.en, parts[2 * i]); deepMerge(dicts.vi, parts[2 * i + 1]); });
   lang = readStored() || 'en';
+  try { await ensureLang(lang); } catch (e) { if (lang === 'en') throw e; lang = 'en'; await ensureLang('en'); }
   document.documentElement.lang = lang;
   return lang;
 }
 
 export function getLang() { return lang; }
 
-export function setLang(next, { silent = false } = {}) {
+/** Switch language (fetches its strings the first time). Resolves once the page has switched. */
+export async function setLang(next, { silent = false } = {}) {
   if (!LANGS.includes(next) || next === lang) return;
+  try { await ensureLang(next); } catch (e) { console.error(e); return; }
+  if (next === lang) return;
   lang = next;
   writeStored(next);
   document.documentElement.lang = next;
@@ -70,7 +87,7 @@ export function t(key, vars) {
     if (lookup(dicts[lang], form) !== undefined || lookup(dicts.en, form) !== undefined) k = form;
   }
   let s = lookup(dicts[lang], k);
-  if (typeof s !== 'string') s = lookup(dicts.en, k);
+  if (typeof s !== 'string') s = lookup(dicts.en, k); // English fallback, when it has been loaded
   if (typeof s !== 'string') {
     if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') console.warn('[i18n] missing', key);
     return key;
@@ -79,8 +96,8 @@ export function t(key, vars) {
   return s;
 }
 
-/** True if the key exists in English (useful for optional strings such as error codes). */
-export function has(key) { return typeof lookup(dicts.en, key) === 'string'; }
+/** True if the key exists in the active language or English (optional strings such as error codes). */
+export function has(key) { return typeof lookup(dicts[lang], key) === 'string' || typeof lookup(dicts.en, key) === 'string'; }
 
 /** Pick a bilingual field: pick(obj, 'name') → obj.name_vi in VI (falls back to EN). */
 export function pick(obj, field) {
@@ -100,6 +117,6 @@ export function applyI18n(root = document) {
 }
 
 /** All keys of a dictionary, flattened (used by tests for EN/VI parity). */
-export function flatKeys(dict = dicts.en, prefix = '') {
+export function flatKeys(dict = dicts[lang], prefix = '') {
   return Object.entries(dict).flatMap(([k, v]) => (v && typeof v === 'object' ? flatKeys(v, `${prefix}${k}.`) : [`${prefix}${k}`]));
 }

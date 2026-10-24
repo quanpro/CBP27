@@ -12,16 +12,23 @@
 <link rel="icon" type="image/png" href="assets/marico-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&amp;family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&amp;family=Source+Serif+4:wght@600;700&amp;display=swap">
 <link rel="stylesheet" href="css/hub.css">
+<link rel="stylesheet" href="css/parts/a.css"><!-- dev: merged into hub.css at integration -->
+<link rel="stylesheet" href="css/parts/b.css"><!-- dev: merged into hub.css at integration -->
 <script src="js/theme-boot.js"></script>
+<link rel="modulepreload" href="js/ui.js">
+<link rel="modulepreload" href="js/i18n.js">
+<link rel="modulepreload" href="js/api.js">
+<link rel="modulepreload" href="js/courses.js">
+<link rel="modulepreload" href="config.js">
 <script type="module" src="js/pages/course.js"></script>
 </head>
 <body data-page="home" data-title-key="title.course">
 <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
-<div id="shell-top"></div>
+<div id="shell-top"><div class="boot-head" aria-hidden="true"><div class="container"><img src="assets/marico-logo.png" alt="" width="38" height="38"><b>The 1% Planner</b></div></div></div>
 <main id="main" tabindex="-1">
-  <div class="container" id="app"><div class="loading-screen" role="status"><span class="spinner"></span></div></div>
+  <div class="container" id="app"><div class="boot" role="status"><span class="sr-only">Loading… · Đang tải…</span><div class="skeleton boot-l1"></div><div class="skeleton boot-l2"></div><div class="skeleton boot-hero"></div><div class="skeleton boot-l3"></div><div class="skeleton boot-l4"></div></div></div>
 </main>
 <div id="shell-bottom"></div>
 <noscript><p class="container">The 1% Planner needs JavaScript. · The 1% Planner cần bật JavaScript.</p></noscript>

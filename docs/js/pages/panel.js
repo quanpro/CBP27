@@ -1,8 +1,10 @@
 // panel.html — judges score each team (specs/15, specs/20 panel_list/panel_score). Panel/admin only.
 // Stage tabs; one card per team: submission summary, then the rubric (5 criteria × 1–5 with the 1/3/5
 // anchors), a comment ("one thing to keep, one thing to change"), the stage weighting and Save.
-// Scores are saved per judge and stay editable.
-import { mountShell, h, icon, chip, render, loading, emptyState, errorState, errorMessage, toast } from '../ui.js';
+// Scores are saved per judge and stay editable. Every tap and keystroke is kept as a local draft per
+// judge + stage + team (localStorage, try/catch) until Save succeeds; leaving or switching the stage
+// tab with unsaved scores asks first. A judge never scores their own team (`forbidden`).
+import { mountShell, h, icon, chip, render, loading, emptyState, errorState, errorMessage, toast, confirmDialog } from '../ui.js';
 import { t, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
 import { fmtDateTime, fmtShortDate } from '../courses.js';
@@ -20,6 +22,24 @@ let loadErr = null;
 const roles = (session && session.profile && session.profile.roles) || [];
 const allowed = roles.includes('panel') || roles.includes('admin');
 const key = (teamId) => `${stage}|${teamId}`;
+const judge = (session && session.profile && session.profile.code) || 'me';
+const unsaved = new Set(); // keys with changes the server has not got yet
+const ownTeams = new Set(); // team ids this judge may not score (learned from `forbidden` or is_member)
+
+// ---------- local drafts ----------
+const draftKey = (k) => { const [st, team] = k.split('|'); return `hub.paneldraft.${judge}.${st}.${team}`; };
+function readDraft(k) {
+  try { const raw = localStorage.getItem(draftKey(k)); const d = raw ? JSON.parse(raw) : null; return d && typeof d === 'object' && d.vals ? d : null; } catch (e) { return null; }
+}
+function writeDraft(k, vals) {
+  try { localStorage.setItem(draftKey(k), JSON.stringify({ vals, at: Date.now() })); return true; } catch (e) { return false; }
+}
+function dropDraft(k) { try { localStorage.removeItem(draftKey(k)); } catch (e) { /* storage blocked */ } }
+const okScore = (v) => (Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 5 ? Number(v) : null);
+const cleanPick = (v) => ({ ...Object.fromEntries(CRITERIA.map((c) => [c, okScore(v && v[c])])), comment: String((v && v.comment) || '') });
+const samePick = (a, b) => CRITERIA.every((c) => a[c] === b[c]) && (a.comment || '').trim() === (b.comment || '').trim();
+const stageUnsaved = (st) => [...unsaved].filter((k) => k.startsWith(`${st}|`));
+window.addEventListener('beforeunload', (e) => { if (unsaved.size) { e.preventDefault(); e.returnValue = ''; } });
 
 function forbidden() {
   render(app, h('div', { class: 'pn stack lg' }, h('section', { class: 'card' },
@@ -40,6 +60,20 @@ function tabs() {
 }
 async function switchTab(s, focus) {
   if (s === stage) return;
+  const left = stageUnsaved(stage);
+  if (left.length) {
+    const ok = await confirmDialog({
+      title: t('panel.leave_title'),
+      body: t('panel.leave_body', { count: left.length }),
+      confirm: t('panel.leave_yes'), cancel: t('panel.leave_no'),
+    });
+    if (!ok) {
+      const card = document.getElementById(`team-${left[0].split('|')[1]}`);
+      const btn = card && card.querySelector('.pn-foot button[type="submit"]');
+      if (btn) { btn.scrollIntoView({ block: 'center' }); btn.focus({ preventScroll: true }); }
+      return;
+    }
+  }
   stage = s;
   try { history.replaceState(null, '', `#${s}`); } catch (e) { /* ignore */ }
   if (!lists[s]) await load(); else renderPage();
@@ -94,14 +128,16 @@ function scorePick(tm, c, onPick) {
   return { group, labelId };
 }
 
+/** Status line: Saved {time} · Draft kept on this device · Unsaved changes · Saving… · an error. */
 function statusEl(k) {
-  const s = status[k] || {};
-  const el = h('span', { class: `pn-status small${s.kind === 'saved' ? ' is-ok' : ''}${s.kind === 'error' ? ' is-bad' : ''}`, role: 'status', 'aria-live': 'polite' });
+  const el = h('span', { class: 'pn-status small', role: 'status', 'aria-live': 'polite' });
   const paint = () => {
     const st = status[k] || {};
-    el.className = `pn-status small${st.kind === 'saved' ? ' is-ok' : ''}${st.kind === 'error' ? ' is-bad' : ''}${st.kind === 'dirty' ? ' is-warn' : ''}`;
+    const warn = st.kind === 'draft' || st.kind === 'dirty';
+    el.className = `pn-status small${st.kind === 'saved' ? ' is-ok' : ''}${st.kind === 'error' ? ' is-bad' : ''}${warn ? ' is-warn' : ''}`;
     let text = t('panel.not_saved'); let ic = 'circle';
     if (st.kind === 'saved') { text = t('panel.saved', { time: fmtTime(st.at) }); ic = 'cloud'; }
+    if (st.kind === 'draft') { text = t('panel.draft_kept'); ic = 'edit'; }
     if (st.kind === 'dirty') { text = st.at ? t('panel.unsaved_since', { time: fmtTime(st.at) }) : t('panel.unsaved'); ic = 'edit'; }
     if (st.kind === 'saving') { text = t('panel.saving'); ic = 'refresh'; }
     if (st.kind === 'error') { text = st.msg; ic = 'alert'; }
@@ -111,22 +147,53 @@ function statusEl(k) {
   return { el, paint };
 }
 
+function initPick(tm, k) {
+  const server = cleanPick(tm.my_score || {});
+  picks[k] = { ...server };
+  if (tm.my_score) status[k] = { kind: 'saved', at: tm.my_score.scored_at };
+  const d = readDraft(k);
+  if (!d) return;
+  const draft = cleanPick(d.vals);
+  if (samePick(draft, server)) { dropDraft(k); return; }
+  picks[k] = draft;
+  status[k] = { kind: 'draft', at: tm.my_score ? tm.my_score.scored_at : null };
+  unsaved.add(k);
+}
+
+function ownTeamCard(tm) {
+  const title = (tm.submission && tm.submission.project_title) || tm.project_title || tm.team_id;
+  return h('article', { class: 'card pn-team is-own', id: `team-${tm.team_id}`, 'aria-labelledby': `pn-t-${tm.team_id}`, 'data-anchor': tm.team_id },
+    h('header', { class: 'pn-head stack sm' }, h('h2', { id: `pn-t-${tm.team_id}`, class: 'pn-title', text: title }),
+      h('div', { class: 'row tight' }, chip(t('panel.own_chip'), '', 'users'))),
+    h('div', { class: 'pad' }, h('div', { class: 'callout info' }, icon('users'), h('span', { text: t('panel.err_own_team') }))));
+}
+
 function teamCard(tm) {
   const k = key(tm.team_id);
-  if (!picks[k]) {
-    const s = tm.my_score || {};
-    picks[k] = { c1: s.c1 || null, c2: s.c2 || null, c3: s.c3 || null, c4: s.c4 || null, c5: s.c5 || null, comment: s.comment || '' };
-    if (tm.my_score) status[k] = { kind: 'saved', at: tm.my_score.scored_at };
-  }
+  if (tm.is_member) ownTeams.add(tm.team_id);
+  if (ownTeams.has(tm.team_id) && tm.is_member) return ownTeamCard(tm);
+  if (!picks[k]) initPick(tm, k);
   const p = picks[k];
   const st = statusEl(k);
   const err = h('p', { class: 'err', role: 'alert', hidden: true });
+  const discard = h('button', { class: 'link-btn pn-discard small', type: 'button', hidden: true, onclick: () => discardDraft() }, t('panel.discard'));
+  const paintDiscard = () => { discard.hidden = !(status[k] && status[k].kind === 'draft' && tm.my_score); };
   const markDirty = () => {
     const prev = status[k];
-    status[k] = { kind: 'dirty', at: prev && (prev.kind === 'saved' || prev.kind === 'dirty') ? prev.at : null };
-    st.paint();
+    const savedAt = prev && (prev.kind === 'saved' || prev.kind === 'dirty' || prev.kind === 'draft') ? prev.at : (tm.my_score ? tm.my_score.scored_at : null);
+    unsaved.add(k);
+    status[k] = { kind: writeDraft(k, { ...p }) ? 'draft' : 'dirty', at: savedAt };
+    st.paint(); paintDiscard();
     err.hidden = true;
   };
+  function discardDraft() {
+    dropDraft(k); unsaved.delete(k);
+    delete picks[k]; delete status[k];
+    keepPlace(renderPage);
+    const card = document.getElementById(`team-${tm.team_id}`);
+    const btn = card && card.querySelector('.pn-foot button[type="submit"]');
+    if (btn) btn.focus({ preventScroll: true });
+  }
   const onPick = (c, n) => { if (p[c] === n) return; p[c] = n; markDirty(); paintScored(); };
   const rows = CRITERIA.map((c, i) => {
     const sp = scorePick(tm, c, onPick);
@@ -158,7 +225,8 @@ function teamCard(tm) {
     h('div', null, rows),
     h('div', { class: 'field' }, h('label', { for: cid, text: t('panel.comment') }), h('p', { class: 'hint', id: `${cid}-hint`, text: t('panel.comment_hint') }), comment),
     err,
-    h('div', { class: 'row pn-foot' }, saveBtn, st.el));
+    h('div', { class: 'row pn-foot' }, saveBtn, h('span', { class: 'pn-foot-status' }, st.el, discard)));
+  paintDiscard();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const missing = CRITERIA.filter((c) => !p[c]);
@@ -176,18 +244,25 @@ function teamCard(tm) {
       const res = await api.panelScore(stage, tm.team_id, scores, p.comment || '');
       tm.my_score = { ...scores, comment: p.comment || '', scored_at: res.scored_at };
       status[k] = { kind: 'saved', at: res.scored_at };
+      unsaved.delete(k); dropDraft(k);
       toast(t('panel.saved_toast'), 'ok');
       paintHeader(); paintProgress();
     } catch (ex) {
-      status[k] = { kind: 'error', msg: ex.code === 'network' ? t('panel.err_offline') : errorMessage(ex) };
-    } finally { saveBtn.disabled = false; st.paint(); }
+      if (ex.code === 'forbidden') {
+        // the judge is on this team: nothing to keep, nothing to warn about
+        ownTeams.add(tm.team_id); unsaved.delete(k); dropDraft(k);
+        status[k] = { kind: 'error', msg: t('panel.err_own_team') };
+        paintHeader();
+      } else status[k] = { kind: 'error', msg: ex.code === 'network' ? t('panel.err_offline_draft') : errorMessage(ex) };
+    } finally { saveBtn.disabled = false; st.paint(); paintDiscard(); }
   });
   const headChips = h('div', { class: 'row tight' });
   function paintHeader() {
     render(headChips,
       tm.submission ? chip(t('panel.submitted_chip', { date: fmtShortDate(tm.submission.submitted_at) }), 'info', 'file') : chip(t('panel.not_submitted_chip'), 'warn', 'clock'),
       tm.my_score ? chip(t('panel.scored_chip'), 'pass', 'check') : null,
-      tm.is_sponsor ? chip(t('panel.sponsor_chip'), '', 'users') : null);
+      tm.is_sponsor ? chip(t('panel.sponsor_chip'), '', 'users') : null,
+      ownTeams.has(tm.team_id) ? chip(t('panel.own_chip'), 'warn', 'users') : null);
   }
   paintHeader();
   const title = (tm.submission && tm.submission.project_title) || tm.project_title || tm.team_id;

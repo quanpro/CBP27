@@ -144,6 +144,18 @@ export function progressBar(pct, { blue = false, thin = false, label } = {}) {
   return h('div', { class: `progress${blue ? ' blue' : ''}${thin ? ' thin' : ''}`, role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(p), 'aria-label': label || t('a11y.progress') }, i);
 }
 
+/**
+ * Six-segment mini stepper for a course: "Step 3 of 6 · Checkpoint" (never a percentage).
+ * info = courses.stepInfo(course). onHero: white-on-blue variant.
+ */
+export function stepMeter(info, { onHero = false, compact = false } = {}) {
+  const label = info.all ? t('steps.meter_done', { total: info.total }) : t('steps.meter', { n: info.n, total: info.total, label: t(`steps.${info.key}`) });
+  const aria = info.all ? label : t('steps.meter_aria', { n: info.n, total: info.total, label: t(`steps.${info.key}`), done: info.done });
+  return h('div', { class: `step-meter${onHero ? ' on-hero' : ''}${compact ? ' compact' : ''}`, role: 'img', 'aria-label': aria },
+    h('span', { class: 'sm-segs', 'aria-hidden': 'true' }, info.steps.map((s) => h('i', { class: s.state }))),
+    h('span', { class: 'sm-label', 'aria-hidden': 'true', text: label }));
+}
+
 export function skeleton(lines = 3) {
   return h('div', { class: 'stack sm', 'aria-hidden': 'true' },
     Array.from({ length: lines }, (_, i) => { const s = h('div', { class: 'skeleton' }); s.style.width = `${[92, 76, 84, 60, 70][i % 5]}%`; s.style.height = i === 0 ? '22px' : '14px'; return s; }));
@@ -156,7 +168,8 @@ export function emptyState({ iconName = 'info', title, body, action } = {}) {
 }
 export function errorMessage(err) {
   const code = (err && err.code) || 'generic';
-  const key = `errors.${code}`;
+  // A third lock in 7 days has no end time (until: null): only an admin can clear it (F22).
+  const key = code === 'locked' && err && !err.until ? 'errors.locked_admin' : `errors.${code}`;
   const vars = { ...(err || {}) };
   ['until', 'next_retake_at', 'opens_at'].forEach((k) => { if (vars[k]) vars[k] = fmtDateTime(vars[k]); });
   const msg = t(key, vars);
@@ -312,10 +325,12 @@ function headerEl({ page, focus, session, exitHref }) {
   const seg = h('div', { class: 'seg', role: 'group', 'aria-label': t('lang.aria') },
     ['en', 'vi'].map((code) => h('button', { type: 'button', 'aria-pressed': String(lang === code), lang: code, onclick: () => setLang(code) }, code.toUpperCase())));
   const themeNow = readTheme();
-  const themeBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': t('theme.aria', { mode: t(`theme.${themeNow}`) }), title: t(`theme.${themeNow}`),
-    onclick: () => { cycleTheme(); rebuildShell(); } }, icon(themeNow === 'dark' ? 'moon' : themeNow === 'light' ? 'sun' : 'monitor'));
+  const themeIcon = themeNow === 'dark' ? 'moon' : themeNow === 'light' ? 'sun' : 'monitor';
+  const themeBtn = h('button', { class: 'icon-btn theme-btn', type: 'button', 'aria-label': t('theme.aria', { mode: t(`theme.${themeNow}`) }), title: t(`theme.${themeNow}`),
+    onclick: () => { cycleTheme(); rebuildShell(); } }, icon(themeIcon));
 
-  const actions = h('div', { class: 'header-actions' }, seg, themeBtn);
+  // Phones under 400 px: the theme button moves into the user menu so "The 1% Planner" fits.
+  const actions = h('div', { class: `header-actions${session && !focus ? ' has-menu' : ''}` }, seg, themeBtn);
   if (focus && exitHref) {
     actions.append(h('a', { class: 'btn btn-ghost btn-sm', href: exitHref }, icon('x'), h('span', { class: 'hide-sm', text: t('common.exit') })));
   } else if (session) {
@@ -324,8 +339,11 @@ function headerEl({ page, focus, session, exitHref }) {
     const btn = h('button', { class: 'user-btn', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': menuId },
       h('span', { class: 'avatar', 'aria-hidden': 'true', text: initial }), h('span', { class: 'name', text: profile.first_name || profile.code }), icon('chevron-down', 'sm chev'));
     const menu = h('div', { class: 'menu', id: menuId, role: 'menu', hidden: true },
-      h('div', { class: 'menu-head' }, h('b', { class: 'ink', text: profile.first_name || profile.code }), h('div', { class: 'small muted', text: `${profile.code} · ${t(`role.${profile.role_area}`)}` })),
+      h('div', { class: 'menu-head' }, h('b', { class: 'ink', text: profile.first_name || profile.code }), h('div', { class: 'small muted', text: profile.role_area ? `${profile.code} · ${t(`role.${profile.role_area}`)}` : profile.code })),
       h('button', { type: 'button', role: 'menuitem', onclick: () => { closeMenu(); openChangePinDialog(); } }, icon('key'), t('menu.change_pin')),
+      h('button', { type: 'button', role: 'menuitem', class: 'menu-theme', 'aria-label': t('theme.aria', { mode: t(`theme.${themeNow}`) }),
+        onclick: () => { cycleTheme(); rebuildShell(); const b = document.querySelector('.user-btn'); if (b) b.focus(); } },
+      icon(themeIcon), h('span', { class: 'grow', text: t('theme.menu') }), h('span', { class: 'menu-val', text: t(`theme.short_${themeNow}`) })),
       h('a', { href: 'about.html', role: 'menuitem' }, icon('shield'), t('menu.privacy')),
       h('button', { type: 'button', role: 'menuitem', onclick: logout }, icon('logout'), t('menu.logout')));
     const closeMenu = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
@@ -333,11 +351,11 @@ function headerEl({ page, focus, session, exitHref }) {
     openMenu = { menu, btn, close: closeMenu };
     actions.append(btn, menu);
   }
-  const header = h('header', { class: 'app-header' }, h('div', { class: 'container' }, brand, nav, actions));
+  const header = h('header', { class: `app-header${focus ? ' is-focus' : ''}` }, h('div', { class: 'container' }, brand, nav, actions));
   const frag = document.createDocumentFragment();
   if (isDemo()) {
     frag.append(h('div', { class: 'demo-banner', role: 'note' }, h('div', { class: 'container' },
-      icon('info'), h('b', { text: t('demo.label') }), h('span', { text: t('demo.body') }))));
+      icon('info'), h('b', { text: t('demo.label') }), h('span', { class: 'demo-long', text: t('demo.body') }), h('span', { class: 'demo-short', text: t('demo.short') }))));
   }
   frag.append(header);
   return frag;

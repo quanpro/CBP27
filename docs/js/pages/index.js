@@ -1,9 +1,9 @@
 // index.html · sign-in, onboarding gates (own PIN, privacy notice) and "My learning".
 // All data from the Sheet is inserted as text (h() / textContent), never as HTML.
-import { h, render, icon, chip, codeBadge, ring, progressBar, emptyState, errorState, errorMessage, changePinForm, mountShell, refreshShell, qs, logout } from '../ui.js';
+import { h, render, icon, chip, codeBadge, ring, progressBar, stepMeter, emptyState, errorState, errorMessage, changePinForm, mountShell, refreshShell, qs, logout } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, getSession, setSession, updateProfile, isDemo, serverNow } from '../api.js';
-import { loadCatalog, journey, courseStatus, courseProgress, nextStep, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
+import { loadCatalog, journey, courseStatus, courseProgress, stepInfo, nextStep, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 
 // "A2 + A3" for a pair; more than three courses on one date reads "A2, A3 +3" so the line stays short.
 const codeList = (set) => (set.length <= 3 ? set.map((c) => c.code).join(' + ') : `${set.slice(0, 2).map((c) => c.code).join(', ')} +${set.length - 2}`);
@@ -15,6 +15,7 @@ const DEMO_PIN = '270127';
 const DEMO_ACCOUNTS = [['DEMO-L', 'learner'], ['DEMO-M', 'manager'], ['DEMO-N', 'first']];
 const TZ = 'Asia/Ho_Chi_Minh';
 const LEVELS = ['practitioner', 'expert', 'coach'];
+const WIDE = matchMedia('(min-width: 768px)');
 
 const S = {
   app: null,
@@ -23,6 +24,8 @@ const S = {
   consent: { error: '', busy: false },
   onboardSteps: [],
   me: null, courses: null, catalog: null, loading: false, error: null, animate: false,
+  team: null, teamErr: null, // manager: team_status for "Your team this week"
+  open: new Set(), // <details> the learner opened (kept across a language switch)
 };
 
 // ---------- small helpers ----------
@@ -103,6 +106,10 @@ function show(view) {
   if (view !== 'dash' && view !== 'login' && h1) { h1.setAttribute('tabindex', '-1'); h1.focus({ preventScroll: true }); }
 }
 function draw() {
+  S.app.querySelectorAll('details[data-k]').forEach((d) => {
+    const k = d.dataset.k;
+    if (d.open) { S.open.add(k); S.open.delete(`${k}:closed`); } else { S.open.delete(k); S.open.add(`${k}:closed`); }
+  });
   const kept = captureInputs(S.app);
   const v = { login: viewLogin, pin: viewPin, consent: viewConsent, dash: viewDash }[S.view] || viewDash;
   // While the PIN / privacy gates are open, hide the navigation so nobody skips them by accident.
@@ -294,10 +301,17 @@ async function loadDash() {
     if (me.profile) updateProfile(me.profile);
     S.loading = false; S.animate = true;
     if (me.profile && (me.profile.must_change_pin || me.profile.consent_needed)) { S.onboardSteps = []; route(); return; }
+    if (me.profile && me.profile.is_manager) loadTeam();
   } catch (ex) {
     S.loading = false; S.error = ex;
   }
   if (S.view === 'dash') draw();
+}
+
+async function loadTeam() {
+  S.teamErr = null;
+  try { S.team = await api.teamStatus(); } catch (ex) { S.teamErr = ex; }
+  if (S.view === 'dash' && S.me) draw();
 }
 
 function dashSkeleton() {
@@ -306,7 +320,7 @@ function dashSkeleton() {
     h('span', { class: 'sr-only', role: 'status', text: t('common.loading') }),
     h('div', { class: 'stack sm', 'aria-hidden': 'true' }, sk('w-40', '14px'), sk('w-60', '34px')),
     sk('sk-hero', '200px'),
-    h('div', { class: 'grid cols-4', 'aria-hidden': 'true' }, [1, 2, 3, 4].map(() => sk('sk-tile', '108px'))),
+    h('div', { class: 'grid stat-grid', 'aria-hidden': 'true' }, [1, 2].map(() => sk('sk-tile', '120px'))),
     h('div', { class: 'grid cols-2', 'aria-hidden': 'true' }, [1, 2, 3, 4].map(() => sk('sk-tile', '190px'))));
 }
 
@@ -324,9 +338,9 @@ function viewDash() {
     heroNext(ns),
     statRow(me, courses),
     h('div', { class: 'dash-grid' },
-      h('div', { class: 'dash-up' }, comingUp(me, courses)),
-      h('div', { class: 'dash-main stack xl' }, baselineCard(me.baseline), coursesSection(courses, ns)),
-      h('div', { class: 'dash-side stack' }, capstoneCard(me.capstone), me.profile && me.profile.is_manager ? managerCard() : null, privacyCard())),
+      h('div', { class: 'dash-up stack' }, me.profile && me.profile.is_manager ? managerCard(courses) : null, comingUp(me, courses)),
+      h('div', { class: 'dash-main stack xl' }, baselineCard(me.baseline), coursesSection(courses)),
+      h('div', { class: 'dash-side stack' }, capstoneCard(me.capstone), privacyCard())),
     certPath(me),
   ];
   return h('div', { class: 'stack xl dash' }, blocks.map((b, i) => {
@@ -367,13 +381,12 @@ function heroBody(c, s) {
 function heroNext(ns) {
   const c = ns.course;
   const eyebrow = t(`home.next.eyebrow_${ns.kind}`);
-  let title = ns.title; let body = ns.body; let aside = null; let lead = null;
+  let title = ns.title; let body = ns.body; let aside = null; let lead = null; let meter = null;
   if (c && ns.status) {
     title = pick(c, 'name');
     body = heroBody(c, ns.status);
     lead = h('div', { class: 'row tight' }, h('span', { class: 'code-badge hero-code' }, c.code), chip(ns.status.label, ns.status.variant, ns.status.icon));
-    const p = courseProgress(c);
-    aside = h('div', { class: 'hero-aside' }, ring(p.pct, { size: 92, stroke: 8, ariaLabel: t('home.next.ring_aria', { pct: p.pct }) }), h('span', { class: 'small', text: t('home.next.ring_label') }));
+    meter = stepMeter(stepInfo(c), { onHero: true });
   } else if (ns.kind === 'baseline') {
     aside = h('div', { class: 'hero-aside' }, h('span', { class: 'hero-glyph' }, icon('target', 'lg')), h('span', { class: 'small', text: t('home.next.baseline_aside') }));
   } else if (ns.kind === 'done') {
@@ -393,6 +406,7 @@ function heroNext(ns) {
           lead,
           h('h2', { id: 'next-title', class: 'next-title', text: title }),
           body ? h('p', { class: 'sub next-body', text: body }) : null,
+          meter,
           cta || second ? h('div', { class: 'row next-ctas' },
             cta ? h('a', { class: 'btn btn-light btn-lg', href: cta.href }, cta.label, icon('arrow-right')) : null, second) : null),
         aside)));
@@ -410,8 +424,6 @@ function statRow(me, courses) {
   const cert = me.certificates || {};
   const passed = cert.checkpoints_passed !== undefined ? cert.checkpoints_passed : courses.filter((c) => c.checkpoint && c.checkpoint.status === 'passed').length;
   const total = cert.checkpoints_total || 10;
-  const st = me.streak || { current_weeks: 0, active_this_week: false, active_weeks_total: 0, multiplier: 1 };
-  const b = me.baseline || {};
 
   const tCp = statTile({
     k: t('home.stat.checkpoints'), kIcon: 'flag',
@@ -420,37 +432,30 @@ function statRow(me, courses) {
     extra: ring((100 * passed) / total, { size: 52, stroke: 6, label: '', ariaLabel: t('home.stat.checkpoints_aria', { n: passed, total }) }),
   });
 
-  const squares = Math.min(st.current_weeks || 0, 8);
-  const weeks = h('div', { class: 'weeks', 'aria-hidden': 'true' },
-    Array.from({ length: squares }, () => h('i', { class: 'on' })), st.active_this_week ? null : h('i', { class: 'todo' }));
-  const tStreak = statTile({
-    k: t('home.stat.streak'), kIcon: 'flame', cls: 'stat-streak',
-    v: t('streak.weeks', { count: st.current_weeks || 0 }),
-    d: st.active_this_week ? h('span', { class: 'ok-line' }, icon('check', 'sm'), t('streak.active')) : t('streak.inactive'),
-    extra: h('span', { class: `flame${st.active_this_week ? ' on' : ''}` }, icon('flame')),
-    below: weeks,
-  });
-
+  // One tile for the weekly habit: active weeks this program year, the last 12 weeks as dots
+  // (this week outlined) and whether this week already counts. No multiplier here: the 1.01^52
+  // story lives on the sign-in page and the About page.
+  const st = me.streak || {};
   const n = st.active_weeks_total || 0;
-  const meter = h('div', { class: 'meter' },
-    h('div', { class: 'progress meter-track', role: 'img', 'aria-label': t('streak.meter_aria', { n, x: fmtNum(st.multiplier || 1, 2) }) }, (() => { const i = h('i'); i.style.width = `${Math.min(100, (100 * n) / 52)}%`; return i; })()),
-    h('div', { class: 'meter-scale', 'aria-hidden': 'true' }, h('span', { text: `${fmtNum(1, 2)}×` }), h('span', { text: `${fmtNum(1.68, 2)}×` })));
-  const tMeter = statTile({
-    k: t('streak.meter'), kIcon: 'trend-up', cls: 'stat-meter',
-    v: `${fmtNum(st.multiplier || 1, 2)}×`,
-    d: h('span', null, sup(fmtNum(1.01, 2), n), ' · ', t('streak.active_weeks', { count: n })),
-    below: meter,
+  const of = st.weeks_total_program || 52;
+  const recent = Array.isArray(st.recent) && st.recent.length ? st.recent.slice(-12) : recentFromStreak(st);
+  const dots = h('div', { class: 'week-dots', role: 'img', 'aria-label': t('home.weeks.strip_aria', { n: recent.filter(Boolean).length, total: recent.length, row: st.current_weeks || 0 }) },
+    recent.map((on, i) => h('i', { class: [on ? 'on' : '', i === recent.length - 1 ? 'now' : ''].filter(Boolean).join(' ') || null })));
+  const tWeeks = statTile({
+    k: t('home.weeks.title'), kIcon: 'calendar', cls: 'stat-weeks',
+    v: [String(n), h('small', null, ` ${t('home.weeks.of', { total: of })}`)],
+    below: dots,
+    d: st.active_this_week ? h('span', { class: 'ok-line', text: t('streak.active') }) : t('streak.inactive'),
   });
 
-  let bv; let bd;
-  if (b.status === 'submitted' && b.result) { bv = pct(b.result.score_pct); bd = t('home.stat.baseline_done'); }
-  else if (b.status === 'in_progress') { bv = t('home.stat.baseline_in_progress'); bd = b.deadline_at ? t('home.stat.baseline_until', { time: fmtDateTime(b.deadline_at) }) : ''; }
-  else if (b.window === 'open') { bv = t('home.stat.baseline_open'); bd = t('home.stat.baseline_open_until', { date: fmtShortDate(b.open_to) }); }
-  else if (b.window === 'before') { bv = t('home.stat.baseline_soon'); bd = t('home.stat.baseline_opens', { date: fmtShortDate(b.open_from) }); }
-  else { bv = '—'; bd = t('home.stat.baseline_missed'); }
-  const tBase = statTile({ k: t('home.stat.baseline'), kIcon: 'target', v: bv, d: bd, cls: 'stat-base' });
-
-  return h('section', { 'aria-label': t('home.stat.aria') }, h('div', { class: 'grid cols-4 stat-grid' }, tCp, tStreak, tMeter, tBase));
+  return h('section', { 'aria-label': t('home.stat.aria') }, h('div', { class: 'grid stat-grid' }, tCp, tWeeks));
+}
+// Older backends send no `recent`: rebuild the last 12 weeks from the current run of weeks.
+function recentFromStreak(st) {
+  const out = Array(12).fill(false);
+  const end = st.active_this_week ? 11 : 10;
+  for (let i = 0; i < (st.current_weeks || 0) && end - i >= 0; i += 1) out[end - i] = true;
+  return out;
 }
 
 // Baseline card: CTA while open; readiness and the two largest gaps after submit.
@@ -458,7 +463,7 @@ function baselineCard(b) {
   if (!b) return null;
   const head = (chipEl) => h('div', { class: 'section-head' },
     h('div', { class: 'stack sm' }, h('h2', { id: 'bl-title', text: t('home.bl.title') }), h('p', { text: t('home.bl.sub', { wave: waveLabel(b.wave) }) })), chipEl);
-  if (b.status === 'submitted' && b.result) return baselineResult(b, head);
+  if (b.status === 'submitted' && b.result) return baselineRow(b);
   let body;
   if (b.window === 'open' || b.status === 'in_progress') {
     const inProg = b.status === 'in_progress';
@@ -486,47 +491,15 @@ function waveLabel(w) {
   const [y, m] = String(w).split('-');
   return getLang() === 'vi' ? `${t('home.bl.month')} ${Number(m)}/${y}` : new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(y), Number(m) - 1, 15)));
 }
-function scaleLabel(level) {
-  const sc = ((S.catalog && S.catalog.scale) || []).find((x) => Number(x.level) === Number(level));
-  if (!sc) return { short: String(level), long: '' };
-  return { short: sc.abbr ? `${level} · ${sc.abbr}` : String(level), long: getLang() === 'vi' ? sc.vi : sc.en };
-}
-function baselineResult(b, head) {
-  const r = b.result; const gaps = r.gaps || [];
-  const byCode = new Map((S.courses || []).map((c) => [c.code, c]));
-  const name = (code) => (byCode.get(code) ? pick(byCode.get(code), 'name') : code);
-  const prev = b.previous;
-  const rows = (S.courses || []).map((c) => {
-    const sc = r.by_course ? r.by_course[c.code] : null;
-    const self = r.self ? r.self[c.code] : null;
-    const isGap = gaps.includes(c.code);
-    const fill = h('i'); fill.style.width = `${Math.max(0, Math.min(100, Number(sc) || 0))}%`;
-    const sl = self !== null && self !== undefined ? scaleLabel(self) : null;
-    return h('li', { class: `rb-row${isGap ? ' gap' : ''}` },
-      h('span', { class: `rb-code fam-${c.code.charAt(0)}`, title: pick(c, 'name') }, c.code),
-      h('span', { class: 'rb-track', role: 'img', 'aria-label': t('home.bl.row_aria', { code: c.code, name: pick(c, 'name'), pct: sc === null || sc === undefined ? '—' : pct(sc), self: sl ? `${sl.short} ${sl.long}` : '—' }) }, fill),
-      h('span', { class: 'rb-pct num', text: sc === null || sc === undefined ? '—' : pct(sc) }),
-      h('span', { class: 'rb-self', title: sl ? sl.long : '' }, sl ? sl.short : '—'),
-      isGap ? h('span', { class: 'rb-gap' }, icon('target', 'sm'), h('span', { class: 'sr-only', text: t('home.bl.gap_sr') })) : h('span', { class: 'rb-gap' }));
-  });
-  return h('section', { 'aria-labelledby': 'bl-title' },
-    head(chip(t('home.bl.chip_done'), 'pass', 'check')),
-    h('div', { class: 'card bl-result' },
-      h('div', { class: 'pad bl-top' },
-        h('div', { class: 'bl-score' }, ring(r.score_pct, { size: 84, stroke: 8, blue: true, ariaLabel: t('home.bl.overall_aria', { pct: r.score_pct }) }),
-          h('div', null, h('p', { class: 'strong ink', text: t('home.bl.overall') }),
-            h('p', { class: 'small muted', text: b.submitted_at ? t('home.bl.taken', { date: fmtShortDate(b.submitted_at) }) : '' }),
-            prev && prev.score_pct !== undefined ? h('p', { class: 'small muted', text: t('home.bl.previous', { pct: pct(prev.score_pct), wave: waveLabel(prev.wave) }) }) : null)),
-        gaps.length ? h('div', { class: 'callout warn bl-gaps' }, icon('target'),
-          h('div', { class: 'stack sm' },
-            h('p', { class: 'strong', text: t('home.bl.gaps_title') }),
-            h('ul', { class: 'gap-list' }, gaps.map((g) => h('li', null, h('b', { text: g }), ' ', name(g), ' · ', pct(r.by_course ? r.by_course[g] : 0)))),
-            h('p', { class: 'small', text: t('home.bl.gaps_idp') }))) : null),
-      h('div', { class: 'pad bl-rows' },
-        h('div', { class: 'rb-head xs muted', 'aria-hidden': 'true' }, [0, 1].map(() => h('div', { class: 'rb-hrow' },
-          h('span', { text: t('home.bl.col_course') }), h('span', { text: t('home.bl.col_score') }), h('span'), h('span', { text: t('home.bl.col_self') }), h('span')))),
-        h('ul', { class: 'rb-list' }, rows),
-        h('p', { class: 'xs muted rb-note', text: t('home.bl.note') }))));
+// After the baseline: one row. The full result (by course, self-rating, gaps) is on baseline.html.
+function baselineRow(b) {
+  return h('section', { class: 'bl-row-sec', 'aria-labelledby': 'bl-title' },
+    h('a', { class: 'card hover bl-row', href: 'baseline.html' },
+      h('span', { class: 'tile-icon' }, icon('target')),
+      h('span', { class: 'bl-row-text' },
+        h('h2', { id: 'bl-title', class: 'title-sm', text: t('home.bl.title') }),
+        h('span', { class: 'bl-row-pct', text: t('home.bl.row_overall', { pct: pct(b.result.score_pct) }) })),
+      h('span', { class: 'bl-row-go' }, h('span', { text: t('home.bl.row_link') }), icon('arrow-right', 'sm'))));
 }
 
 // Courses grouped by cycle, calendar order, as a learning path.
@@ -537,31 +510,50 @@ function cycleMonths(list) {
   const a = monthLabel(from); const b = to ? monthLabel(to) : a;
   return a === b ? a : `${a}–${b}`;
 }
-function coursesSection(courses, ns) {
+function coursesSection(courses) {
   const cycles = [];
   courses.forEach((c) => { let g = cycles.find((x) => x.n === c.cycle); if (!g) { g = { n: c.cycle, list: [] }; cycles.push(g); } g.list.push(c); });
-  const focus = ns && ns.course ? ns.course.code : null;
+  const today = todayVN();
   const passedN = courses.filter((c) => c.checkpoint && c.checkpoint.status === 'passed').length;
+  // The current cycle is the latest one that has opened (before the year starts: the first).
+  const opened = cycles.filter((g) => g.list.some((c) => c.online_from && c.online_from <= today));
+  const cur = opened.length ? opened[opened.length - 1].n : (cycles[0] && cycles[0].n);
+  const finished = (g) => g.list.every((c) => c.checkpoint && c.checkpoint.status === 'passed');
+  const done = cycles.filter((g) => g.n < cur && finished(g));
+  const shown = cycles.filter((g) => g.n === cur || (g.n < cur && !finished(g))); // earlier cycles with work left stay open
+  const later = cycles.filter((g) => g.n > cur);
+  const doneCourses = done.flatMap((g) => g.list);
+  const laterCourses = later.flatMap((g) => g.list);
+  const fold = (k, label, body) => h('details', { class: 'fold', 'data-k': k, open: S.open.has(k) },
+    h('summary', null, h('span', { class: 'fold-title', text: label }), icon('chevron-down', 'fold-chev')), body);
   return h('section', { 'aria-labelledby': 'courses-title' },
     h('div', { class: 'section-head' },
       h('div', { class: 'stack sm' }, h('h2', { id: 'courses-title', text: t('home.courses.title') }), h('p', { text: t('home.courses.sub', { n: passedN, total: courses.length }) }))),
-    h('ol', { class: 'timeline cycles' }, cycles.map((g) => {
-      const done = g.list.every((c) => c.checkpoint && c.checkpoint.status === 'passed');
-      const now = !done && g.list.some((c) => c.code === focus);
-      const forum = g.list.map((c) => c.forum_date).filter(Boolean).sort()[0];
-      return h('li', { class: done ? 'done' : now ? 'now' : null },
-        h('span', { class: 'tl-dot', 'aria-hidden': 'true' }, done ? icon('check', 'sm') : String(g.n)),
-        h('div', { class: 'cycle-head' },
-          h('h3', { class: 'cycle-label' }, t('home.courses.cycle', { n: g.n }), h('span', { class: 'cycle-months', text: ` · ${cycleMonths(g.list)}` })),
-          forum ? h('span', { class: 'xs muted' }, icon('calendar', 'sm'), ' ', t('home.courses.forum_on', { date: fmtShortDate(forum) })) : null),
-        h('div', { class: 'cycle-grid' }, g.list.map(courseCard)));
-    })));
+    h('div', { class: 'stack' },
+      doneCourses.length ? fold('done', t('home.courses.done', { n: doneCourses.length }), h('ol', { class: 'timeline cycles' }, done.map((g) => cycleItem(g, 'done')))) : null,
+      h('ol', { class: 'timeline cycles' }, shown.map((g) => cycleItem(g, g.n === cur ? 'now' : null))),
+      laterCourses.length ? fold('later', t('home.courses.later', { n: laterCourses.length }),
+        h('ul', { class: 'later-list' }, laterCourses.map((c) => h('li', null,
+          h('a', { class: 'later-row', href: `course.html?c=${encodeURIComponent(c.code)}` },
+            h('span', { class: `code-badge sm fam-${c.code.charAt(0)}`, text: c.code }),
+            h('span', { class: 'later-name', text: pick(c, 'name') }),
+            h('span', { class: 'later-date' }, icon(c.open ? 'video' : 'lock', 'sm'), h('span', { text: c.online_from ? fmtShortDate(c.online_from) : '' }),
+              h('span', { class: 'sr-only', text: c.open ? '' : ` · ${t('status.locked')}` }))))))) : null));
+}
+function cycleItem(g, state) {
+  const forum = g.list.map((c) => c.forum_date).filter(Boolean).sort()[0];
+  return h('li', { class: state },
+    h('span', { class: 'tl-dot', 'aria-hidden': 'true' }, state === 'done' ? icon('check', 'sm') : String(g.n)),
+    h('div', { class: 'cycle-head' },
+      h('h3', { class: 'cycle-label' }, t('home.courses.cycle', { n: g.n }), h('span', { class: 'cycle-months', text: ` · ${cycleMonths(g.list)}` })),
+      forum ? h('span', { class: 'xs muted' }, icon('calendar', 'sm'), ' ', t('home.courses.forum_on', { date: fmtShortDate(forum) })) : null),
+    h('div', { class: 'cycle-grid' }, g.list.map(courseCard)));
 }
 function courseCard(c) {
   const s = courseStatus(c);
-  const p = courseProgress(c);
   const locked = s.key === 'locked';
   const href = `course.html?c=${encodeURIComponent(c.code)}`;
+  const st = chip(s.label, s.variant, s.icon); st.title = s.label;
   return h('a', { class: `card hover card-link course-card fam-${c.code.charAt(0)}${locked ? ' locked' : ''}`, href },
     h('div', { class: 'band' }),
     h('div', { class: 'body' },
@@ -571,9 +563,9 @@ function courseCard(c) {
       h('p', { class: 'meta' },
         c.online_from ? h('span', null, icon('video', 'sm'), t('home.courses.online', { date: fmtShortDate(c.online_from) })) : null,
         c.forum_date ? h('span', null, icon('users', 'sm'), t('home.courses.forum', { date: fmtShortDate(c.forum_date) })) : null)),
-    h('div', { class: 'foot' }, (() => { const el = chip(s.label, s.variant, s.icon); el.title = s.label; return el; })(), h('span', { class: 'spacer' }),
-      locked ? h('span', { class: 'cc-lock' }, icon('lock')) : ring(p.pct, { size: 44, stroke: 5, ariaLabel: t('home.courses.progress_aria', { pct: p.pct }) }),
-      h('span', { class: 'cc-go' }, icon('chevron-right'))));
+    h('div', { class: 'foot' },
+      h('div', { class: 'foot-row' }, st, h('span', { class: 'spacer' }), locked ? h('span', { class: 'cc-lock' }, icon('lock')) : null, h('span', { class: 'cc-go' }, icon('chevron-right'))),
+      locked ? null : stepMeter(stepInfo(c), { compact: true })));
 }
 
 // Coming up: next forum, checkpoint closing, recall due (and the baseline window / Pitch Day when relevant).
@@ -598,7 +590,7 @@ function comingUp(me, courses) {
     const d = forums[0].forum_date; const set = forums.filter((c) => c.forum_date === d);
     items.push({ date: d, icon: 'users', title: t('home.up.forum', { codes: codeList(set) }), sub: pick(set[0].forum || {}, 'title'), href: `course.html?c=${encodeURIComponent(set[0].code)}`, prio: 1 });
   }
-  const pitch = S.catalog && S.catalog.program && S.catalog.program.pitch_day;
+  const pitch = pitchDay();
   if (pitch && pitch >= today) items.push({ date: pitch, icon: 'trophy', title: t('home.up.pitch'), sub: t('home.up.pitch_sub'), href: 'capstone.html', prio: 4 });
   items.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : x.prio - y.prio));
   const list = items.slice(0, 5);
@@ -617,22 +609,57 @@ function comingUp(me, courses) {
     })) : h('div', { class: 'pad' }, emptyState({ iconName: 'calendar', title: t('home.up.empty_title'), body: t('home.up.empty_body') })));
 }
 
+// Pitch Day is the C1 forum (live dates from the Sheet win over courses.json).
+function pitchDay() {
+  const c1 = (S.courses || []).find((c) => c.code === 'C1');
+  return (c1 && c1.forum_date) || (S.catalog && S.catalog.program && S.catalog.program.pitch_day) || '';
+}
 function capstoneCard(cap) {
-  const prog = (S.catalog && S.catalog.program) || {};
   const c = cap || {};
   const submitted = !!c.pitch_submitted_at;
   return h('section', { class: 'card pad stack cap-card', 'aria-labelledby': 'cap-title' },
     h('div', { class: 'row' }, h('span', { class: 'tile-icon' }, icon('trophy')), h('div', { class: 'grow' }, h('p', { class: 'eyebrow', text: t('home.cap.eyebrow') }), h('h2', { id: 'cap-title', class: 'title-sm', text: c.project_title || t('home.cap.no_team') }))),
-    h('p', { class: 'small muted', text: c.team_id ? t('home.cap.body', { date: fmtLongDate(prog.pitch_day || '2027-06-22') }) : t('home.cap.no_team_body') }),
+    h('p', { class: 'small muted', text: c.team_id ? t('home.cap.body', { date: fmtLongDate(pitchDay() || '2027-06-22') }) : t('home.cap.no_team_body') }),
     c.team_id ? h('div', { class: 'row tight' },
-      submitted ? chip(t('home.cap.pitch_done'), 'pass', 'check') : chip(t('home.cap.pitch_due', { date: fmtShortDate(c.pitch_deadline || prog.pitch_day) }), 'info', 'clock')) : null,
+      submitted ? chip(t('home.cap.pitch_done'), 'pass', 'check') : chip(t('home.cap.pitch_due', { date: fmtShortDate(c.pitch_deadline || pitchDay()) }), 'info', 'clock')) : null,
     h('div', null, h('a', { class: 'btn btn-secondary', href: 'capstone.html' }, t('home.cap.open'), icon('arrow-right'))));
 }
-function managerCard() {
-  return h('section', { class: 'card pad stack mgr-card', 'aria-labelledby': 'mgr-title' },
-    h('div', { class: 'row' }, h('span', { class: 'tile-icon' }, icon('users')), h('h2', { id: 'mgr-title', class: 'title-sm grow', text: t('home.mgr.title') })),
-    h('p', { class: 'small muted', text: t('home.mgr.body') }),
-    h('div', null, h('a', { class: 'btn btn-secondary', href: 'team.html#gates' }, t('home.mgr.open'), icon('arrow-right'))));
+// Manager: "Your team this week" from team_status (passed / not started for the next gate, and who
+// needs the 15-minute chat before a third or late try). Never scores.
+function managerCard(courses) {
+  const head = h('div', { class: 'row' }, h('span', { class: 'tile-icon' }, icon('users')),
+    h('div', { class: 'grow' }, h('h2', { id: 'mgr-title', class: 'title-sm', text: t('home.mgr.title') })));
+  const link = h('div', null, h('a', { class: 'btn btn-secondary', href: 'team.html#gates' }, t('home.mgr.open'), icon('arrow-right')));
+  let body;
+  if (!S.team && !S.teamErr) {
+    body = h('div', { class: 'stack sm', 'aria-hidden': 'true' }, [70, 100].map((w) => { const el = h('div', { class: 'skeleton' }); el.style.width = `${w}%`; el.style.height = '44px'; return el; }));
+  } else if (S.teamErr || !S.team) {
+    body = h('p', { class: 'small muted', text: t('home.mgr.body') });
+  } else {
+    const reports = S.team.reports || [];
+    if (!reports.length) body = h('p', { class: 'small muted', text: t('team.gs.empty_body') });
+    else {
+      const today = todayVN();
+      const next = courses.filter((c) => c.checkpoint_close && c.checkpoint_close >= today).sort((a, b) => (a.checkpoint_close < b.checkpoint_close ? -1 : 1))[0];
+      const set = next ? courses.filter((c) => c.checkpoint_close === next.checkpoint_close) : [];
+      const codes = set.map((c) => c.code).join(' + ');
+      const cell = (r, code) => (r.courses || {})[code] || 'not_started';
+      const chats = reports.flatMap((r) => Object.entries(r.courses || {}).filter(([, v]) => v === 'needs_chat').map(([code]) => ({ r, code })));
+      const chatPeople = new Set(chats.map((x) => x.r.code)).size;
+      const passed = set.length ? reports.filter((r) => set.every((c) => cell(r, c.code) === 'passed')).length : 0;
+      const notStarted = set.length ? reports.filter((r) => set.some((c) => cell(r, c.code) === 'not_started')).length : 0;
+      const count = (n, label, sub, variant, ic) => h('li', { class: `mgr-count${variant ? ` ${variant}` : ''}${n ? '' : ' zero'}` },
+        h('b', { class: 'num', text: String(n) }), h('span', { class: 'mgr-k' }, icon(ic, 'sm'), h('span', { text: label })), sub ? h('span', { class: 'mgr-sub', text: sub }) : null);
+      body = h('div', { class: 'stack' },
+        h('p', { class: 'small muted', text: t('home.mgr.people', { count: reports.length }) }),
+        h('ul', { class: 'mgr-counts' },
+          count(chatPeople, t('home.mgr.chat', { count: chatPeople }), '', 'warn', 'users'),
+          set.length ? count(notStarted, t('home.mgr.not_started'), codes, '', 'circle') : null,
+          set.length ? count(passed, t('home.mgr.passed'), codes, 'pass', 'check') : null),
+        chats.length ? h('p', { class: 'small mgr-chats' }, icon('users', 'sm'), h('span', { text: chats.map((x) => `${x.r.first_name || x.r.code} · ${x.code}`).join(', ') })) : null);
+    }
+  }
+  return h('section', { class: 'card pad stack mgr-card', 'aria-labelledby': 'mgr-title' }, head, body, link);
 }
 function privacyCard() {
   return h('aside', { class: 'panel privacy-note' }, icon('lock', 'sm'),
@@ -672,13 +699,18 @@ function certPath(me) {
     h('ol', { class: 'cert-path' }, LEVELS.map((lv, i) => {
       const earned = i <= earnedIdx; const active = i === earnedIdx + 1;
       const bar = lv === 'practitioner' ? progressBar((100 * passed) / total, { thin: true, label: t('cert.cp_all', { n: passed, total }) }) : null;
+      // Levels further ahead fold their criteria on phones (one tap away), so the page stays short.
+      const later = !earned && !active;
+      const k = `cert-${lv}`;
+      const list = h('ul', null, defs[lv]);
       return h('li', { class: `cert${earned ? ' earned' : ''}${active ? ' active' : ''}` },
         h('div', { class: 'row' }, h('span', { class: 'medal' }, icon(earned ? 'award' : i === 2 ? 'star' : 'award')),
           h('div', { class: 'grow' }, h('p', { class: 'xs muted strong', text: t('cert.level_n', { n: i + 1 }) }), h('h3', { text: t(`cert.${lv}`) })),
           earned ? chip(t('cert.earned'), 'pass', 'check') : active ? chip(t('cert.working'), 'info') : null),
         h('p', { class: 'small muted', text: t(`cert.${lv}_promise`) }),
         bar,
-        h('ul', null, defs[lv]));
+        later ? h('details', { class: 'cert-more', 'data-k': k, open: S.open.has(k) || (!S.open.has(`${k}:closed`) && WIDE.matches) },
+          h('summary', null, h('span', { text: t('cert.what_it_takes') }), icon('chevron-down', 'fold-chev')), list) : list);
     })),
     h('p', { class: 'xs muted cert-legend' },
       h('span', null, icon('check-circle', 'sm'), t('cert.legend_ok')),

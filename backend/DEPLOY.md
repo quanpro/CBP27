@@ -12,6 +12,8 @@ This puts the backend (grading, retake rules, privacy) into **your** Google acco
 ---
 
 ## 1 · Create the Sheet
+> **Already done for the CBP27 build:** a private Sheet named **1pct-planner-data** is in Quân's Google Drive, with the **Items**, **Courses** and **Cases** tabs filled in. Open it and go straight to step 2. In step 6, skip the import and just run **Validate items / courses**.
+
 1. Go to <https://sheets.new>. Name the file **1pct-planner-data** (top left).
 2. Leave sharing as it is for now (private). Step 12 covers sharing.
 
@@ -37,6 +39,8 @@ This puts the backend (grading, retake rules, privacy) into **your** Google acco
 `setupSheet` is safe to run again at any time: it never deletes data. It also sets every cell to plain text so Google does not turn `2026-11` into a date or `00123` into `123`.
 
 ## 6 · Import the private item bank
+If the three tabs are already filled in (see step 1), skip to the **Validate** paragraph below.
+
 Do this for **Items**, **Courses** and **Cases**, one at a time:
 1. Click the tab (for example **Items**).
 2. **File ▸ Import ▸ Upload** ▸ choose `Items.csv`.

@@ -1,9 +1,10 @@
-// team.html · Team picture: baseline heatmap (group averages, n ≥ min_n, managers excluded),
-// checkpoint pass rates, and — for managers — passed / not yet for their own reports (no scores).
-import { h, render, icon, chip, emptyState, errorState, mountShell } from '../ui.js';
+// team.html · Team overview: baseline heatmap (group averages, n ≥ min_n, managers excluded),
+// checkpoint pass rates, and — for managers — passed / not yet / needs a chat for their own reports
+// (no scores). A manager records the 15-minute chat here (unlock_retake), which reopens the checkpoint.
+import { h, render, icon, chip, emptyState, errorState, errorMessage, modal, toast, mountShell } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
-import { loadCatalog, fmtShortDate, fmtLongDate, fmtDateTime, todayVN } from '../courses.js';
+import { loadCatalog, journey, fmtShortDate, fmtLongDate, fmtDateTime, todayVN } from '../courses.js';
 
 const GROUPS = ['all', 'demand', 'supply', 'materials', 'cs'];
 const PCT_CUTS = [40, 55, 70, 85];
@@ -13,6 +14,8 @@ const S = {
   app: null, profile: null, catalog: null,
   summary: null, sumErr: null, sumLoading: true,
   status: null, statusErr: null, statusLoading: false,
+  live: null, // courses with the Sheet's dates (for "next gate"), managers only
+  unlocked: new Map(), // `${code}|${course}` → unlocked_at, recorded in this visit
   mode: 'pct', cpGroup: 'all', first: true,
 };
 
@@ -30,7 +33,10 @@ const bucket = (v, cuts) => cuts.filter((c) => v >= c).length;
   draw();
   try { S.catalog = await loadCatalog(); } catch (e) { /* names fall back to codes */ }
   loadSummary();
-  if (S.profile.is_manager) loadStatus();
+  if (S.profile.is_manager) {
+    loadStatus();
+    api.me().then((me) => journey(me)).then((list) => { S.live = list; draw(); }).catch(() => { /* catalogue dates are the fallback */ });
+  }
 }());
 
 async function loadSummary() {
@@ -189,8 +195,14 @@ function checkpointSection() {
 // ---------- manager: my team's gate status ----------
 const ST = {
   passed: ['pass', 'check', 'team.gs.passed'],
+  needs_chat: ['warn', 'users', 'team.gs.needs_chat'],
+  unlocked: ['info', 'key', 'team.gs.unlocked'],
   not_yet: ['warn', 'refresh', 'team.gs.not_yet'],
   not_started: ['locked', 'circle', 'team.gs.not_started'],
+};
+const cellState = (r, code) => {
+  const v = (r.courses || {})[code] || 'not_started';
+  return v === 'needs_chat' && S.unlocked.has(`${r.code}|${code}`) ? 'unlocked' : v;
 };
 function gateSection() {
   const head = h('div', { class: 'section-head' },
@@ -208,16 +220,64 @@ function gateSection() {
   }
   return h('section', { id: 'gates', 'aria-labelledby': 'gates-title' }, head, body);
 }
+// The 15-minute chat: list every checkpoint that needs one, each with "I've had the chat".
+function chatPanel(reports, byCode) {
+  const rows = reports.flatMap((r) => Object.keys(r.courses || {}).filter((code) => r.courses[code] === 'needs_chat').map((code) => ({ r, code })));
+  if (!rows.length) return null;
+  return h('div', { class: 'chat-panel', role: 'region', 'aria-labelledby': 'chat-title' },
+    h('div', { class: 'row top' }, h('span', { class: 'tile-icon warn' }, icon('users')),
+      h('div', { class: 'grow stack sm' }, h('h3', { id: 'chat-title', text: t('team.gs.chat_title') }), h('p', { class: 'small', text: t('team.gs.chat_body') }))),
+    h('ul', { class: 'chat-list' }, rows.map(({ r, code }) => {
+      const key = `${r.code}|${code}`;
+      const done = S.unlocked.has(key);
+      const name = r.first_name || r.code;
+      const course = byCode.has(code) ? pick(byCode.get(code), 'name') : '';
+      return h('li', { class: done ? 'is-done' : null },
+        h('span', { class: 'chat-who' }, h('b', { text: name }), h('span', { class: `code-badge sm fam-${code.charAt(0)}`, text: code }), course ? h('span', { class: 'chat-course small muted', text: course }) : null),
+        done ? chip(t('team.gs.unlocked'), 'info', 'key')
+          : h('button', { class: 'btn btn-secondary chat-btn', type: 'button', id: `chat-${r.code}-${code}`, onclick: () => openChatDialog(r, code, course) }, icon('check'), t('team.gs.had_chat')));
+    })));
+}
+
+function openChatDialog(r, code, course) {
+  const name = r.first_name || r.code;
+  const note = h('textarea', { class: 'textarea', id: 'chat-note', maxlength: 300, rows: 3, 'aria-describedby': 'chat-note-hint' });
+  const err = h('p', { class: 'err', role: 'alert', hidden: true });
+  const ok = h('button', { class: 'btn btn-primary', type: 'submit', form: 'chat-form' }, t('team.unlock.confirm'));
+  const form = h('form', { id: 'chat-form', class: 'stack' },
+    h('p', null, h('b', { text: `${name} · ${code}${course ? ` ${course}` : ''}` })),
+    h('p', { class: 'small', text: t('team.unlock.body', { name }) }),
+    h('div', { class: 'field' }, h('label', { for: 'chat-note', text: t('team.unlock.note') }), note, h('span', { class: 'hint', id: 'chat-note-hint', text: t('team.unlock.note_hint') })),
+    err);
+  const dlg = modal({ title: t('team.unlock.title'), body: form, actions: [h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => dlg.close() }, t('common.cancel')), ok] });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.hidden = true; ok.disabled = true;
+    try {
+      const res = await api.unlockRetake(r.code, code, note.value.trim());
+      S.unlocked.set(`${r.code}|${code}`, res.unlocked_at || '');
+      dlg.close();
+      toast(t('team.unlock.done', { code, name }), 'ok');
+      draw();
+      const heading = document.getElementById('chat-title'); if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
+    } catch (ex) {
+      err.textContent = errorMessage(ex); err.hidden = false;
+    } finally { ok.disabled = false; }
+  });
+  note.focus();
+}
+
 function gateTable(reports) {
   const list = courses();
   const codes = list.length ? list.map((c) => c.code) : Object.keys(reports[0].courses || {});
   const byCode = new Map(list.map((c) => [c.code, c]));
   const cellChip = (s) => { const d = ST[s] || ST.not_started; return chip(t(d[2]), d[0], d[1]); };
   const today = todayVN();
-  const next = list.filter((c) => c.checkpoint_close && c.checkpoint_close >= today).sort((a, b) => (a.checkpoint_close < b.checkpoint_close ? -1 : 1))[0];
+  const dated = S.live || list; // the Sheet's dates when we have them
+  const next = dated.filter((c) => c.checkpoint_close && c.checkpoint_close >= today).sort((a, b) => (a.checkpoint_close < b.checkpoint_close ? -1 : 1))[0];
   let nextLine = null;
   if (next) {
-    const set = list.filter((c) => c.checkpoint_close === next.checkpoint_close);
+    const set = dated.filter((c) => c.checkpoint_close === next.checkpoint_close);
     const done = set.map((c) => reports.filter((r) => (r.courses || {})[c.code] === 'passed').length);
     nextLine = h('div', { class: 'callout info' }, icon('flag'),
       h('p', { class: 'small' }, h('b', { text: t('team.gs.next_gate', { codes: set.map((c) => c.code).join(' + '), date: fmtShortDate(next.checkpoint_close) }) }), ' ',
@@ -228,12 +288,13 @@ function gateTable(reports) {
   const cards = h('ul', { class: 'gs-cards' }, reports.map((r) => h('li', { class: 'gs-card' },
     h('div', { class: 'row between' }, h('h3', { text: r.first_name || r.code }),
       r.baseline === 'done' ? chip(`${t('team.gs.col_baseline')}: ${t('team.gs.bl_done')}`, 'pass', 'check') : chip(`${t('team.gs.col_baseline')}: ${t('team.gs.bl_not')}`, 'locked', 'circle')),
-    ['passed', 'not_yet', 'not_started'].map((st) => {
-      const list = codes.filter((code) => ((r.courses || {})[code] || 'not_started') === st);
+    ['needs_chat', 'unlocked', 'not_yet', 'passed', 'not_started'].map((st) => {
+      const list = codes.filter((code) => cellState(r, code) === st);
       if (!list.length) return null;
       return h('p', { class: 'gs-line' }, cellChip(st), list.map((code) => h('span', { class: `code-badge sm fam-${code.charAt(0)}`, title: byCode.has(code) ? pick(byCode.get(code), 'name') : code, text: code })));
     }))));
   return h('div', { class: 'card pad stack' },
+    chatPanel(reports, byCode),
     nextLine,
     cards,
     h('div', { class: 'table-wrap status-wrap gs-table', role: 'region', tabindex: '0', 'aria-labelledby': 'gates-title' },
@@ -246,7 +307,7 @@ function gateTable(reports) {
         h('tbody', null, reports.map((r) => h('tr', null,
           h('th', { scope: 'row', class: 'sticky-col', text: r.first_name || r.code }),
           h('td', null, r.baseline === 'done' ? chip(t('team.gs.bl_done'), 'pass', 'check') : chip(t('team.gs.bl_not'), 'locked', 'circle')),
-          codes.map((code) => h('td', null, cellChip((r.courses || {})[code])))))),
+          codes.map((code) => h('td', null, cellChip(cellState(r, code))))))),
         h('tfoot', null, h('tr', null,
           h('th', { scope: 'row', class: 'sticky-col', text: t('team.gs.total') }),
           h('td', { class: 'num', text: `${blDone}/${reports.length}` }),
