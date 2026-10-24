@@ -12,7 +12,8 @@
   "short_dark": "Dark"
  },
  "errors": {
-  "locked_admin": "This code is locked. Ask HR L&D to clear it."
+  "locked_admin": "This code is locked. Ask HR L&D to clear it.",
+  "unlock_needed": "Talk to your manager for 15 minutes; they reopen it for you on the Team page."
  },
  "steps": {
   "meter": "Step {n} of {total} · {label}",
@@ -51,8 +52,8 @@
    "chat_other": "Need a 15-min chat"
   },
   "next": {
-   "body_unlock": "Talk to your manager for 15 minutes; they reopen the checkpoint for you here.",
-   "body_closed": "The checkpoint window has closed. Talk to your manager for 15 minutes; they can reopen it for you here."
+   "body_unlock": "Talk to your manager for 15 minutes; they reopen it for you on the Team page.",
+   "body_closed": "The checkpoint window has closed. Talk to your manager for 15 minutes; they can reopen it for you on the Team page."
   }
  },
  "course": {
@@ -62,8 +63,8 @@
    "no_links_now": "Blink links for these episodes are on their way. Tick them here as you watch."
   },
   "cp": {
-   "unlock": "Talk to your manager for 15 minutes; they reopen it for you here.",
-   "gate_closed": "The checkpoint window closed on {date}. Talk to your manager for 15 minutes; they can reopen it for you here."
+   "unlock": "Talk to your manager for 15 minutes; they reopen it for you on the Team page.",
+   "gate_closed": "The checkpoint window closed on {date}. Talk to your manager for 15 minutes; they can reopen it for you on the Team page."
   }
  },
  "team": {

@@ -280,7 +280,9 @@ function reloginDialog() {
     (prevCode ? pin : code).focus();
   });
 }
-onSessionExpired(reloginDialog);
+// One dialog for every request that hits session_expired at the same time (a page often loads two or three at once).
+let reloginPending = null;
+onSessionExpired(() => reloginPending || (reloginPending = reloginDialog().finally(() => { reloginPending = null; })));
 
 // ---------- Page shell ----------
 const NAV = [

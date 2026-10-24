@@ -22,7 +22,8 @@
   "short_dark": "Tối"
  },
  "errors": {
-  "locked_admin": "Mã này đang bị khoá. Hãy nhờ HR L&D mở khoá."
+  "locked_admin": "Mã này đang bị khoá. Hãy nhờ HR L&D mở khoá.",
+  "unlock_needed": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại bài cho bạn trên trang Đội."
  },
  "steps": {
   "meter": "Bước {n}/{total} · {label}",
@@ -74,8 +75,8 @@
   },
   "next": {
    "eyebrow_done": "Bạn đã xong mọi việc hiện tại",
-   "body_unlock": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại checkpoint cho bạn ngay tại đây.",
-   "body_closed": "Thời gian làm checkpoint đã đóng. Hãy trao đổi 15 phút với quản lý; quản lý có thể mở lại cho bạn ngay tại đây."
+   "body_unlock": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại bài cho bạn trên trang Đội.",
+   "body_closed": "Thời gian làm checkpoint đã đóng. Hãy trao đổi 15 phút với quản lý; quản lý có thể mở lại bài cho bạn trên trang Đội."
   }
  },
  "course": {
@@ -85,8 +86,8 @@
    "no_links_now": "Đường dẫn Blink cho các tập này sắp có. Xem xong tập nào, bạn đánh dấu tập đó ở đây."
   },
   "cp": {
-   "unlock": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại lượt làm cho bạn ngay tại đây.",
-   "gate_closed": "Thời gian làm checkpoint đã đóng vào {date}. Hãy trao đổi 15 phút với quản lý; quản lý có thể mở lại cho bạn ngay tại đây."
+   "unlock": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại bài cho bạn trên trang Đội.",
+   "gate_closed": "Thời gian làm checkpoint đã đóng vào {date}. Hãy trao đổi 15 phút với quản lý; quản lý có thể mở lại bài cho bạn trên trang Đội."
   }
  },
  "team": {
