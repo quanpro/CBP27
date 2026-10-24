@@ -15,7 +15,7 @@
   "panel": "Panel",
   "panel_short": "Panel",
   "about": "Privacy & help",
-  "about_short": "About",
+  "about_short": "Privacy",
   "aria": "Main",
   "aria_mobile": "Main navigation"
  },
@@ -26,7 +26,11 @@
   "aria": "Theme: {mode}. Change theme",
   "system": "System theme",
   "light": "Light theme",
-  "dark": "Dark theme"
+  "dark": "Dark theme",
+  "menu": "Theme",
+  "short_system": "System",
+  "short_light": "Light",
+  "short_dark": "Dark"
  },
  "menu": {
   "change_pin": "Change PIN",
@@ -48,7 +52,8 @@
  "demo": {
   "label": "Demo mode",
   "body": "Invented questions; nothing reaches the program. Sign in with DEMO-L (learner), DEMO-M (manager and panel) or DEMO-N (first sign-in), PIN 270127.",
-  "reset": "Reset demo"
+  "reset": "Reset demo",
+  "short": "Invented questions; nothing reaches the program."
  },
  "common": {
   "loading": "Loading…",
@@ -104,8 +109,8 @@
   "art_lead": "Small, steady gains compound. Get 1% better at the work that matters each week, and a year from now you are 1.68 times the planner you were.",
   "week_1": "Week 1",
   "week_52": "Week 52",
-  "compound_caption": "One percent a week, compounded over a year.",
-  "mobile_lead": "1% better each week:",
+  "compound_caption": "Get 1% better each week. After 52 weeks that adds up to about 1.68 times where you started.",
+  "mobile_lead": "1% better each week for 52 weeks makes you about 1.68 times the planner you were",
   "point_learn": "Learn on Blink",
   "point_learn_sub": "Short episodes on your phone or laptop.",
   "point_prove": "Prove it on the Hub",
@@ -116,7 +121,7 @@
  "pin": {
   "title": "Change your PIN",
   "intro": "Choose a new 6-digit PIN that only you know.",
-  "forced_intro": "Welcome! First, replace the PIN from HR with your own 6-digit PIN.",
+  "forced_intro": "First, replace the PIN from HR with your own 6-digit PIN.",
   "current": "Current PIN",
   "current_issued": "PIN from HR",
   "new": "New 6-digit PIN",
@@ -167,7 +172,10 @@
   "checkpoint": "Checkpoint",
   "forum": "Forum",
   "field": "Field",
-  "recall": "Recall"
+  "recall": "Recall",
+  "meter": "Step {n} of {total} · {label}",
+  "meter_done": "All {total} steps done",
+  "meter_aria": "Step {n} of {total}: {label}. {done} of {total} steps done."
  },
  "family": {
   "A": "Analytics & AI",
@@ -186,7 +194,7 @@
   "not_open": "This isn't open yet.",
   "gate_closed": "The checkpoint window has closed. Talk to your manager.",
   "retake_too_soon": "You can retake from {next_retake_at}.",
-  "unlock_needed": "A third try needs a 15-minute chat with your manager first.",
+  "unlock_needed": "Talk to your manager for 15 minutes; they reopen it for you on the Team page.",
   "already_submitted": "This was already submitted.",
   "already_passed": "You have already passed this checkpoint.",
   "not_due": "This recall isn't due yet.",
@@ -194,7 +202,8 @@
   "forbidden": "You don't have access to this.",
   "busy": "The Hub is busy. Please try again.",
   "server_error": "The Hub had a problem. Please try again in a minute.",
-  "consent_required": "Please read the privacy notice first."
+  "consent_required": "Please read the privacy notice first.",
+  "locked_admin": "This code is locked. Ask HR L&D to clear it."
  },
  "title": {
   "home": "My learning",
@@ -247,8 +256,8 @@
    "body_retake": "Your best so far is {pct}. Revisit the ideas you missed, then retake with the other form.",
    "body_retake_wait": "Your retake with the other form opens {time}. Revisit the ideas you missed first.",
    "body_recall": "Day {day} recall: three quick questions to lock in what you learned.",
-   "body_unlock": "A third try opens after a 15-minute chat with your manager.",
-   "body_closed": "The checkpoint window has closed. Talk to your manager about next steps.",
+   "body_unlock": "Talk to your manager for 15 minutes; they reopen it for you on the Team page.",
+   "body_closed": "The checkpoint window has closed. Talk to your manager for 15 minutes; they can reopen it for you on the Team page.",
    "ring_aria": "Course progress {pct} percent",
    "ring_label": "of this course",
    "baseline_aside": "60 min · private"
@@ -301,7 +310,9 @@
    "col_self": "Self-rating",
    "row_aria": "{code} {name}: score {pct}, self-rating {self}",
    "gap_sr": "one of your two largest gaps",
-   "note": "Self-rating: 0 Not yet · 1 Basic (BA) · 2 Working knowledge (WK) · 3 Fully operational (FO) · 4 Leading edge (LE)."
+   "note": "Self-rating: 0 Not yet · 1 Basic (BA) · 2 Working knowledge (WK) · 3 Fully operational (FO) · 4 Leading edge (LE).",
+   "row_overall": "{pct} overall",
+   "row_link": "See your result"
   },
   "courses": {
    "title": "Your courses",
@@ -310,7 +321,9 @@
    "forum_on": "Forum {date}",
    "online": "Online from {date}",
    "forum": "Forum {date}",
-   "progress_aria": "Course progress {pct} percent"
+   "progress_aria": "Course progress {pct} percent",
+   "done": "Done ({n})",
+   "later": "Later this year ({n})"
   },
   "up": {
    "title": "Coming up",
@@ -338,17 +351,28 @@
    "open": "Open capstone"
   },
   "mgr": {
-   "title": "Your team's gates",
+   "title": "Your team this week",
    "body": "See which of your reports have passed each checkpoint. Passed or not yet only, never scores.",
-   "open": "See team status"
+   "open": "Open team view",
+   "not_started": "Not started",
+   "passed": "Passed",
+   "people_one": "{count} person in your team",
+   "people_other": "{count} people in your team",
+   "chat_one": "Needs a 15-min chat",
+   "chat_other": "Need a 15-min chat"
   },
   "privacy_note": "Only you, the Planning Director and HR L&D see your results.",
-  "privacy_link": "Who sees what"
+  "privacy_link": "Who sees what",
+  "weeks": {
+   "title": "Learning weeks",
+   "of": "of {total} weeks",
+   "strip_aria": "Last {total} weeks: {n} with learning, {row} in a row. The last dot is this week."
+  }
  },
  "streak": {
   "weeks_one": "{count} week",
   "weeks_other": "{count} weeks",
-  "active": "Active this week",
+  "active": "This week ✓",
   "inactive": "One small step this week keeps it going",
   "meter": "1% meter",
   "active_weeks_one": "{count} active week",
@@ -386,7 +410,8 @@
   "state_ext": "recorded outside the Hub",
   "legend_ok": "Done (the Hub knows)",
   "legend_no": "Not yet",
-  "legend_ext": "Recorded outside the Hub"
+  "legend_ext": "Recorded outside the Hub",
+  "what_it_takes": "What it takes"
  },
  "course": {
   "trailer": "Trailer",
@@ -427,7 +452,10 @@
    "mark": "Mark as watched",
    "next": "Next episode",
    "try": "Try it:",
-   "none": "No episodes yet"
+   "none": "No episodes yet",
+   "no_links_title": "Episodes on Blink",
+   "no_links_future": "Episodes go live on Blink on {date}. Tick them here as you watch.",
+   "no_links_now": "Blink links for these episodes are on their way. Tick them here as you watch."
   },
   "eps": {
    "title": "Episodes",
@@ -497,8 +525,8 @@
    "passed_on": "Passed {date}",
    "see_you": "See you at the forum on {date}.",
    "review": "Review my answers",
-   "unlock": "A third try needs a 15-minute chat with your manager first. Once they record it, the retake opens here.",
-   "gate_closed": "The checkpoint window closed on {date}. Talk to your manager about finishing it."
+   "unlock": "Talk to your manager for 15 minutes; they reopen it for you on the Team page.",
+   "gate_closed": "The checkpoint window closed on {date}. Talk to your manager for 15 minutes; they can reopen it for you on the Team page."
   },
   "pr": {
    "title": "Predict",
@@ -588,7 +616,7 @@
   },
   "gs": {
    "title": "My team's gate status",
-   "sub": "Your reports only: passed, not yet or not started for each checkpoint.",
+   "sub": "Your reports only: passed, not yet, needs a chat or not started for each checkpoint.",
    "note": "Scores are never shown here. Use it to plan your Monday huddle and coaching chats.",
    "col_person": "Report",
    "col_baseline": "Baseline",
@@ -603,7 +631,20 @@
    "next_count": "{code}: {n} of {total} passed",
    "empty_title": "No reports linked yet",
    "empty_body": "HR L&D links reports to managers in the roster. Ask them if someone is missing.",
-   "forbidden": "This view is for managers."
+   "forbidden": "This view is for managers.",
+   "needs_chat": "Needs a 15-min chat",
+   "unlocked": "Unlocked",
+   "had_chat": "I've had the chat",
+   "chat_title": "Needs a 15-minute chat",
+   "chat_body": "A third try, or a try after the late week, opens after a short coaching chat. Once you have had it, record it here and the checkpoint reopens for them."
+  },
+  "unlock": {
+   "title": "Record the 15-minute chat",
+   "body": "Recording it reopens the checkpoint for {name}: one more try.",
+   "note": "Note (optional)",
+   "note_hint": "What you agreed, in a line. Only HR L&D and the Planning Director can read it. No scores, please.",
+   "confirm": "Reopen the checkpoint",
+   "done": "{code} reopened for {name}"
   }
  },
  "about": {
@@ -625,7 +666,7 @@
   "privacy": {
    "title": "Who sees what",
    "intro": "The Hub records your answers and scores so you can see your progress and the program can get better. Here is everyone who can see them.",
-   "you": "Everything: your scores, your answers when you review them, your baseline result, your streak and your progress.",
+   "you": "Everything: your scores, your answers when you review them, your baseline result, your learning weeks and your progress.",
    "director": "Your individual results, to run the program, spot where help is needed and prepare the forums. HR L&D also issues and resets PINs.",
    "manager": "Only passed or not yet for each checkpoint, and whether you have done the baseline. Never your scores or answers.",
    "team": "Averages by course and role group, only for groups of 3 people or more. Managers are never counted in team views.",
@@ -636,7 +677,7 @@
    "title": "Why there are no leaderboards",
    "p1": "Learning needs room to be wrong. A checkpoint you don't pass the first time is useful information, not a ranking.",
    "p2": "Leaderboards reward people who are already ahead and quietly push others to stop trying. We would rather everyone compares themselves with last week: that is the whole idea of 1% better.",
-   "p3": "So the Hub shows your own progress, your streak and the team's averages, and nothing that ranks one colleague against another."
+   "p3": "So the Hub shows your own progress, your learning weeks and the team's averages, and nothing that ranks one colleague against another."
   },
   "how": {
    "title": "How the program works",
@@ -735,8 +776,8 @@
    "q6_a": "Yes. Every page works on a phone. For the 60-minute baseline, a laptop and a quiet hour make it easier.",
    "q7": "Can I switch to Vietnamese?",
    "q7_a": "Yes. Use EN | VI at the top of any page. Questions and answers switch too, and your choice is remembered.",
-   "q8": "What are the streak and the 1% meter?",
-   "q8_a": "Your streak counts the weeks in a row you did something on the Hub. The meter shows 1.01 to the power of your active weeks: 52 active weeks make 1.68×. Only you see it.",
+   "q8": "What is the 1% idea, and what are learning weeks?",
+   "q8_a": "Small gains add up. If you get 1% better each week, each week builds on the last: 1.01 multiplied by itself 52 times is about 1.68, so after a year you are roughly two-thirds better than when you started. A learning week is any week in which you did something on the Hub: ticked an episode, or took a Predict, a checkpoint or a recall. Your dashboard shows how many of the year's 52 weeks you have learned in, with the last 12 as dots. Only you see it.",
    "q9": "Who do I contact for help?",
    "q9_a": "HR L&D for PINs, access and Blink. Your manager for field work and sign-offs. The Planning Director for anything about the content."
   },
@@ -821,7 +862,7 @@
    "retake_title": "Your retake opens {time}",
    "retake_body": "Use the wait: rewatch the episodes for the ideas you missed. Next time you'll get the other form.",
    "unlock_title": "Time for a chat with your manager",
-   "unlock_body": "Your next try needs a 15-minute chat with your manager. Once they record it, the checkpoint opens here again.",
+   "unlock_body": "Talk to your manager for 15 minutes; they reopen it for you on the Team page.",
    "closed_title": "This checkpoint has closed",
    "closed_body": "The window has ended. Talk to your manager — you can still finish it together.",
    "passed_title": "You've passed this checkpoint",
@@ -859,7 +900,24 @@
    "submitting": "Submitting your answers…",
    "submit_failed": "We couldn't submit yet. Your answers are safe on this device.",
    "submit_offline": "You seem to be offline. Your answers are safe on this device — submit again when you're back online."
-  }
+  },
+  "save_short": {
+   "idle": "Autosave on",
+   "local": "Kept on this device",
+   "saving": "Saving…",
+   "saved": "Saved {time}",
+   "saved_now": "Saved",
+   "offline": "Offline · kept on this device",
+   "error": "Not synced · kept on this device"
+  },
+  "timer": {
+   "hide": "Hide timer",
+   "show": "Show timer",
+   "show_aria": "Show timer ({n} min left)"
+  },
+  "sr_h1": "{name}, question {n} of {total}",
+  "sr_h1_group": "{name}, questions {from}–{to} of {total}",
+  "sr_h1_list": "{name}, {total} questions"
  },
  "result": {
   "score_aria": "{n} of {total} right, {pct} percent",
@@ -888,7 +946,7 @@
   "notyet_title_unlock": "Not yet: your next try starts with a chat with your manager",
   "notyet_title_plain": "Not yet: review the ideas below, then try again",
   "notyet_body": "You scored {n} of {total}; the pass mark is 8. Review the ideas below, then try again.",
-  "unlock_note": "Your next try needs a 15-minute chat with your manager.",
+  "unlock_note": "Talk to your manager for 15 minutes; they reopen it for you on the Team page.",
   "retake_now": "Retake now",
   "rewatch_cta": "Rewatch the episodes",
   "objectives_title": "Objectives",
@@ -917,7 +975,22 @@
   "next_recall": "Next recall: day {day}, {date}.",
   "recall_last": "That was your last recall for this course.",
   "missed_n": "Missed question {n}",
-  "objective_n_text": "Objective {n} · {text}"
+  "objective_n_text": "Objective {n} · {text}",
+  "notyet_suffix": "not this time",
+  "see_answers_one": "See your answer",
+  "see_answers_other": "See your {count} answers",
+  "cert_progress": "{n} of {total} checkpoints → 1% Practitioner",
+  "next_course": "Next: {code} · {name}",
+  "recall_h": {
+   "all": "Still sharp",
+   "most": "Nearly there",
+   "few": "Worth a quick review"
+  },
+  "recall_b": {
+   "all": "You got {n} of {total}. The why lines below keep it that way.",
+   "most": "You got {n} of {total}. Read the why lines below; that's where the memory sticks.",
+   "few": "You got {n} of {total}. Read the why lines below, then rewatch the episode if the idea still feels new."
+  }
  },
  "baseline": {
   "eyebrow": "Baseline · {wave}",
@@ -1019,7 +1092,7 @@
   "gaps_title": "Your two largest gaps",
   "gaps_idp": "Take these two to your IDP conversation in December.",
   "bars_title": "Readiness by course",
-  "bars_body": "Your score in each course (Part B and the case), next to how you rated yourself.",
+  "bars_body": "Questions right in each course: 4 in Part B, plus 1 from the case for six courses. The line shows how you rated yourself.",
   "legend_bar": "bar = your score",
   "legend_line": "line = your self-rating",
   "self_short": "self {lv}",
@@ -1031,7 +1104,16 @@
   "jump_course_hint": "Each button opens the first open question in that course.",
   "gap_score": "Score {pct}%",
   "gap_self": "You rated yourself {lv}",
-  "pace": "Suggested pace ≈ {n} min"
+  "pace": "Suggested pace ≈ {n} min",
+  "timer_back_one": "1 minute left — the timer is showing again.",
+  "timer_back_other": "{count} minutes left — the timer is showing again.",
+  "overall_line": "Overall {pct}% · {k} of {n} questions right",
+  "words_title": "What your baseline says",
+  "strengths_title": "Your two strengths",
+  "strength_title_one": "Your strength",
+  "k_right": "{k} of {n} right",
+  "k_of_n": "{k} of {n}",
+  "bar_sr_n": "{name}: {k} of {n} right ({pct} percent), self-rating {lv}."
  },
  "capstone": {
   "title": "Capstone",
@@ -1173,7 +1255,17 @@
   "err_missing_other": "Score all five criteria — {count} left.",
   "err_offline": "You seem to be offline. Save again when you're back online.",
   "anchors": "See the anchors for 1, 3 and 5",
-  "sponsor_chip": "You sponsor this team"
+  "sponsor_chip": "You sponsor this team",
+  "draft_kept": "Draft kept on this device",
+  "discard": "Discard draft",
+  "leave_title": "Leave these scores unsaved?",
+  "leave_body_one": "One team on this tab has scores the panel hasn't received yet. They stay as a draft on this device until you save.",
+  "leave_body_other": "{count} teams on this tab have scores the panel hasn't received yet. They stay as drafts on this device until you save.",
+  "leave_yes": "Switch anyway",
+  "leave_no": "Stay and save",
+  "err_own_team": "You're on this team, so you don't score it.",
+  "own_chip": "Your team",
+  "err_offline_draft": "You seem to be offline. Your scores are kept on this device — save again when you're back online."
  },
  "rubric": {
   "title": "How the panel scores",

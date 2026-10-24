@@ -25,7 +25,7 @@ async function loadDict(code) {
 
 // Build-time only: page areas keep their strings in i18n/parts/<area>.<lang>.json until they are
 // merged into en.json / vi.json (tools/merge_parts.mjs). Empty in the shipped Hub.
-const PARTS = ['a', 'b'];
+const PARTS = [];
 
 function deepMerge(base, extra) {
   for (const [k, v] of Object.entries(extra || {})) {

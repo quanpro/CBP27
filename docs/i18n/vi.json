@@ -8,14 +8,14 @@
  "nav": {
   "home": "Học tập của tôi",
   "home_short": "Học tập",
-  "team": "Bức tranh đội",
+  "team": "Tổng quan đội",
   "team_short": "Đội",
   "capstone": "Capstone",
   "capstone_short": "Capstone",
   "panel": "Hội đồng",
   "panel_short": "Hội đồng",
   "about": "Bảo mật & trợ giúp",
-  "about_short": "Giới thiệu",
+  "about_short": "Bảo mật",
   "aria": "Chính",
   "aria_mobile": "Điều hướng chính"
  },
@@ -26,7 +26,11 @@
   "aria": "Giao diện: {mode}. Đổi giao diện",
   "system": "Theo hệ thống",
   "light": "Giao diện sáng",
-  "dark": "Giao diện tối"
+  "dark": "Giao diện tối",
+  "menu": "Giao diện",
+  "short_system": "Theo hệ thống",
+  "short_light": "Sáng",
+  "short_dark": "Tối"
  },
  "menu": {
   "change_pin": "Đổi PIN",
@@ -48,7 +52,8 @@
  "demo": {
   "label": "Chế độ demo",
   "body": "Câu hỏi giả lập; không dữ liệu nào được ghi vào chương trình. Đăng nhập bằng DEMO-L (học viên), DEMO-M (quản lý và hội đồng) hoặc DEMO-N (đăng nhập lần đầu), PIN 270127.",
-  "reset": "Đặt lại demo"
+  "reset": "Đặt lại demo",
+  "short": "Câu hỏi giả lập; không dữ liệu nào được ghi vào chương trình."
  },
  "common": {
   "loading": "Đang tải…",
@@ -104,8 +109,8 @@
   "art_lead": "Những tiến bộ nhỏ và đều đặn sẽ cộng dồn. Mỗi tuần giỏi hơn 1% ở những việc quan trọng, một năm sau bạn sẽ là một planner giỏi gấp 1,68 lần.",
   "week_1": "Tuần 1",
   "week_52": "Tuần 52",
-  "compound_caption": "Mỗi tuần 1%, cộng dồn trong một năm.",
-  "mobile_lead": "Mỗi tuần giỏi hơn 1%:",
+  "compound_caption": "Mỗi tuần tiến bộ 1%. Sau 52 tuần, bạn tiến xa gần gấp 1,68 lần so với lúc bắt đầu.",
+  "mobile_lead": "Mỗi tuần giỏi hơn 1%, sau 52 tuần bạn sẽ là một planner giỏi gần gấp 1,68 lần",
   "point_learn": "Học trên Blink",
   "point_learn_sub": "Các tập video ngắn, xem trên điện thoại hoặc máy tính.",
   "point_prove": "Chứng minh trên Hub",
@@ -116,7 +121,7 @@
  "pin": {
   "title": "Đổi PIN",
   "intro": "Chọn một PIN mới gồm 6 chữ số mà chỉ bạn biết.",
-  "forced_intro": "Chào mừng bạn! Trước tiên, hãy thay PIN do HR cấp bằng PIN 6 chữ số của riêng bạn.",
+  "forced_intro": "Trước tiên, hãy thay PIN do HR cấp bằng PIN 6 chữ số của riêng bạn.",
   "current": "PIN hiện tại",
   "current_issued": "PIN do HR cấp",
   "new": "PIN mới (6 chữ số)",
@@ -150,7 +155,7 @@
   "checkpoint": "Làm checkpoint",
   "continue": "Tiếp tục",
   "start_baseline": "Bắt đầu đánh giá đầu vào",
-  "open_course": "Mở khoá học"
+  "open_course": "Vào khoá học"
  },
  "next": {
   "baseline": "Làm bài đánh giá đầu vào",
@@ -167,7 +172,10 @@
   "checkpoint": "Checkpoint",
   "forum": "Forum",
   "field": "Thực hành",
-  "recall": "Ôn tập"
+  "recall": "Ôn tập",
+  "meter": "Bước {n}/{total} · {label}",
+  "meter_done": "Đã xong cả {total} bước",
+  "meter_aria": "Bước {n}/{total}: {label}. Đã xong {done}/{total} bước."
  },
  "family": {
   "A": "Phân tích & AI",
@@ -186,7 +194,7 @@
   "not_open": "Mục này chưa mở.",
   "gate_closed": "Thời gian làm checkpoint đã kết thúc. Hãy trao đổi với quản lý.",
   "retake_too_soon": "Bạn có thể làm lại từ {next_retake_at}.",
-  "unlock_needed": "Lần thử thứ ba cần một buổi trao đổi 15 phút với quản lý trước.",
+  "unlock_needed": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại bài cho bạn trên trang Đội.",
   "already_submitted": "Bài này đã được nộp.",
   "already_passed": "Bạn đã đạt checkpoint này.",
   "not_due": "Bài ôn tập này chưa đến hạn.",
@@ -194,7 +202,8 @@
   "forbidden": "Bạn không có quyền truy cập mục này.",
   "busy": "Hub đang bận. Vui lòng thử lại.",
   "server_error": "Hub gặp sự cố. Vui lòng thử lại sau một phút.",
-  "consent_required": "Vui lòng đọc thông báo bảo mật trước."
+  "consent_required": "Vui lòng đọc thông báo bảo mật trước.",
+  "locked_admin": "Mã này đang bị khoá. Hãy nhờ HR L&D mở khoá."
  },
  "title": {
   "home": "Học tập của tôi",
@@ -203,7 +212,7 @@
   "baseline": "Đánh giá đầu vào",
   "capstone": "Capstone",
   "panel": "Hội đồng",
-  "team": "Bức tranh đội",
+  "team": "Tổng quan đội",
   "about": "Bảo mật & trợ giúp"
  },
  "onboard": {
@@ -217,7 +226,7 @@
   "who_director_sees": "Kết quả cá nhân của bạn, để vận hành chương trình và hỗ trợ bạn.",
   "who_manager": "Quản lý của bạn",
   "who_manager_sees": "Chỉ biết bạn đạt hay chưa đạt từng checkpoint và đã làm đánh giá đầu vào hay chưa. Không bao giờ thấy điểm.",
-  "who_team": "Bức tranh đội",
+  "who_team": "Tổng quan đội",
   "who_team_sees": "Chỉ số liệu trung bình, cho nhóm từ 3 người trở lên. Không tính quản lý.",
   "who_nobody": "Không ai khác",
   "who_nobody_sees": "Không đồng nghiệp nào xem được kết quả của bạn, và không có bảng xếp hạng.",
@@ -239,7 +248,7 @@
    "eyebrow_recall": "Ôn tập ngắt quãng",
    "eyebrow_course": "Bước tiếp theo của bạn",
    "eyebrow_wait": "Sắp tới",
-   "eyebrow_done": "Bạn đã theo kịp mọi việc",
+   "eyebrow_done": "Bạn đã xong mọi việc hiện tại",
    "body_predict": "Ba câu hỏi nhanh trước khi xem video. Đoán trước giúp bạn nhớ lâu hơn.",
    "body_watch": "Đã xem {n}/{total} tập. Tiếp theo: Tập {ep} · {title}.",
    "body_checkpoint": "10 câu hỏi, cần đúng 8/10 để đạt. Checkpoint đóng vào {date}.",
@@ -247,8 +256,8 @@
    "body_retake": "Kết quả tốt nhất hiện tại là {pct}. Xem lại những ý còn sai, rồi làm lại với đề còn lại.",
    "body_retake_wait": "Lượt làm lại với đề còn lại mở lúc {time}. Trước đó, hãy xem lại những ý còn sai.",
    "body_recall": "Ôn tập ngày {day}: ba câu hỏi nhanh để nhớ chắc những gì đã học.",
-   "body_unlock": "Lần thử thứ ba mở sau buổi trao đổi 15 phút với quản lý.",
-   "body_closed": "Thời gian làm checkpoint đã kết thúc. Hãy trao đổi với quản lý về bước tiếp theo.",
+   "body_unlock": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại bài cho bạn trên trang Đội.",
+   "body_closed": "Thời gian làm checkpoint đã đóng. Hãy trao đổi 15 phút với quản lý; quản lý có thể mở lại bài cho bạn trên trang Đội.",
    "ring_aria": "Tiến độ khoá học {pct} phần trăm",
    "ring_label": "của khoá học",
    "baseline_aside": "60 phút · riêng tư"
@@ -256,9 +265,9 @@
   "stat": {
    "aria": "Tổng quan tiến độ",
    "checkpoints": "Checkpoint",
-   "checkpoints_d": "Đã đạt · cửa vào mỗi forum",
+   "checkpoints_d": "Đã đạt · điều kiện vào forum",
    "checkpoints_aria": "Đã đạt {n}/{total} checkpoint",
-   "streak": "Chuỗi tuần",
+   "streak": "Tuần học liên tiếp",
    "baseline": "Đánh giá đầu vào",
    "baseline_done": "Mức sẵn sàng chung",
    "baseline_in_progress": "Đang làm",
@@ -301,7 +310,9 @@
    "col_self": "Tự đánh giá",
    "row_aria": "{code} {name}: điểm {pct}, tự đánh giá {self}",
    "gap_sr": "một trong hai khoảng trống lớn nhất",
-   "note": "Tự đánh giá: 0 Chưa có · 1 Cơ bản (BA) · 2 Nắm vững (WK) · 3 Thành thạo (FO) · 4 Dẫn dắt (LE)."
+   "note": "Tự đánh giá: 0 Chưa có · 1 Cơ bản (BA) · 2 Vận dụng được (WK) · 3 Thành thạo (FO) · 4 Dẫn dắt (LE).",
+   "row_overall": "{pct} chung",
+   "row_link": "Xem kết quả"
   },
   "courses": {
    "title": "Khoá học của bạn",
@@ -310,7 +321,9 @@
    "forum_on": "Forum {date}",
    "online": "Học online từ {date}",
    "forum": "Forum {date}",
-   "progress_aria": "Tiến độ khoá học {pct} phần trăm"
+   "progress_aria": "Tiến độ khoá học {pct} phần trăm",
+   "done": "Đã xong ({n})",
+   "later": "Các khoá sau trong năm ({n})"
   },
   "up": {
    "title": "Sắp tới",
@@ -338,18 +351,29 @@
    "open": "Mở capstone"
   },
   "mgr": {
-   "title": "Checkpoint của đội bạn",
+   "title": "Đội của bạn tuần này",
    "body": "Xem nhân viên nào trong đội đã đạt từng checkpoint. Chỉ có đạt hoặc chưa đạt, không bao giờ có điểm.",
-   "open": "Xem tình trạng đội"
+   "open": "Xem tổng quan đội",
+   "not_started": "Chưa làm",
+   "passed": "Đã đạt",
+   "people_one": "Đội có {count} người",
+   "people_other": "Đội có {count} người",
+   "chat_one": "Cần trao đổi 15 phút",
+   "chat_other": "Cần trao đổi 15 phút"
   },
   "privacy_note": "Chỉ bạn, Planning Director và HR L&D xem được kết quả của bạn.",
-  "privacy_link": "Ai được xem gì"
+  "privacy_link": "Ai được xem gì",
+  "weeks": {
+   "title": "Tuần học",
+   "of": "/ {total} tuần",
+   "strip_aria": "{total} tuần gần nhất: {n} tuần có học, {row} tuần học liên tiếp. Chấm cuối cùng là tuần này."
+  }
  },
  "streak": {
   "weeks_one": "{count} tuần",
   "weeks_other": "{count} tuần",
-  "active": "Tuần này đã hoạt động",
-  "inactive": "Một bước nhỏ tuần này để giữ chuỗi",
+  "active": "Tuần này bạn đã học ✓",
+  "inactive": "Một bước nhỏ tuần này giúp bạn giữ nhịp",
   "meter": "Thước đo 1%",
   "active_weeks_one": "{count} tuần hoạt động",
   "active_weeks_other": "{count} tuần hoạt động",
@@ -386,7 +410,8 @@
   "state_ext": "ghi nhận ngoài Hub",
   "legend_ok": "Đã xong (Hub ghi nhận)",
   "legend_no": "Chưa",
-  "legend_ext": "Ghi nhận ngoài Hub"
+  "legend_ext": "Ghi nhận ngoài Hub",
+  "what_it_takes": "Cần những gì"
  },
  "course": {
   "trailer": "Trailer",
@@ -427,7 +452,10 @@
    "mark": "Đánh dấu đã xem",
    "next": "Tập tiếp theo",
    "try": "Thử ngay:",
-   "none": "Chưa có tập nào"
+   "none": "Chưa có tập nào",
+   "no_links_title": "Các tập trên Blink",
+   "no_links_future": "Các tập sẽ lên Blink vào {date}. Xem xong tập nào, bạn đánh dấu tập đó ở đây.",
+   "no_links_now": "Đường dẫn Blink cho các tập này sắp có. Xem xong tập nào, bạn đánh dấu tập đó ở đây."
   },
   "eps": {
    "title": "Các tập",
@@ -493,12 +521,12 @@
    "attempts_other": "{count} lần làm",
    "other_form": "lần tới dùng đề còn lại",
    "retake_from": "Làm lại từ {time}. Hãy tranh thủ xem lại các tập về những ý còn sai.",
-   "revisit": "Xem cần ôn lại gì",
+   "revisit": "Xem những ý cần ôn lại",
    "passed_on": "Đạt ngày {date}",
    "see_you": "Hẹn gặp bạn ở forum {date}.",
    "review": "Xem lại bài làm",
-   "unlock": "Lần thử thứ ba cần một buổi trao đổi 15 phút với quản lý trước. Khi quản lý ghi nhận, lượt làm lại sẽ mở ở đây.",
-   "gate_closed": "Thời gian làm checkpoint đã đóng vào {date}. Hãy trao đổi với quản lý để hoàn thành."
+   "unlock": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại bài cho bạn trên trang Đội.",
+   "gate_closed": "Thời gian làm checkpoint đã đóng vào {date}. Hãy trao đổi 15 phút với quản lý; quản lý có thể mở lại bài cho bạn trên trang Đội."
   },
   "pr": {
    "title": "Predict",
@@ -534,7 +562,7 @@
   }
  },
  "team": {
-  "eyebrow": "Bức tranh đội",
+  "eyebrow": "Tổng quan đội",
   "title": "Đội mình đang ở đâu",
   "lead": "Số liệu trung bình của đội planning và dịch vụ khách hàng, để forum và việc kèm cặp tập trung vào nơi cần nhất.",
   "privacy": "Không có tên, không có điểm cá nhân. Nhóm dưới 3 người được ẩn, và không tính quản lý.",
@@ -567,8 +595,8 @@
    "legend_self": "Tự đánh giá",
    "key": "Tên khoá học",
    "note": "Nhóm dưới {n} người được ẩn. Không tính quản lý.",
-   "empty_title": "Chưa có bức tranh đội",
-   "empty_body": "Bức tranh đội sẽ hiện sau khi đợt đánh giá đầu vào đóng vào {date}, khi mỗi nhóm có ít nhất {n} người đã làm bài."
+   "empty_title": "Chưa có tổng quan đội",
+   "empty_body": "Tổng quan đội sẽ hiện sau khi đợt đánh giá đầu vào đóng vào {date}, khi mỗi nhóm có ít nhất {n} người đã làm bài."
   },
   "cp": {
    "title": "Checkpoint",
@@ -588,7 +616,7 @@
   },
   "gs": {
    "title": "Tình trạng checkpoint của đội tôi",
-   "sub": "Chỉ nhân viên của bạn: đạt, chưa đạt hoặc chưa làm ở từng checkpoint.",
+   "sub": "Chỉ nhân viên của bạn: đạt, chưa đạt, cần trao đổi hoặc chưa làm ở từng checkpoint.",
    "note": "Không bao giờ hiển thị điểm ở đây. Dùng để chuẩn bị buổi huddle thứ Hai và các buổi kèm cặp.",
    "col_person": "Nhân viên",
    "col_baseline": "Đầu vào",
@@ -603,7 +631,20 @@
    "next_count": "{code}: {n}/{total} đã đạt",
    "empty_title": "Chưa có nhân viên nào được liên kết",
    "empty_body": "HR L&D liên kết nhân viên với quản lý trong danh sách nhân sự. Hãy báo HR L&D nếu thiếu ai.",
-   "forbidden": "Mục này chỉ dành cho quản lý."
+   "forbidden": "Mục này chỉ dành cho quản lý.",
+   "needs_chat": "Cần trao đổi 15 phút",
+   "unlocked": "Đã mở lại",
+   "had_chat": "Tôi đã trao đổi",
+   "chat_title": "Cần trao đổi 15 phút",
+   "chat_body": "Lần thử thứ ba, hoặc lần làm sau tuần bù, chỉ mở sau một buổi trao đổi kèm cặp ngắn. Khi đã trao đổi xong, bạn ghi nhận tại đây và checkpoint sẽ mở lại cho nhân viên."
+  },
+  "unlock": {
+   "title": "Ghi nhận buổi trao đổi 15 phút",
+   "body": "Khi bạn ghi nhận, checkpoint sẽ mở lại cho {name} thêm một lượt làm.",
+   "note": "Ghi chú (không bắt buộc)",
+   "note_hint": "Một dòng về điều hai bên đã thống nhất. Chỉ HR L&D và Planning Director đọc được. Vui lòng không ghi điểm số.",
+   "confirm": "Mở lại checkpoint",
+   "done": "Đã mở lại {code} cho {name}"
   }
  },
  "about": {
@@ -625,10 +666,10 @@
   "privacy": {
    "title": "Ai được xem gì",
    "intro": "Hub lưu câu trả lời và điểm của bạn để bạn theo dõi tiến độ và để chương trình ngày càng tốt hơn. Đây là tất cả những người có thể xem.",
-   "you": "Tất cả: điểm, câu trả lời khi bạn xem lại bài, kết quả đánh giá đầu vào, chuỗi tuần và tiến độ của bạn.",
+   "you": "Tất cả: điểm, câu trả lời khi bạn xem lại bài, kết quả đánh giá đầu vào, số tuần học và tiến độ của bạn.",
    "director": "Kết quả cá nhân của bạn, để vận hành chương trình, nhận ra chỗ cần hỗ trợ và chuẩn bị forum. HR L&D cũng là người cấp và đặt lại PIN.",
    "manager": "Chỉ biết bạn đạt hay chưa đạt từng checkpoint và đã làm đánh giá đầu vào hay chưa. Không bao giờ thấy điểm hay câu trả lời của bạn.",
-   "team": "Số liệu trung bình theo khoá học và nhóm vai trò, chỉ với nhóm từ 3 người trở lên. Quản lý không bao giờ được tính vào bức tranh đội.",
+   "team": "Số liệu trung bình theo khoá học và nhóm vai trò, chỉ với nhóm từ 3 người trở lên. Quản lý không bao giờ được tính vào tổng quan đội.",
    "nobody": "Không đồng nghiệp nào xem được kết quả của bạn. Không có xếp hạng hay bảng thành tích, và Hub không bao giờ hiển thị tên hay điểm của người khác.",
    "where": "Kết quả của bạn được lưu trong một Google Sheet riêng tư do Planning Director sở hữu và chỉ chia sẻ với HR L&D. Mã nguồn của Hub là công khai, nhưng không chứa tên, mã nhân viên hay điểm của ai."
   },
@@ -636,7 +677,7 @@
    "title": "Vì sao không có bảng xếp hạng",
    "p1": "Học thì cần được phép sai. Chưa đạt checkpoint ở lần đầu là thông tin hữu ích, không phải một thứ hạng.",
    "p2": "Bảng xếp hạng thưởng cho người vốn đã dẫn trước và âm thầm khiến người khác bỏ cuộc. Chúng ta muốn mỗi người so với chính mình của tuần trước: đó chính là tinh thần “mỗi tuần tốt hơn 1%”.",
-   "p3": "Vì vậy Hub chỉ hiển thị tiến độ của riêng bạn, chuỗi tuần của bạn và số liệu trung bình của đội, không có gì đặt đồng nghiệp này lên trên đồng nghiệp khác."
+   "p3": "Vì vậy Hub chỉ hiển thị tiến độ của riêng bạn, số tuần học của bạn và số liệu trung bình của đội, không có gì đặt đồng nghiệp này lên trên đồng nghiệp khác."
   },
   "how": {
    "title": "Chương trình vận hành thế nào",
@@ -735,8 +776,8 @@
    "q6_a": "Được. Mọi trang đều dùng tốt trên điện thoại. Riêng bài đánh giá đầu vào 60 phút, bạn nên dùng máy tính và chọn một giờ yên tĩnh.",
    "q7": "Tôi chuyển sang tiếng Việt được không?",
    "q7_a": "Được. Bấm EN | VI ở đầu trang bất kỳ. Câu hỏi và đáp án cũng chuyển theo, và lựa chọn của bạn được ghi nhớ.",
-   "q8": "Chuỗi tuần và thước đo 1% là gì?",
-   "q8_a": "Chuỗi tuần đếm số tuần liên tiếp bạn có hoạt động trên Hub. Thước đo hiển thị 1,01 mũ số tuần bạn hoạt động: 52 tuần hoạt động là 1,68 lần. Chỉ riêng bạn thấy.",
+   "q8": "Ý tưởng 1% là gì, và tuần học là gì?",
+   "q8_a": "Những tiến bộ nhỏ sẽ cộng dồn. Nếu mỗi tuần bạn giỏi hơn 1%, tuần sau được xây trên tuần trước: 1,01 nhân với chính nó 52 lần xấp xỉ 1,68, nên sau một năm bạn tiến bộ hơn khoảng hai phần ba so với lúc bắt đầu. Tuần học là bất kỳ tuần nào bạn có làm gì đó trên Hub: đánh dấu một tập đã xem, hoặc làm Predict, checkpoint hay ôn tập. Trang chủ cho thấy bạn đã học bao nhiêu tuần trong 52 tuần của năm, với 12 tuần gần nhất là các chấm. Chỉ riêng bạn thấy.",
    "q9": "Tôi liên hệ ai khi cần hỗ trợ?",
    "q9_a": "HR L&D cho PIN, quyền truy cập và Blink. Quản lý của bạn cho bài thực hành và ký xác nhận. Planning Director cho mọi câu hỏi về nội dung."
   },
@@ -821,11 +862,11 @@
    "retake_title": "Bạn có thể làm lại từ {time}",
    "retake_body": "Tranh thủ thời gian chờ: xem lại các tập có ý bạn còn hụt. Lần tới bạn sẽ nhận đề còn lại.",
    "unlock_title": "Đến lúc trao đổi với quản lý",
-   "unlock_body": "Lần thử tiếp theo cần một buổi trao đổi 15 phút với quản lý. Khi quản lý ghi nhận, checkpoint sẽ mở lại tại đây.",
+   "unlock_body": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại bài cho bạn trên trang Đội.",
    "closed_title": "Checkpoint này đã đóng",
-   "closed_body": "Thời gian làm bài đã hết. Hãy trao đổi với quản lý — hai bạn vẫn có thể cùng hoàn thành.",
+   "closed_body": "Thời gian làm bài đã hết. Hãy trao đổi với quản lý — bạn vẫn có thể hoàn thành cùng quản lý.",
    "passed_title": "Bạn đã đạt checkpoint này",
-   "passed_body": "Làm tốt lắm. Kết quả, đáp án đúng và lý do chỉ cách bạn một chạm.",
+   "passed_body": "Làm tốt lắm. Bấm để xem kết quả, đáp án đúng và lời giải thích.",
    "not_due_title": "Chưa đến hạn",
    "not_due_body": "Bài ôn tập này đến hạn vào {date}. Khi đến lúc, bài sẽ hiện trên lộ trình của bạn.",
    "not_due_body_nodate": "Bài ôn tập này chưa đến hạn.",
@@ -859,7 +900,24 @@
    "submitting": "Đang nộp bài…",
    "submit_failed": "Chưa nộp được. Câu trả lời vẫn an toàn trên thiết bị này.",
    "submit_offline": "Có vẻ bạn đang mất kết nối. Câu trả lời vẫn an toàn trên thiết bị này — có mạng lại thì bấm nộp lần nữa."
-  }
+  },
+  "save_short": {
+   "idle": "Tự động lưu",
+   "local": "Đã giữ trên máy",
+   "saving": "Đang lưu…",
+   "saved": "Đã lưu {time}",
+   "saved_now": "Đã lưu",
+   "offline": "Mất mạng · vẫn giữ trên máy",
+   "error": "Chưa đồng bộ · vẫn giữ trên máy"
+  },
+  "timer": {
+   "hide": "Ẩn đồng hồ",
+   "show": "Hiện đồng hồ",
+   "show_aria": "Hiện đồng hồ (còn {n} phút)"
+  },
+  "sr_h1": "{name}, câu {n} / {total}",
+  "sr_h1_group": "{name}, câu {from}–{to} / {total}",
+  "sr_h1_list": "{name}, {total} câu hỏi"
  },
  "result": {
   "score_aria": "Đúng {n} / {total} câu, {pct} phần trăm",
@@ -875,7 +933,7 @@
   "objective_n": "Mục tiêu {n}",
   "review_title": "Câu trả lời của bạn",
   "predict_eyebrow": "Predict · {code}",
-  "predict_title": "Xem trước, không phải chấm điểm",
+  "predict_title": "Chỉ để khởi động, không tính điểm",
   "predict_body": "Bạn đoán đúng {n} / {total} câu trước khi xem. Giờ hãy để ý những ý này trong các tập nhé.",
   "predict_review_hint": "Để ý những câu làm bạn bất ngờ — các tập sẽ giải thích.",
   "watch": "Xem các tập",
@@ -888,7 +946,7 @@
   "notyet_title_unlock": "Chưa đạt: lần tới bắt đầu bằng buổi trao đổi với quản lý",
   "notyet_title_plain": "Chưa đạt: xem lại các ý bên dưới rồi thử lại",
   "notyet_body": "Bạn đúng {n} / {total} câu; điểm đạt là 8. Xem lại các ý bên dưới rồi thử lại nhé.",
-  "unlock_note": "Lần thử tiếp theo cần một buổi trao đổi 15 phút với quản lý.",
+  "unlock_note": "Hãy trao đổi 15 phút với quản lý; quản lý sẽ mở lại bài cho bạn trên trang Đội.",
   "retake_now": "Làm lại ngay",
   "rewatch_cta": "Xem lại các tập",
   "objectives_title": "Mục tiêu",
@@ -908,16 +966,31 @@
   "missed_none_title": "Không sai câu nào",
   "missed_none": "Bạn trả lời đúng tất cả.",
   "locked_note": "Đáp án đúng sẽ mở khi bạn đạt.",
-  "recall_title": "Ôn tập giãn cách",
+  "recall_title": "Ôn tập ngắt quãng",
   "recall_body": "Ba câu hỏi ngắn vào mỗi ngày dưới đây giúp kiến thức luôn mới.",
   "recall_day": "Ngày {day}",
   "recall_eyebrow": "Ôn tập · ngày {day} · {code}",
-  "recall_heading": "Tốt lắm — kiến thức vẫn còn mới",
+  "recall_heading": "Tốt lắm — bạn vẫn nhớ chắc",
   "recall_body_score": "Bạn đúng {n} / {total} câu. Đọc phần lý do bên dưới — đó là lúc trí nhớ được củng cố.",
   "next_recall": "Lần ôn tập tới: ngày {day}, {date}.",
   "recall_last": "Đây là lần ôn tập cuối của khoá học này.",
   "missed_n": "Câu làm chưa đúng {n}",
-  "objective_n_text": "Mục tiêu {n} · {text}"
+  "objective_n_text": "Mục tiêu {n} · {text}",
+  "notyet_suffix": "chưa đúng lần này",
+  "see_answers_one": "Xem câu trả lời của bạn",
+  "see_answers_other": "Xem {count} câu trả lời của bạn",
+  "cert_progress": "Đạt {n}/{total} checkpoint → 1% Practitioner",
+  "next_course": "Tiếp theo: {code} · {name}",
+  "recall_h": {
+   "all": "Tốt lắm — bạn vẫn nhớ chắc",
+   "most": "Gần chắc rồi",
+   "few": "Nên ôn lại một chút"
+  },
+  "recall_b": {
+   "all": "Bạn đúng {n} / {total} câu. Đọc phần lời giải thích bên dưới để giữ vững kiến thức.",
+   "most": "Bạn đúng {n} / {total} câu. Đọc phần lời giải thích bên dưới — đó là lúc trí nhớ được củng cố.",
+   "few": "Bạn đúng {n} / {total} câu. Đọc phần lời giải thích bên dưới, rồi xem lại tập liên quan nếu ý này vẫn còn lạ."
+  }
  },
  "baseline": {
   "eyebrow": "Đánh giá đầu vào · {wave}",
@@ -927,7 +1000,7 @@
   "lead_back_one": "Đồng hồ vẫn chạy trong lúc bạn rời đi: còn khoảng 1 phút. Câu trả lời đã được lưu.",
   "lead_back_other": "Đồng hồ vẫn chạy trong lúc bạn rời đi: còn khoảng {count} phút. Câu trả lời đã được lưu.",
   "privacy_title": "Chỉ riêng bạn",
-  "privacy_body": "Chỉ bạn, Planning Director và HR L&D xem được kết quả của bạn. Bức tranh đội chỉ hiện số trung bình của nhóm từ 3 người trở lên. Quản lý không xem được điểm nào của bạn.",
+  "privacy_body": "Chỉ bạn, Planning Director và HR L&D xem được kết quả của bạn. Tổng quan đội chỉ hiện số trung bình của nhóm từ 3 người trở lên. Quản lý không xem được điểm nào của bạn.",
   "parts_title": "Ba phần",
   "part_n": "Phần {part}",
   "part_a_name": "Tự đánh giá",
@@ -1014,12 +1087,12 @@
   "overall": "tổng thể",
   "score_aria": "{pct} phần trăm tổng thể",
   "result_title": "Điểm xuất phát của bạn",
-  "result_body": "Đây là điểm bạn bắt đầu, không phải điểm chấm. Bài đánh giá này sẽ quay lại vào tháng 12/2027 để bạn thấy mình đã tiến bộ đến đâu.",
+  "result_body": "Đây là điểm bạn bắt đầu, không phải điểm xếp loại. Bài đánh giá này sẽ quay lại vào tháng 12/2027 để bạn thấy mình đã tiến bộ đến đâu.",
   "result_prev": "{wave}: {prev}% · thay đổi {delta} điểm",
   "gaps_title": "Hai khoảng trống lớn nhất của bạn",
   "gaps_idp": "Hãy mang hai điểm này vào buổi trao đổi IDP tháng 12.",
   "bars_title": "Mức sẵn sàng theo khoá học",
-  "bars_body": "Điểm của bạn ở từng khoá (Phần B và tình huống), đặt cạnh mức bạn tự chấm.",
+  "bars_body": "Số câu đúng ở từng khoá: 4 câu ở Phần B, cộng 1 câu tình huống cho sáu khoá. Vạch cho thấy mức bạn tự chấm.",
   "legend_bar": "thanh = điểm của bạn",
   "legend_line": "vạch = mức bạn tự chấm",
   "self_short": "tự chấm {lv}",
@@ -1031,7 +1104,16 @@
   "jump_course_hint": "Mỗi nút mở câu chưa trả lời đầu tiên của khoá đó.",
   "gap_score": "Điểm {pct}%",
   "gap_self": "Bạn tự chấm {lv}",
-  "pace": "Gợi ý ≈ {n} phút"
+  "pace": "Gợi ý ≈ {n} phút",
+  "timer_back_one": "Còn 1 phút — đồng hồ đã hiện lại.",
+  "timer_back_other": "Còn {count} phút — đồng hồ đã hiện lại.",
+  "overall_line": "Tổng thể {pct}% · đúng {k}/{n} câu",
+  "words_title": "Bài đánh giá cho thấy gì",
+  "strengths_title": "Hai thế mạnh của bạn",
+  "strength_title_one": "Thế mạnh của bạn",
+  "k_right": "Đúng {k}/{n} câu",
+  "k_of_n": "{k}/{n}",
+  "bar_sr_n": "{name}: đúng {k}/{n} câu ({pct} phần trăm), tự chấm {lv}."
  },
  "capstone": {
   "title": "Capstone",
@@ -1173,7 +1255,17 @@
   "err_missing_other": "Hãy chấm đủ năm tiêu chí — còn {count}.",
   "err_offline": "Có vẻ bạn đang mất kết nối. Có mạng lại thì bấm lưu lần nữa.",
   "anchors": "Xem mô tả mức 1, 3 và 5",
-  "sponsor_chip": "Bạn là người bảo trợ đội này"
+  "sponsor_chip": "Bạn là người bảo trợ đội này",
+  "draft_kept": "Bản nháp được giữ trên thiết bị này",
+  "discard": "Bỏ bản nháp",
+  "leave_title": "Rời đi khi chưa lưu điểm?",
+  "leave_body_one": "Một đội ở thẻ này có điểm chưa được gửi lên Hub. Điểm vẫn được giữ làm bản nháp trên thiết bị này cho đến khi bạn lưu.",
+  "leave_body_other": "{count} đội ở thẻ này có điểm chưa được gửi lên Hub. Điểm vẫn được giữ làm bản nháp trên thiết bị này cho đến khi bạn lưu.",
+  "leave_yes": "Vẫn chuyển",
+  "leave_no": "Ở lại để lưu",
+  "err_own_team": "Bạn là thành viên của đội này nên không chấm đội này.",
+  "own_chip": "Đội của bạn",
+  "err_offline_draft": "Có vẻ bạn đang mất kết nối. Điểm vẫn được giữ trên thiết bị này — có mạng lại thì bấm lưu lần nữa."
  },
  "rubric": {
   "title": "Hội đồng chấm điểm thế nào",
