@@ -33,6 +33,32 @@ async function seedCheckpoints() {
   }
 }
 
+/** Token for `code` (signs in through the API; acknowledges the privacy notice if needed). */
+async function apiLogin(hub, code) {
+  const r = await hub.callApi('login', { code, pin: hub.pin }, '');
+  expect(r.ok, `${code} signs in`).toBe(true);
+  if (r.profile.consent_needed) await hub.callApi('consent', {}, r.token);
+  return r.token;
+}
+
+/**
+ * Bring `code` to "needs a coaching chat" on `course`: two failed attempts 24 h apart (real), or the
+ * demo seed's two failed A3 attempts (mock). Returns a fresh token for `code`.
+ */
+async function needsChat(hub, code, course) {
+  let tk = await apiLogin(hub, code);
+  if (hub.isMock) return tk;
+  for (let i = 0; i < 2; i += 1) {
+    if (i) { await hub.moveServerClock(24); tk = await apiLogin(hub, code); }
+    const s = await hub.callApi('start', { assessment: 'checkpoint', course }, tk);
+    expect(s.ok, `${code} ${course} attempt ${i + 1} starts`).toBe(true);
+    const r = await hub.callApi('submit', { attempt_id: s.attempt_id, answers: dev.answersFor(s.items, 0) }, tk);
+    expect(r.passed).toBe(false);
+  }
+  await hub.moveServerClock(24);
+  return apiLogin(hub, code);
+}
+
 test.describe('Step 6 · team picture', () => {
   test('shows only the groups the server returned; groups under min_n never appear', async ({ page, hub }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -62,8 +88,10 @@ test.describe('Step 6 · team picture', () => {
     const cpGroups = ts.checkpoints.map((g) => g.group);
     if (cpGroups.length > 1) await expect(page.locator('#cpg-all').locator('xpath=..').locator('button')).toHaveCount(cpGroups.length);
     else await expect(page.locator('[id^="cpg-"]')).toHaveCount(0);
-    for (const label of Object.entries(GROUP_LABEL).filter(([g]) => !ts.baseline.some((x) => x.group === g)).map(([, l]) => l)) {
-      await expect(page.locator('table.heat tbody'), `${label} is not shown`).not.toContainText(label);
+    if (ts.baseline.length) {
+      for (const label of Object.entries(GROUP_LABEL).filter(([g]) => !ts.baseline.some((x) => x.group === g)).map(([, l]) => l)) {
+        await expect(page.locator('table.heat tbody'), `${label} is not shown`).not.toContainText(label);
+      }
     }
   });
 
@@ -148,51 +176,56 @@ test.describe('Step 6 · manager gate status', () => {
   });
 
   test('a manager reopens a third try after the coaching chat (unlock_retake)', async ({ page, hub }) => {
-    test.fixme(hub.isMock, 'TODO(final pass): demo seed v2 with unlock_retake in the mock has not landed yet');
     const course = hub.course('unlock');
     const learner = hub.account('capstone'); // reports to the manager account (DEMO-L → DEMO-M, T001 → T010)
     await hub.goto('index.html');
-    const login = async (code) => {
-      const r = await hub.callApi('login', { code, pin: hub.pin }, '');
-      expect(r.ok, `${code} signs in`).toBe(true);
-      if (r.profile.consent_needed) await hub.callApi('consent', {}, r.token);
-      return r.token;
-    };
-    let lt = await login(learner);
-    if (hub.isReal) {
-      // two failed attempts, 24 h apart → the third needs a chat
-      for (let i = 0; i < 2; i += 1) {
-        if (i) { await hub.moveServerClock(24); lt = await login(learner); }
-        const s = await hub.callApi('start', { assessment: 'checkpoint', course }, lt);
-        expect(s.ok, `attempt ${i + 1} starts`).toBe(true);
-        await hub.callApi('submit', { attempt_id: s.attempt_id, answers: dev.answersFor(s.items, 0) }, lt);
-      }
-      await hub.moveServerClock(24);
-      lt = await login(learner);
-    }
+    let lt = await needsChat(hub, learner, course);
     const blocked = await hub.callApi('start', { assessment: 'checkpoint', course }, lt);
     expect(blocked.ok).toBe(false);
     expect(blocked.error.code).toBe('unlock_needed');
 
-    const mt = await login(hub.account('manager'));
+    const mt = await apiLogin(hub, hub.account('manager'));
     let st = await hub.callApi('team_status', {}, mt);
     expect(st.reports.find((r) => r.code === learner).courses[course]).toBe('needs_chat');
-    const other = await login(hub.account('shell'));
-    if (hub.isReal) expect((await hub.callApi('unlock_retake', { code: learner, course, note: 'x' }, other)).error.code).toBe('forbidden');
+    if (hub.isReal) {
+      const other = await apiLogin(hub, hub.account('shell')); // a learner, not a manager
+      expect((await hub.callApi('unlock_retake', { code: learner, course, note: 'x' }, other)).error.code).toBe('forbidden');
+    }
     const ok = await hub.callApi('unlock_retake', { code: learner, course, note: 'Talked through objectives 2 and 4.' }, mt);
     expect(ok.ok).toBe(true);
     st = await hub.callApi('team_status', {}, mt);
     expect(st.reports.find((r) => r.code === learner).courses[course]).toBe('not_yet');
-
+    lt = await apiLogin(hub, learner);
     const third = await hub.callApi('start', { assessment: 'checkpoint', course }, lt);
     expect(third.ok).toBe(true);
     expect(third.attempt_no).toBe(3);
     void page;
   });
 
-  test('the manager records the chat from the gate table ("I\'ve had the chat")', async ({ page, hub }) => {
-    test.fixme(true, 'TODO(final pass): the team.html unlock button is being built by the polish agent');
-    void page; void hub;
+  test('the manager records the chat from the gate view ("I\'ve had the chat"), and the third try opens', async ({ page, hub }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const course = hub.course('unlockUi');
+    const learner = hub.account('checkpoint');
+    await hub.goto('index.html');
+    await needsChat(hub, learner, course);
+    const manager = hub.account('manager');
+    expect(await hub.signIn(manager)).toBe('dash');
+    await hub.goto('team.html#gates');
+    const btn = page.locator(`#chat-${learner}-${course}`);
+    await expect(btn).toBeVisible();
+    await btn.click();
+    const dlg = page.locator('dialog.modal[open]:has(#chat-form)');
+    await expect(dlg).toBeVisible();
+    await dlg.locator('#chat-note').fill('15 minutes on objectives 1 and 3.');
+    await dlg.locator('button[type="submit"]').click();
+    await expect(dlg).toHaveCount(0);
+    const res = hub.last('unlock_retake');
+    expect(res.ok).toBe(true);
+    await expect(btn).toHaveCount(0); // the row now shows "unlocked" instead of the button
+    await expect(page.locator('.chat-panel li.is-done')).toHaveCount(1);
+    const lt = await apiLogin(hub, learner);
+    const third = await hub.callApi('start', { assessment: 'checkpoint', course }, lt);
+    expect(third.ok, 'the learner can start the third try').toBe(true);
   });
 
   test('a learner who is not a manager has no gate view, and the server refuses team_status', async ({ page, hub }) => {

@@ -31,7 +31,8 @@ export const COURSES = {
   predict:     { mock: 'A1', real: 'P1' },
   lateReveal:  { mock: 'A3', real: 'P6' },
   security:    { mock: 'A1', real: 'C1' },
-  unlock:      { mock: 'A3', real: 'P3' },
+  unlock:      { mock: 'A3', real: 'P3' }, // with the capstone account (DEMO-L / T001)
+  unlockUi:    { mock: 'A3', real: 'P2' }, // with the checkpoint account (DEMO-L / T002)
   a11yPredict: { mock: 'A2', real: 'A2' },
 };
 

@@ -170,14 +170,15 @@ export class Hub {
     }, { action, params, tk });
   }
 
-  /** If the "Please sign in again" dialog is open, sign in there. */
+  /** If the "Please sign in again" dialog opens (session expired), sign in there; exactly one dialog may open. */
   async reauthIfAsked(code) {
-    const dlg = this.page.locator('dialog.modal[open] #rl-form');
-    try { await dlg.waitFor({ state: 'visible', timeout: 4000 }); } catch (e) { return false; }
-    await this.page.locator('#rl-code').fill(code);
-    await this.page.locator('#rl-pin').fill(this.pin);
-    await this.page.locator('dialog.modal[open] button[type="submit"]').click();
-    await expect(this.page.locator('dialog.modal[open] #rl-form')).toHaveCount(0);
+    const dlg = this.page.locator('dialog.modal[open]:has(#rl-form)');
+    try { await dlg.first().waitFor({ state: 'visible', timeout: 6000 }); } catch (e) { return false; }
+    await expect(dlg, 'one sign-in dialog, however many requests expired').toHaveCount(1);
+    await dlg.locator('#rl-code').fill(code);
+    await dlg.locator('#rl-pin').fill(this.pin);
+    await dlg.locator('button[type="submit"]').click();
+    await expect(dlg).toHaveCount(0);
     return true;
   }
 
@@ -204,7 +205,12 @@ export class Hub {
         await menuItem.click();
         continue;
       }
-      throw new Error('no visible theme control on this page');
+      // focus pages on phones (quiz, baseline) show no theme control: apply it the way theme-boot.js does
+      await page.evaluate((m) => {
+        try { if (m === 'system') localStorage.removeItem('hub.theme'); else localStorage.setItem('hub.theme', m); } catch (e) { /* ignore */ }
+        if (m === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', m);
+      }, mode);
+      break;
     }
     if (mode === 'system') await expect(this.page.locator('html')).not.toHaveAttribute('data-theme', /./);
     else await expect(this.page.locator('html')).toHaveAttribute('data-theme', mode);

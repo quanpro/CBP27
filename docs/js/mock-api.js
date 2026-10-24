@@ -494,7 +494,7 @@ const ACTIONS = {
         attemptNo = prev.length + 1;
       } else {
         const r = state.recall.find((x) => x.code === u.code && x.course === p.course && x.day === Number(p.day));
-        if (!r || r.status === 'done' || r.due_date > day(now())) return fail('not_due');
+        if (!r || r.status === 'done' || r.due_date > day(now())) return fail('not_due', null, r && r.status !== 'done' ? { due_date: r.due_date } : {});
         const taken = mine(u.code, (x) => x.assessment === 'checkpoint' && x.course === p.course && x.status === 'submitted').map((x) => x.form);
         const other = taken.includes('A') && !taken.includes('B') ? 'B' : 'A';
         const pool = shuffle(items.filter((i) => i.assessment === 'checkpoint' && i.course === p.course && i.form === other), hash(u.code + p.course));

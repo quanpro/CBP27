@@ -69,10 +69,9 @@ test.describe('redirects and hosts', () => {
     await page.locator('#login-code').fill(hub.account('security'));
     await page.locator('#login-pin').fill(hub.pin);
     await page.locator('#app form button[type="submit"]').click();
-    if (hub.isReal) { // dev accounts still owe the privacy notice
-      await expect(page.locator('.onboard .btn-primary')).toBeVisible();
-      await page.locator('.onboard .btn-primary').click();
-    }
+    // a dev account may still owe the privacy notice; accept it if it shows, then the redirect follows
+    await page.waitForFunction(() => /\/about\.html$/.test(location.pathname) || !!document.querySelector('.onboard .btn-primary'));
+    if (await page.locator('.onboard .btn-primary').isVisible()) await page.locator('.onboard .btn-primary').click();
     await expect(page).toHaveURL(/\/about\.html#privacy$/);
   });
 

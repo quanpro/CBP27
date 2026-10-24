@@ -1,8 +1,8 @@
 // about.html · Privacy & help. Works signed in or out. Plain language, EN + VI.
 import { h, render, icon, mountShell, openChangePinDialog } from '../ui.js';
 import { t, pick, onLangChange } from '../i18n.js';
-import { isDemo, getSession } from '../api.js';
-import { loadCatalog, fmtShortDate } from '../courses.js';
+import { api, isDemo, getSession } from '../api.js';
+import { loadCatalog, journey, fmtShortDate } from '../courses.js';
 
 const SECTIONS = ['privacy', 'leaderboards', 'how', 'rules', 'certificates', 'pin', 'data', 'demo', 'faq'];
 const SEC_ICON = { privacy: 'shield', leaderboards: 'users', how: 'book', rules: 'flag', certificates: 'award', pin: 'key', data: 'file', demo: 'zap', faq: 'help' };
@@ -12,7 +12,7 @@ const RHYTHM = ['w1', 'w2', 'forum', 'w4', 'recall'];
 const RULES = [['zap', 'predict'], ['flag', 'checkpoint'], ['refresh', 'retake'], ['users', 'third'], ['clock', 'late'], ['eye', 'answers'], ['refresh', 'recall'], ['target', 'baseline'], ['trophy', 'pitch']];
 const FAQ = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9'];
 
-const S = { app: null, catalog: null, open: new Set() };
+const S = { app: null, catalog: null, live: null, open: new Set() };
 
 (async function main() {
   const { app } = await mountShell({ page: 'about', auth: false });
@@ -20,6 +20,8 @@ const S = { app: null, catalog: null, open: new Set() };
   onLangChange(() => draw());
   draw();
   try { S.catalog = await loadCatalog(); draw(); } catch (e) { /* the session list stays generic */ }
+  // Demo: the mock moves the calendar, so show its forum dates (the live Hub uses the program dates).
+  if (isDemo() && getSession()) api.me().then((me) => journey(me)).then((list) => { S.live = list; draw(); }).catch(() => { /* catalogue dates stay */ });
   if (location.hash) { const el = document.getElementById(location.hash.slice(1)); if (el) requestAnimationFrame(() => el.scrollIntoView()); }
 }());
 
@@ -68,7 +70,7 @@ function how() {
   let sessions = [];
   if (cat) {
     const byDate = new Map();
-    cat.courses.slice().sort((a, b) => a.order - b.order).forEach((c) => {
+    (S.live || cat.courses.slice().sort((a, b) => a.order - b.order)).forEach((c) => {
       if (!c.forum_date) return;
       const s = byDate.get(c.forum_date) || { date: c.forum_date, codes: [], title: pick(c.forum || {}, 'title') };
       s.codes.push(c.code); byDate.set(c.forum_date, s);

@@ -61,9 +61,7 @@ export function courseProgress(c) {
   const watched = eps.filter((e) => e.watched).length;
   const recallDone = (c.recall || []).filter((r) => r.status === 'done').length;
   const passed = c.checkpoint && c.checkpoint.status === 'passed';
-  let pct = (c.predict && c.predict.done ? 10 : 0) + (eps.length ? 40 * (watched / eps.length) : 0) + (passed ? 40 : 0) + 10 * (recallDone / 3);
-  pct = Math.round(Math.min(100, pct));
-  return { pct, watched, total: eps.length, recallDone, passed };
+  return { watched, total: eps.length, recallDone, passed };
 }
 
 /** The six journey steps for the stepper: done | current | todo. */

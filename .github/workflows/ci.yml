@@ -31,8 +31,11 @@ jobs:
       - name: Privacy guard (every tracked file)
         run: node tools/check_no_private.mjs --all
 
-      - name: Backend tests (pure logic + API on the harness)
-        run: npm run test:backend
+      - name: Backend logic tests (backend/Logic.gs)
+        run: node backend/tests/logic.test.js
+
+      - name: Backend API tests (doPost on the in-memory harness)
+        run: node backend/tests/api.test.js
 
       - name: Seed.gs is generated from docs/data/courses.json
         run: node tools/gen_seed.mjs --check
