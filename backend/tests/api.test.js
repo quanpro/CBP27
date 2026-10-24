@@ -229,7 +229,8 @@ section('me: journey shape, calendar order, nobody else\'s data', () => {
   eq(Object.keys(a2.predict).sort(), ['attempts', 'done', 'last_pct']);
   eq(Object.keys(me.baseline).sort(), ['open_from', 'open_to', 'status', 'wave', 'window']);
   eq(me.baseline.window, 'after');
-  eq(Object.keys(me.streak).sort(), ['active_this_week', 'active_weeks_total', 'current_weeks', 'multiplier']);
+  eq(Object.keys(me.streak).sort(), ['active_this_week', 'active_weeks_total', 'current_weeks', 'multiplier', 'recent', 'weeks_total_program']);
+  eq([me.streak.weeks_total_program, me.streak.recent.length], [52, 12]);
   eq(me.certificates, { level: '', checkpoints_passed: 0, checkpoints_total: 10, pitch_submitted: false, capstone_submitted: false });
   eq(me.capstone, { team_id: 'TEAM1', project_title: 'Fixture project one', pitch_submitted_at: null, capstone_submitted_at: null, pitch_deadline: '2027-06-21', capstone_deadline: '2027-12-20' });
   const text = JSON.stringify(me);
@@ -597,6 +598,68 @@ section('team_summary: published only after the window, per-metric counts, never
 });
 
 function round1(x) { return Math.round(x * 10) / 10; }
+
+section('manager unlock_retake, team_status needs_chat, streak skip weeks', () => {
+  const roster = fx.testRoster().concat([Object.assign(fx.testRoster().find((p) => p.employee_code === 'T010'),
+    { employee_code: 'T011', display_name: 'Fixture Manager Quebec', manager_code: 'T010' })]);
+  const h = harness('2027-01-05T09:00:00+07:00', { roster });
+  let t1 = h.login('T001');
+  for (const n of [5, 6]) {
+    const a = h.ok({ action: 'start', token: t1, assessment: 'checkpoint', course: 'A2' });
+    h.ok({ action: 'submit', token: t1, attempt_id: a.attempt_id, answers: answersFor(a.items, n) });
+    h.clock.advance(24 * H);
+    t1 = h.login('T001');
+  }
+  const mgr = h.login('T010');
+  let st = h.ok({ action: 'team_status', token: mgr });
+  eq(st.reports.map((r) => [r.code, r.courses.A2]), [['T001', 'needs_chat'], ['T002', 'not_started'], ['T003', 'not_started'], ['T004', 'not_started']]);
+  const unlock = (tok, code, course, note) => h.call({ action: 'unlock_retake', token: tok, code, course, note });
+  eq(unlock(h.login('T002'), 'T001', 'A2', 'x').error.code, 'forbidden', 'learners cannot unlock');
+  eq(unlock(mgr, 'T005', 'A2', 'x').error.code, 'forbidden', 'not a direct report');
+  eq(unlock(mgr, 'T011', 'A2', 'x').error.code, 'forbidden', 'a report who is a manager');
+  eq(unlock(mgr, 'T999', 'A2', 'x').error.code, 'forbidden', 'unknown code');
+  const nb = unlock(mgr, 'T002', 'A2', 'x');
+  eq([nb.error.code, nb.error.field], ['bad_request', 'course'], 'no chat needed yet');
+  eq(unlock(mgr, 'T001', 'ZZ', 'x').error.field, 'course');
+  const acq = h.lock.acquisitions;
+  const note = '=HYPERLINK("x") chat about objective 3 ' + 'z'.repeat(400);
+  const u = h.ok({ action: 'unlock_retake', token: mgr, code: 't001', course: 'a2', note });
+  eq(Object.keys(u).sort(), ['ok', 'server_now', 'unlocked_at']); eq(u.unlocked_at, '2027-01-07T09:00:00+07:00');
+  ok(h.lock.acquisitions > acq, 'under the script lock');
+  const row = h.table('Unlocks')[0];
+  eq([row.employee_code, row.course, row.unlocked_by, row.unlocked_at], ['T001', 'A2', 'T010', '2027-01-07T09:00:00+07:00']);
+  ok(row.reason.startsWith(' =HYPERLINK') && row.reason.length <= 300, 'note formula-guarded and capped at 300 characters');
+  ok(h.table('Log').some((r) => r.action === 'unlock_retake' && r.employee_code === 'T002' && r.message === 'forbidden'), 'refusals are logged (signed-in)');
+  const logRow = h.table('Log').find((r) => r.action === 'unlock_retake' && r.ok === 'TRUE');
+  eq([logRow.employee_code, logRow.ok, logRow.message], ['T010', 'TRUE', 'unlock T001 A2']);
+  ok(!JSON.stringify(h.table('Log')).includes('HYPERLINK'), 'the note never reaches the Log');
+  eq(h.ok({ action: 'team_status', token: mgr }).reports[0].courses.A2, 'not_yet');
+  eq(unlock(mgr, 'T001', 'A2', 'again').error.field, 'course', 'one unlock per chat');
+  eq(h.ok({ action: 'start', token: t1, assessment: 'checkpoint', course: 'A2' }).attempt_no, 3);
+  eq(h.ok({ action: 'team_status', token: mgr }).reports[0].courses.A2, 'not_yet', 'in progress is not a chat');
+  // after the late window: everyone not passed needs a chat
+  h.clock.set(T('2027-02-03T09:00:00+07:00'));
+  const m2 = h.login('T010');
+  st = h.ok({ action: 'team_status', token: m2 });
+  eq(st.reports.map((r) => r.courses.A2), ['not_yet', 'needs_chat', 'needs_chat', 'needs_chat']);
+  eq(st.reports[0].courses.A1, 'not_started', 'a course not yet run');
+  h.ok({ action: 'unlock_retake', token: m2, code: 'T002', course: 'A2', note: '' });
+  eq(h.ok({ action: 'start', token: h.login('T002'), assessment: 'checkpoint', course: 'A2' }).attempt_no, 1);
+
+  // streak: the Tết week (Config streak_skip_weeks, default 2027-02-08) neither breaks nor adds
+  h.clock.set(T('2027-02-01T10:00:00+07:00'));
+  h.ok({ action: 'watch', token: h.login('T004'), course: 'A2', ep: 1, watched: true });
+  h.clock.set(T('2027-02-15T10:00:00+07:00'));
+  h.ok({ action: 'watch', token: h.login('T004'), course: 'A2', ep: 2, watched: true });
+  h.clock.set(T('2027-02-16T10:00:00+07:00'));
+  let sk = h.ok({ action: 'me', token: h.login('T004') }).streak;
+  eq([sk.current_weeks, sk.active_this_week, sk.active_weeks_total, sk.weeks_total_program], [2, true, 2, 52]);
+  eq(sk.recent.length, 12); eq(sk.recent.slice(-3), [true, false, true]);
+  eq(h.table('Config').find((r) => r.key === 'streak_skip_weeks').value, '2027-02-08');
+  h.setConfig('streak_skip_weeks', '');
+  sk = h.ok({ action: 'me', token: h.login('T004') }).streak;
+  eq(sk.current_weeks, 1, 'without a skip week the gap breaks the streak');
+});
 
 section('capstone: members only, SOI ≤ 60 words, URL and VND rules, deadline; panel scores', () => {
   const roster = fx.testRoster().map((p) => (p.employee_code === 'T004' ? Object.assign({}, p, { roles: 'learner;panel' })

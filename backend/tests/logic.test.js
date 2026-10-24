@@ -238,13 +238,26 @@ test('ISO weeks in +07:00 and streak multiplier', () => {
   eq(L.isoWeekKey(T('2027-12-31T12:00:00+07:00')), '2027-W52');
   const now = T('2027-01-20T10:00:00+07:00'); // Wed, W03
   const s = L.streak([T('2027-01-05T10:00:00+07:00'), T('2027-01-12T10:00:00+07:00'), T('2027-01-13T10:00:00+07:00'), T('2027-01-19T10:00:00+07:00'), T('2026-12-01T10:00:00+07:00')], now);
-  eq(s, { current_weeks: 3, active_this_week: true, active_weeks_total: 4, multiplier: 1.04 });
+  eq(s, { current_weeks: 3, active_this_week: true, active_weeks_total: 4, multiplier: 1.04, weeks_total_program: 52,
+    recent: [false, false, false, false, true, false, false, false, false, true, true, true] }); // 2026-12-01 is 7 weeks back
   const s2 = L.streak([T('2027-01-12T10:00:00+07:00')], now);
   eq(s2.current_weeks, 1, 'last week still counts until this week ends');
   eq(s2.active_this_week, false);
-  eq(L.streak([], now), { current_weeks: 0, active_this_week: false, active_weeks_total: 0, multiplier: 1 });
+  eq(L.streak([], now), { current_weeks: 0, active_this_week: false, active_weeks_total: 0, multiplier: 1, weeks_total_program: 52, recent: Array(12).fill(false) });
   const many = Array.from({ length: 52 }, (_, i) => T('2027-01-05T10:00:00+07:00') + i * 7 * 86400000);
   eq(L.streak(many, T('2027-12-30T10:00:00+07:00')).multiplier, 1.68, '1.01^52');
+  // Tết week (Mon 2027-02-08) skipped: neither breaks nor adds
+  const tet = ['2027-02-08'];
+  const feb = [T('2027-02-01T10:00:00+07:00'), T('2027-02-15T10:00:00+07:00')];
+  eq(L.streak(feb, T('2027-02-16T10:00:00+07:00')).current_weeks, 1, 'without the skip the gap breaks the streak');
+  const sk = L.streak(feb, T('2027-02-16T10:00:00+07:00'), tet);
+  eq(sk.current_weeks, 2, 'the skipped week does not break it');
+  eq(sk.recent.slice(-3), [true, false, true], 'strip: W05 active, Tết week false, this week active');
+  eq(L.streak(feb.concat([T('2027-02-10T10:00:00+07:00')]), T('2027-02-16T10:00:00+07:00'), tet).current_weeks, 2, 'activity in a skipped week adds nothing');
+  eq(L.streak(feb.concat([T('2027-02-10T10:00:00+07:00')]), T('2027-02-16T10:00:00+07:00'), tet).active_weeks_total, 3, 'active_weeks_total unchanged');
+  eq(L.streak([T('2027-02-01T10:00:00+07:00')], T('2027-02-10T10:00:00+07:00'), tet).current_weeks, 1, 'this week is the skipped week');
+  eq(L.streak(feb, T('2027-02-16T10:00:00+07:00'), ['2027-02-10']).current_weeks, 2, 'any day of the week names it');
+  eq(L.streak([T('2027-02-01T10:00:00+07:00')], T('2027-02-23T10:00:00+07:00'), tet).current_weeks, 0, 'a real missed week still breaks');
 });
 
 // ------------------------------------------------------------ crypto

@@ -54,7 +54,8 @@ function configDefaults_() {
     ['pitch_deadline', '2027-06-21', 'Last day for Pitch Day submissions'],
     ['capstone_deadline', '2027-12-20', 'Last day for capstone submissions'],
     ['lock_failures', '5', 'Wrong PINs before a lock'],
-    ['course_open_default', 'TRUE', 'Default for Courses.open when blank']
+    ['course_open_default', 'TRUE', 'Default for Courses.open when blank'],
+    ['streak_skip_weeks', '2027-02-08', 'Mondays of weeks (comma-separated, e.g. Tết) that neither break nor add to the streak']
   ];
 }
 
@@ -364,7 +365,9 @@ function config_() {
     pitch_deadline: normDate(get('pitch_deadline')),
     capstone_deadline: normDate(get('capstone_deadline')),
     lock_failures: Math.max(1, toInt(get('lock_failures'), 5)),
-    course_open_default: toBool(get('course_open_default'))
+    course_open_default: toBool(get('course_open_default')),
+    streak_skip_weeks: String(raw.streak_skip_weeks === undefined ? d.streak_skip_weeks : raw.streak_skip_weeks)
+      .split(/[,;\s]+/).map(normDate).filter(function (x) { return x; })
   };
   return r.cfg;
 }

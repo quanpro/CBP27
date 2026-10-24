@@ -65,6 +65,7 @@ Alternative: **1% Planner ▸ Import items from CSV…** lets you paste the CSV 
 | recall_days | 2,7,30 | recall days after the forum (or after a late pass) |
 | pitch_deadline / capstone_deadline | 2027-06-21 / 2027-12-20 | last day to submit |
 | lock_failures | 5 | wrong PINs before a lock: 15 min, then 30 min; the **3rd lock within 7 days stays until you clear it** (see step 9) |
+| streak_skip_weeks | 2027-02-08 | Mondays of weeks (comma-separated) that neither break nor add to a learner's weekly streak, e.g. the Tết week; leave empty for none |
 
 After editing Items, Courses, Episodes or Config, run **1% Planner ▸ Refresh cache** (otherwise the Hub picks the change up within 10 minutes).
 
@@ -157,6 +158,7 @@ Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learn
 | Reset a PIN… | new PIN shown once, lock cleared, signed out everywhere |
 | Clear a lock… | lifts a lock (including the 3-locks-in-7-days lock); the PIN stays the same |
 | Unlock a retake… | code + course + who held the 15-minute chat + note → one extra attempt (also reopens a closed checkpoint) |
+| (Team page, managers) | managers can now record the 15-minute chat themselves: on the Team page a report's course shows **needs chat** (third try, or the late window closed), and **Unlock** writes the same Unlocks row with the manager's code. Only for their own direct reports who are not managers |
 | Void an attempt… | the attempt stops counting anywhere (pilot or technical problems) |
 | Rebuild summaries / Install hourly summary trigger | team-view numbers (groups or counts under 3, managers and test users left out; published only after the baseline window / each course's late window closes) |
 | Baseline heatmap | `Dash_Baseline`: people × courses, self-rating, calibration flags |

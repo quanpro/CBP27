@@ -206,6 +206,13 @@ function checkpointState_(code, courseCode, userAtts) {
   };
 }
 
+/**
+ * A coaching chat (one Unlocks row) is needed before the next attempt: not passed, nothing in
+ * progress, and either the free attempts are used up (attempts ≥ max_free + unlocks) or the
+ * late window has closed without an unused unlock.
+ */
+function needsChat_(st) { return !st.passed && !st.open && (st.needs_unlock || st.gate_closed); }
+
 function recallRowsFor_(code, courseCode) {
   return readTable_('Recall').rows.filter(function (r) {
     return normCode(r.employee_code) === code && normCode(r.course) === courseCode &&
@@ -358,7 +365,7 @@ function apiMe_(body) {
     baseline: baseline,
     courses: courses,
     capstone: capstone,
-    streak: streak(activity, now),
+    streak: streak(activity, now, cfg.streak_skip_weeks),
     certificates: {
       level: s.user.certificate, checkpoints_passed: passedCount, checkpoints_total: courses.length,
       pitch_submitted: !!pitch, capstone_submitted: !!cap
@@ -796,13 +803,41 @@ function apiTeamStatus_(body) {
       var mine = atts.filter(function (a) { return a.code === u.code; });
       var courses = {};
       courseOrder_().forEach(function (c) {
-        var cp = mine.filter(function (a) { return a.assessment === 'checkpoint' && a.course === c; });
-        courses[c] = cp.some(function (a) { return a.passed; }) ? 'passed' : cp.length ? 'not_yet' : 'not_started';
+        var st = checkpointState_(u.code, c, mine);
+        courses[c] = st.passed ? 'passed' : needsChat_(st) ? 'needs_chat' : st.attempts.length ? 'not_yet' : 'not_started';
       });
       var done = mine.some(function (a) { return a.assessment === 'baseline' && a.wave === cfg.wave && isDone_(a); });
       return { code: u.code, first_name: u.first_name, baseline: done ? 'done' : 'not_done', courses: courses };
     })
   };
+}
+
+/**
+ * unlock_retake {token, code, course, note} → {unlocked_at}. A manager records the 15-minute
+ * coaching chat for a direct report (not a manager) whose checkpoint needs one; this writes one
+ * Unlocks row (= one more attempt). The note is stored, never logged.
+ */
+function apiUnlockRetake_(body) {
+  var s = requireSession_(body);
+  if (!s.user.is_manager) throw apiError_('forbidden', 'Only managers can unlock a retake.');
+  var code = normCode(body.code);
+  var courseCode = normCode(body.course);
+  var note = String(body.note === null || body.note === undefined ? '' : body.note).trim().slice(0, 300);
+  return withLock_(function () {
+    var row = isValidCode(code) ? findRosterRow_(code) : null;
+    var u = row ? userView_(row) : null;
+    if (!u || !u.active || u.code === s.code || u.manager_code !== s.code || u.is_manager) {
+      throw apiError_('forbidden', 'You can unlock retakes only for your own team members.');
+    }
+    if (!courseByCode_(courseCode)) throw apiError_('bad_request', 'Unknown course', { field: 'course' });
+    if (!needsChat_(checkpointState_(u.code, courseCode))) {
+      throw apiError_('bad_request', 'This checkpoint does not need a coaching chat now.', { field: 'course' });
+    }
+    var at = iso7(nowMs_());
+    appendRows_('Unlocks', [{ employee_code: u.code, course: courseCode, unlocked_by: s.code, unlocked_at: at, reason: guardCell(note).slice(0, 300) }]);
+    setLogInfo_(s.code, 'unlock ' + u.code + ' ' + courseCode);
+    return { unlocked_at: at };
+  });
 }
 
 // ---------------------------------------------------------------- capstone (F14)

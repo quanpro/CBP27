@@ -10,7 +10,7 @@ var MAX_BODY_BYTES_ = 200000;
 /** Actions that get one Log row (never with PINs, answers or tokens). */
 var LOGGED_ACTIONS_ = {
   login: true, change_pin: true, consent: true, logout: true, start: true, submit: true,
-  capstone_submit: true, panel_score: true
+  capstone_submit: true, panel_score: true, unlock_retake: true
 };
 
 function routes_() {
@@ -28,6 +28,7 @@ function routes_() {
     review: apiReview_,
     team_summary: apiTeamSummary_,
     team_status: apiTeamStatus_,
+    unlock_retake: apiUnlockRetake_,
     capstone_get: apiCapstoneGet_,
     capstone_submit: apiCapstoneSubmit_,
     panel_list: apiPanelList_,

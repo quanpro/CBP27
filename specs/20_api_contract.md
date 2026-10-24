@@ -55,7 +55,8 @@ New PIN: 6 digits, not all the same digit, not `123456`/`654321`, not equal to t
     recall: [ { day: 2|7|30, due_date, status: "upcoming"|"due"|"done", score_pct, attempt_id } ]
   } ],
   capstone: { team_id, project_title, pitch_submitted_at, capstone_submitted_at, pitch_deadline, capstone_deadline },
-  streak:   { current_weeks, active_this_week, active_weeks_total, multiplier },     // multiplier = 1.01^active_weeks_total, 2 dp
+  streak:   { current_weeks, active_this_week, active_weeks_total, multiplier, weeks_total_program: 52, recent: [bool×12] },
+            // multiplier = 1.01^active_weeks_total (2 dp); recent = last 12 weeks, oldest first; Config streak_skip_weeks (e.g. Tết) neither break nor add
   certificates: { level: Profile.certificate, checkpoints_passed, checkpoints_total: 10, pitch_submitted, capstone_submitted }
 }
 ```
@@ -106,7 +107,10 @@ recall:     { assessment, course, day, n_items, n_correct, score_pct, review: [R
 Groups with n < `min_n` are left out; a metric counted for fewer than `min_n` people is `null`; managers and test users are never counted. Baseline groups stay empty until the window has closed (`baseline_published`); a course's checkpoint metrics stay `null` until its late window has closed (decision F21).
 
 ### `team_status` `{token}` → manager only (`forbidden` otherwise)
-`{ reports: [ { code, first_name, baseline: "done"|"not_done", courses: { A2: "passed"|"not_yet"|"not_started", … } } ] }` — no scores; reports who are managers are not listed.
+`{ reports: [ { code, first_name, baseline: "done"|"not_done", courses: { A2: "passed"|"needs_chat"|"not_yet"|"not_started", … } } ] }` — no scores; reports who are managers are not listed. `needs_chat` = not passed, no open attempt, and the free attempts are used up (or the late window has closed) with no unused unlock.
+
+### `unlock_retake` `{token, code, course, note}` → `{unlocked_at}` (manager only)
+Records the 15-minute coaching chat as an Unlocks row (one extra attempt). `forbidden` unless `code` is the caller's active direct report and not a manager; `bad_request` (`field: "course"`) when that course does not need a chat now. The note is stored, never logged.
 
 ### `capstone_get` `{token}` → `{ team: {team_id, project_title, members: [{code, first_name}], sponsor: {code, first_name}} | null, submissions: { pitch: Submission|null, capstone: Submission|null }, deadlines: {pitch, capstone} }`
 ### `capstone_submit` `{token, stage: "pitch"|"capstone", team_id, fields}` → `{submitted_at, submission: Submission}`

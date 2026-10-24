@@ -739,23 +739,43 @@ function panelWeighted(stage, s) {
 
 // ---------------------------------------------------------------- streak (D9)
 
-/** Weekly activity streak in +07:00 ISO weeks; multiplier = 1.01^active weeks, 2 dp. */
-function streak(activityMs, nowMs) {
-  var weeks = {};
+var STREAK_PROGRAM_WEEKS = 52;
+var STREAK_RECENT_WEEKS = 12;
+
+/**
+ * Weekly activity streak in +07:00 ISO weeks; multiplier = 1.01^active weeks, 2 dp.
+ * skipWeeks: dates (any day of the week, e.g. its Monday) of weeks such as Tết that neither
+ * break nor add to current_weeks. recent: the last 12 weeks, oldest first, this week last;
+ * skipped weeks are false.
+ */
+function streak(activityMs, nowMs, skipWeeks) {
+  var weeks = {}, skip = {};
   (activityMs || []).forEach(function (ms) {
     if (typeof ms === 'number' && isFinite(ms) && ms <= nowMs) weeks[weekIndex7(ms)] = true;
+  });
+  (skipWeeks || []).forEach(function (d) {
+    var t = typeof d === 'number' ? d : parseTime(d);
+    if (!isNaN(t)) skip[weekIndex7(t)] = true;
   });
   var total = Object.keys(weeks).length;
   var thisWeek = weekIndex7(nowMs);
   var activeNow = !!weeks[thisWeek];
-  var start = activeNow ? thisWeek : thisWeek - 1;
   var cur = 0;
-  while (weeks[start - cur]) cur++;
+  for (var w = thisWeek, guard = 0; guard < 600; w--, guard++) {
+    if (skip[w]) continue;                          // neither breaks nor adds
+    if (weeks[w]) { cur++; continue; }
+    if (w === thisWeek) continue;                   // this week is not over yet
+    break;
+  }
+  var recent = [];
+  for (var k = STREAK_RECENT_WEEKS - 1; k >= 0; k--) recent.push(!skip[thisWeek - k] && !!weeks[thisWeek - k]);
   return {
     current_weeks: cur,
     active_this_week: activeNow,
     active_weeks_total: total,
-    multiplier: Math.round(Math.pow(1.01, total) * 100) / 100
+    multiplier: Math.round(Math.pow(1.01, total) * 100) / 100,
+    weeks_total_program: STREAK_PROGRAM_WEEKS,
+    recent: recent
   };
 }
 

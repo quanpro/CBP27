@@ -1301,23 +1301,43 @@ function panelWeighted(stage, s) {
 
 // ---------------------------------------------------------------- streak (D9)
 
-/** Weekly activity streak in +07:00 ISO weeks; multiplier = 1.01^active weeks, 2 dp. */
-function streak(activityMs, nowMs) {
-  var weeks = {};
+var STREAK_PROGRAM_WEEKS = 52;
+var STREAK_RECENT_WEEKS = 12;
+
+/**
+ * Weekly activity streak in +07:00 ISO weeks; multiplier = 1.01^active weeks, 2 dp.
+ * skipWeeks: dates (any day of the week, e.g. its Monday) of weeks such as Tết that neither
+ * break nor add to current_weeks. recent: the last 12 weeks, oldest first, this week last;
+ * skipped weeks are false.
+ */
+function streak(activityMs, nowMs, skipWeeks) {
+  var weeks = {}, skip = {};
   (activityMs || []).forEach(function (ms) {
     if (typeof ms === 'number' && isFinite(ms) && ms <= nowMs) weeks[weekIndex7(ms)] = true;
+  });
+  (skipWeeks || []).forEach(function (d) {
+    var t = typeof d === 'number' ? d : parseTime(d);
+    if (!isNaN(t)) skip[weekIndex7(t)] = true;
   });
   var total = Object.keys(weeks).length;
   var thisWeek = weekIndex7(nowMs);
   var activeNow = !!weeks[thisWeek];
-  var start = activeNow ? thisWeek : thisWeek - 1;
   var cur = 0;
-  while (weeks[start - cur]) cur++;
+  for (var w = thisWeek, guard = 0; guard < 600; w--, guard++) {
+    if (skip[w]) continue;                          // neither breaks nor adds
+    if (weeks[w]) { cur++; continue; }
+    if (w === thisWeek) continue;                   // this week is not over yet
+    break;
+  }
+  var recent = [];
+  for (var k = STREAK_RECENT_WEEKS - 1; k >= 0; k--) recent.push(!skip[thisWeek - k] && !!weeks[thisWeek - k]);
   return {
     current_weeks: cur,
     active_this_week: activeNow,
     active_weeks_total: total,
-    multiplier: Math.round(Math.pow(1.01, total) * 100) / 100
+    multiplier: Math.round(Math.pow(1.01, total) * 100) / 100,
+    weeks_total_program: STREAK_PROGRAM_WEEKS,
+    recent: recent
   };
 }
 
@@ -1523,7 +1543,8 @@ function configDefaults_() {
     ['pitch_deadline', '2027-06-21', 'Last day for Pitch Day submissions'],
     ['capstone_deadline', '2027-12-20', 'Last day for capstone submissions'],
     ['lock_failures', '5', 'Wrong PINs before a lock'],
-    ['course_open_default', 'TRUE', 'Default for Courses.open when blank']
+    ['course_open_default', 'TRUE', 'Default for Courses.open when blank'],
+    ['streak_skip_weeks', '2027-02-08', 'Mondays of weeks (comma-separated, e.g. Tết) that neither break nor add to the streak']
   ];
 }
 
@@ -1833,7 +1854,9 @@ function config_() {
     pitch_deadline: normDate(get('pitch_deadline')),
     capstone_deadline: normDate(get('capstone_deadline')),
     lock_failures: Math.max(1, toInt(get('lock_failures'), 5)),
-    course_open_default: toBool(get('course_open_default'))
+    course_open_default: toBool(get('course_open_default')),
+    streak_skip_weeks: String(raw.streak_skip_weeks === undefined ? d.streak_skip_weeks : raw.streak_skip_weeks)
+      .split(/[,;\s]+/).map(normDate).filter(function (x) { return x; })
   };
   return r.cfg;
 }
@@ -2094,7 +2117,7 @@ var MAX_BODY_BYTES_ = 200000;
 /** Actions that get one Log row (never with PINs, answers or tokens). */
 var LOGGED_ACTIONS_ = {
   login: true, change_pin: true, consent: true, logout: true, start: true, submit: true,
-  capstone_submit: true, panel_score: true
+  capstone_submit: true, panel_score: true, unlock_retake: true
 };
 
 function routes_() {
@@ -2112,6 +2135,7 @@ function routes_() {
     review: apiReview_,
     team_summary: apiTeamSummary_,
     team_status: apiTeamStatus_,
+    unlock_retake: apiUnlockRetake_,
     capstone_get: apiCapstoneGet_,
     capstone_submit: apiCapstoneSubmit_,
     panel_list: apiPanelList_,
@@ -2664,6 +2688,13 @@ function checkpointState_(code, courseCode, userAtts) {
   };
 }
 
+/**
+ * A coaching chat (one Unlocks row) is needed before the next attempt: not passed, nothing in
+ * progress, and either the free attempts are used up (attempts ≥ max_free + unlocks) or the
+ * late window has closed without an unused unlock.
+ */
+function needsChat_(st) { return !st.passed && !st.open && (st.needs_unlock || st.gate_closed); }
+
 function recallRowsFor_(code, courseCode) {
   return readTable_('Recall').rows.filter(function (r) {
     return normCode(r.employee_code) === code && normCode(r.course) === courseCode &&
@@ -2816,7 +2847,7 @@ function apiMe_(body) {
     baseline: baseline,
     courses: courses,
     capstone: capstone,
-    streak: streak(activity, now),
+    streak: streak(activity, now, cfg.streak_skip_weeks),
     certificates: {
       level: s.user.certificate, checkpoints_passed: passedCount, checkpoints_total: courses.length,
       pitch_submitted: !!pitch, capstone_submitted: !!cap
@@ -3254,13 +3285,41 @@ function apiTeamStatus_(body) {
       var mine = atts.filter(function (a) { return a.code === u.code; });
       var courses = {};
       courseOrder_().forEach(function (c) {
-        var cp = mine.filter(function (a) { return a.assessment === 'checkpoint' && a.course === c; });
-        courses[c] = cp.some(function (a) { return a.passed; }) ? 'passed' : cp.length ? 'not_yet' : 'not_started';
+        var st = checkpointState_(u.code, c, mine);
+        courses[c] = st.passed ? 'passed' : needsChat_(st) ? 'needs_chat' : st.attempts.length ? 'not_yet' : 'not_started';
       });
       var done = mine.some(function (a) { return a.assessment === 'baseline' && a.wave === cfg.wave && isDone_(a); });
       return { code: u.code, first_name: u.first_name, baseline: done ? 'done' : 'not_done', courses: courses };
     })
   };
+}
+
+/**
+ * unlock_retake {token, code, course, note} → {unlocked_at}. A manager records the 15-minute
+ * coaching chat for a direct report (not a manager) whose checkpoint needs one; this writes one
+ * Unlocks row (= one more attempt). The note is stored, never logged.
+ */
+function apiUnlockRetake_(body) {
+  var s = requireSession_(body);
+  if (!s.user.is_manager) throw apiError_('forbidden', 'Only managers can unlock a retake.');
+  var code = normCode(body.code);
+  var courseCode = normCode(body.course);
+  var note = String(body.note === null || body.note === undefined ? '' : body.note).trim().slice(0, 300);
+  return withLock_(function () {
+    var row = isValidCode(code) ? findRosterRow_(code) : null;
+    var u = row ? userView_(row) : null;
+    if (!u || !u.active || u.code === s.code || u.manager_code !== s.code || u.is_manager) {
+      throw apiError_('forbidden', 'You can unlock retakes only for your own team members.');
+    }
+    if (!courseByCode_(courseCode)) throw apiError_('bad_request', 'Unknown course', { field: 'course' });
+    if (!needsChat_(checkpointState_(u.code, courseCode))) {
+      throw apiError_('bad_request', 'This checkpoint does not need a coaching chat now.', { field: 'course' });
+    }
+    var at = iso7(nowMs_());
+    appendRows_('Unlocks', [{ employee_code: u.code, course: courseCode, unlocked_by: s.code, unlocked_at: at, reason: guardCell(note).slice(0, 300) }]);
+    setLogInfo_(s.code, 'unlock ' + u.code + ' ' + courseCode);
+    return { unlocked_at: at };
+  });
 }
 
 // ---------------------------------------------------------------- capstone (F14)
