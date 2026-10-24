@@ -108,3 +108,7 @@
 .pn-discard { font-size: 14px; }
 .pn-team.is-own .pad { padding: 18px 20px; }
 .bl-word-col .bl-idp { margin-top: 2px; padding-top: 10px; border-top: 1px solid var(--line); }
+
+/* ---------- Capstone + panel stage tabs: two equal tabs that wrap instead of scrolling ---------- */
+.cap-tabs button, .pn .tabs button { flex: 1 1 0; min-width: 0; white-space: normal; text-align: left; }
+.cap-tab-name { overflow-wrap: anywhere; }

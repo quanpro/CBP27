@@ -9,8 +9,7 @@ test.describe('Step 3 · shell', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const view = await hub.signIn(hub.account('shell'));
     expect(view).toBe('dash');
-    const codes = await page.locator('.course-card .code-badge').allInnerTexts();
-    expect(codes).toEqual(ORDER);
+    expect(await hub.dashboardCourses()).toEqual(ORDER); // every course reachable, calendar order
     // the greeting uses the first name from the profile, and the journey came from `me`
     const me = hub.last('me');
     expect(me.ok).toBe(true);
@@ -79,7 +78,7 @@ test.describe('Step 3 · shell', () => {
     await hub.setTheme('dark');
     expect(await bg()).toBe('rgb(11, 22, 32)'); // --bg dark #0B1620
     await page.reload();
-    await waitReady(page, '.course-card');
+    await waitReady(page, '#courses-title');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark'); // remembered, applied before paint
     await hub.setTheme('system');
     await page.emulateMedia({ colorScheme: 'dark' });

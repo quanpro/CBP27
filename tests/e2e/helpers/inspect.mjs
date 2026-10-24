@@ -47,6 +47,8 @@ const dict = (lang) => {
 };
 const EN = dict('en');
 const VI = dict('vi');
+/** English text of a key, as the page would show it (en.json + parts). */
+export const enText = (key) => EN[key];
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** en.json values equal to their vi.json value, as patterns ({vars} match anything). */
 const SAME_IN_BOTH = Object.keys(EN).filter((k) => typeof EN[k] === 'string' && EN[k] === VI[k] && EN[k].trim())
@@ -69,6 +71,8 @@ export function isNeutral(s, dataStrings = new Set()) {
   if (SAME_IN_BOTH.some((re) => re.test(s))) return true;
   let t = s.replace(/https?:\/\/\S+/g, '');
   for (const w of SAME_WORDS) t = t.split(w).join(' ');
+  // names, codes, titles typed by people (lower-case enum values such as "passed" are not removed)
+  for (const d of [...dataStrings].filter((x) => x.length >= 2 && /[A-Z0-9]/.test(x)).sort((a, b) => b.length - a.length)) t = t.split(d).join(' ');
   const rest = t.replace(NEUTRAL_TOKENS, '').replace(/[\d\s.,:;%×+\-–—·/()#?!'"’“”…|<>=≈≥≤✓₫*&_]/g, '');
   return rest === '';
 }

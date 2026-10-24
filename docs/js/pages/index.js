@@ -42,6 +42,12 @@ function fmtRange(a, b) {
   const dm = (v) => part(v, vi ? { day: 'numeric', month: 'numeric' } : { day: 'numeric', month: 'short' });
   return sameMonth ? `${part(a, { day: 'numeric' })}–${dm(b)}` : `${dm(a)} – ${dm(b)}`;
 }
+/** "1 Dec" / "1/12"; the year is added when it is not this year ("12 Jan 2027"). */
+function dayMonth(v) {
+  const vi = getLang() === 'vi';
+  const other = part(v, { year: 'numeric' }) !== part(todayVN(), { year: 'numeric' });
+  return part(v, vi ? { day: 'numeric', month: 'numeric', ...(other ? { year: 'numeric' } : {}) } : { day: 'numeric', month: 'short', ...(other ? { year: 'numeric' } : {}) });
+}
 function relDay(date) {
   const n = daysUntil(date);
   if (n === null) return '';
@@ -226,7 +232,7 @@ function viewLogin() {
     h('div', { class: 'amh-text' },
       h('p', { class: 'art-kicker', text: t('brand.program') }),
       h('h1', { text: t('brand.tagline') }),
-      h('p', null, t('login.mobile_lead'), ' ', h('b', null, sup(fmtNum(1.01, 2), 52), ` ≈ ${fmtNum(1.68, 2)}×`))),
+      h('p', null, t('login.mobile_lead'), ' ', h('b', { class: 'nowrap' }, '(', sup(fmtNum(1.01, 2), 52), ` ≈ ${fmtNum(1.68, 2)})`))),
     compoundFigure(true));
 
   return h('div', { class: 'auth-shell' }, art,
@@ -537,7 +543,7 @@ function coursesSection(courses) {
           h('a', { class: 'later-row', href: `course.html?c=${encodeURIComponent(c.code)}` },
             h('span', { class: `code-badge sm fam-${c.code.charAt(0)}`, text: c.code }),
             h('span', { class: 'later-name', text: pick(c, 'name') }),
-            h('span', { class: 'later-date' }, icon(c.open ? 'video' : 'lock', 'sm'), h('span', { text: c.online_from ? fmtShortDate(c.online_from) : '' }),
+            h('span', { class: 'later-date' }, icon(c.open ? 'video' : 'lock', 'sm'), h('span', { text: c.online_from ? dayMonth(c.online_from) : '' }),
               h('span', { class: 'sr-only', text: c.open ? '' : ` · ${t('status.locked')}` }))))))) : null));
 }
 function cycleItem(g, state) {

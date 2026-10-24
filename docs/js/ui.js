@@ -318,8 +318,9 @@ function headerEl({ page, focus, session, exitHref }) {
   const brand = h('a', { class: 'brand', href: 'index.html', 'aria-label': t('brand.home_aria') },
     h('img', { src: 'assets/marico-logo.png', alt: '', width: 38, height: 38 }),
     h('span', { class: 'brand-text' }, h('b', { text: t('brand.name') }), h('span', { text: t('brand.tagline') })));
-  const nav = !focus && session ? h('nav', { class: 'nav-primary', 'aria-label': t('nav.aria') },
-    navItems(profile).map((n) => h('a', { href: n.href, 'aria-current': n.key === page ? 'page' : null }, icon(n.icon), t(n.label)))) : null;
+  const items = !focus && session ? navItems(profile) : [];
+  const nav = items.length ? h('nav', { class: `nav-primary${items.length > 4 ? ' many' : ''}`, 'aria-label': t('nav.aria') },
+    items.map((n) => h('a', { href: n.href, 'aria-current': n.key === page ? 'page' : null }, icon(n.icon), t(n.label)))) : null;
 
   const lang = getLang();
   const seg = h('div', { class: 'seg', role: 'group', 'aria-label': t('lang.aria') },

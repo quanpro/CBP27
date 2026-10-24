@@ -3,11 +3,10 @@
 // Real fixture roster (backend/tests/fixtures.js devRoster): demand = T001, T005 (n = 2; T010 is a
 // manager and never counted), supply = T002, T006 (n = 2), materials = T003, cs = T004, T030.
 import { test, expect } from './helpers/hub.mjs';
-import { readFileSync } from 'node:fs';
 import * as dev from './helpers/devapi.mjs';
+import { enText } from './helpers/inspect.mjs';
 
-const EN_TEAM = JSON.parse(readFileSync(new URL('../../docs/i18n/en.json', import.meta.url), 'utf8')).team;
-const TEAM_N = EN_TEAM.n;
+const TEAM_N = enText('team.n');
 const STATUSES = ['passed', 'not_yet', 'needs_chat', 'not_started'];
 
 const N_LABEL = (n) => TEAM_N.replace('{n}', String(n));
@@ -138,10 +137,10 @@ test.describe('Step 6 · manager gate status', () => {
       for (const v of Object.values(r.courses)) expect(STATUSES).toContain(v);
     }
     const cells = (await gates.locator('.status-table tbody td .chip').allTextContents()).map((c) => c.trim());
-    const allowed = [...STATUSES, 'bl_done', 'bl_not'].map((k) => EN_TEAM.gs[k]).filter(Boolean);
+    const allowed = [...STATUSES, 'unlocked', 'bl_done', 'bl_not'].map((k) => enText(`team.gs.${k}`)).filter(Boolean);
     expect(cells.filter((c) => !allowed.includes(c))).toEqual([]);
-    expect(cells).toContain(EN_TEAM.gs.passed);
-    expect(cells.some((c) => c === EN_TEAM.gs.not_yet || c === EN_TEAM.gs.needs_chat)).toBe(true);
+    expect(cells).toContain(enText('team.gs.passed'));
+    expect(cells.some((c) => c === enText('team.gs.not_yet') || c === enText('team.gs.needs_chat'))).toBe(true);
     const text = await gates.innerText();
     expect(text, 'no percentage anywhere in the gate view').not.toContain('%');
     expect(await gates.locator('.status-table tbody').innerText()).not.toMatch(/\b\d{1,3}\s*\/\s*10\b/);

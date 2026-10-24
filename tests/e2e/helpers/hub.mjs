@@ -67,7 +67,7 @@ export class Hub {
     if (this.isMock) {
       await ctx.exposeBinding('__hubRecord', (_src, json) => { this.records.push(JSON.parse(json)); });
       await ctx.route('**/js/mock-api.js', async (route) => {
-        const resp = await route.fetch();
+        const resp = await route.fetch({ headers: { ...route.request().headers(), connection: 'close' } }); // no pooled-socket reuse races
         const src = await resp.text();
         if (!src.includes(HANDLE_DECL)) throw new Error('mock-api.js: handle() declaration not found; update tests/e2e/helpers/hub.mjs');
         await route.fulfill({ response: resp, body: src.replace(HANDLE_DECL, 'async function __hubOriginalHandle(payload) {') + HANDLE_WRAP });
@@ -76,7 +76,7 @@ export class Hub {
       await ctx.route(PAGE_API, async (route) => {
         const req = route.request();
         if (req.method() !== 'POST') return route.continue();
-        const resp = await route.fetch();
+        const resp = await route.fetch({ headers: { ...req.headers(), connection: 'close' } });
         const body = await resp.text();
         let action = '?';
         try { action = JSON.parse(req.postData() || '{}').action; } catch (e) { /* recorded as "?" */ }
@@ -127,7 +127,7 @@ export class Hub {
       if (app.querySelector('.login-error .callout')) return 'error';
       if (app.querySelector('#pin-old')) return 'pin';
       if (app.querySelector('.onboard')) return 'consent';
-      if (app.querySelectorAll('.course-card').length) return 'dash';
+      if (app.querySelector('#courses-title')) return 'dash'; // My learning has drawn its courses
       return null;
     }, null, { timeout: 15_000 });
     return handle.jsonValue();
@@ -187,12 +187,24 @@ export class Hub {
     await expect(this.page.locator('html')).toHaveAttribute('lang', lang);
   }
 
-  /** system | light | dark, via the header button (it cycles system → light → dark). */
+  /**
+   * system | light | dark, through the visible control (it cycles system → light → dark): the header
+   * button, or on phones the item in the user menu. The choice is kept for the next pages.
+   */
   async setTheme(mode) {
+    const { page } = this;
     for (let i = 0; i < 4; i += 1) {
-      const now = await this.page.evaluate(() => { try { return localStorage.getItem('hub.theme') || 'system'; } catch (e) { return 'system'; } });
+      const now = await page.evaluate(() => { try { return localStorage.getItem('hub.theme') || 'system'; } catch (e) { return 'system'; } });
       if (now === mode) break;
-      await this.page.locator('.app-header .header-actions > .icon-btn').click();
+      const btn = page.locator('.app-header .theme-btn');
+      if (await btn.isVisible()) { await btn.click(); continue; }
+      const menuItem = page.locator('#user-menu .menu-theme');
+      if (await page.locator('.app-header .user-btn').isVisible()) {
+        await page.locator('.app-header .user-btn').click();
+        await menuItem.click();
+        continue;
+      }
+      throw new Error('no visible theme control on this page');
     }
     if (mode === 'system') await expect(this.page.locator('html')).not.toHaveAttribute('data-theme', /./);
     else await expect(this.page.locator('html')).toHaveAttribute('data-theme', mode);
@@ -206,6 +218,13 @@ export class Hub {
   }
 
   // ---------------------------------------------------------------- API records
+  /** Course codes linked from the My learning section, in page order (cards and compact rows alike). */
+  async dashboardCourses() {
+    const hrefs = await this.page.locator('section[aria-labelledby="courses-title"] a[href^="course.html?c="]').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    const codes = hrefs.map((h) => new URL(h, 'http://x/').searchParams.get('c'));
+    return codes.filter((c, i) => c !== codes[i - 1]);
+  }
+
   /** Payloads recorded for an action (newest last). */
   payloads(action) { return this.records.filter((r) => r.action === action).map((r) => r.data); }
   last(action) { const p = this.payloads(action); return p[p.length - 1]; }

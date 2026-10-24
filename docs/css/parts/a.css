@@ -54,9 +54,9 @@
 /* ---------- Dashboard ---------- */
 .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .stat-weeks .stat-main { min-height: 0; }
-.week-dots { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 3px; width: 100%; max-width: 240px; padding: 3px; margin: 2px -3px 0; }
-.week-dots i { aspect-ratio: 1 / 1; border-radius: 3px; background: var(--line); }
-.week-dots i.on { background: var(--green-fill); }
+.week-dots { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 3px; width: 100%; max-width: 204px; padding: 3px; margin: 2px -3px 0; }
+.week-dots i { aspect-ratio: 1 / 1; border-radius: 3px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-strong); } /* empty week: 3:1 outline */
+.week-dots i.on { background: var(--green-fill); box-shadow: none; }
 .week-dots i.now { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--blue); }
 .stat-weeks .d { color: var(--text); }
 .stat-weeks .ok-line { color: var(--green-ink); font-weight: 700; }
@@ -141,3 +141,10 @@ details.fold-card > .pad { padding-top: 16px; }
 .chat-who { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
 .chat-who b { color: var(--ink); }
 .chat-btn { white-space: normal; text-align: left; }
+
+/* Exit (focus mode) keeps a 44 px target */
+.app-header .header-actions .btn-sm { min-height: 44px; min-width: 44px; }
+
+/* Five nav items (panel judges): drop the nav icons until there is room, so the brand never truncates */
+@media (min-width: 1024px) { .app-header .brand { flex: none; } }
+@media (min-width: 1024px) and (max-width: 1365px) { .nav-primary.many a svg.icon { display: none; } .nav-primary.many a { padding: 8px 10px; } }

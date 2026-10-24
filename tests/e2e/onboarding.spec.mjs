@@ -46,7 +46,7 @@ test.describe('onboarding', () => {
 
     expect(await hub.acceptConsent()).toBe('dash');
     await expect(page.locator('body')).not.toHaveClass(/onboarding/);
-    await expect(page.locator('.course-card')).toHaveCount(10);
+    expect(await hub.dashboardCourses()).toHaveLength(10);
 
     // the new PIN works next time and goes straight to the dashboard; the issued PIN no longer does
     await page.locator('.user-btn').click();
@@ -113,7 +113,7 @@ test.describe('sign-in errors', () => {
     await page.locator('#app form button[type="submit"]').click();
     await expect(err).toContainText('locked until');
     expect(hub.last('login').error.code).toBe('locked');
-    await expect(page.locator('.course-card')).toHaveCount(0);
+    await expect(page.locator('#courses-title')).toHaveCount(0);
   });
 
   test('an unknown code gets the same answers as a known one, including the lock', async ({ page, hub }) => {

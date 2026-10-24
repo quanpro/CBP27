@@ -2,7 +2,7 @@
 import { expect } from '@playwright/test';
 
 export const PAGES = [
-  { name: 'home', path: 'index.html', as: 'manager', ready: '.course-card' },
+  { name: 'home', path: 'index.html', as: 'manager', ready: '#courses-title' },
   { name: 'course', path: 'course.html?c=A2', as: 'manager', ready: '#course-title' },
   { name: 'quiz', path: 'quiz.html?type=predict&c=A2', as: 'manager', ready: '#qz-intro-title' },
   { name: 'baseline', path: 'baseline.html', as: 'manager', ready: '#bl-title' },
