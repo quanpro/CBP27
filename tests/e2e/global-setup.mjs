@@ -20,7 +20,8 @@ async function probe() {
   const bl = await login(ACCOUNTS.baseline.real);
   if (bl.ok) {
     const me = await call('me', { token: bl.token });
-    if (!me.ok || me.baseline.status !== 'not_started') why.push(`${ACCOUNTS.baseline.real} already started the baseline`);
+    const parts = me.ok && me.baseline && me.baseline.parts;
+    if (!parts || ['p1', 'p2', 'p3'].some((k) => parts[k].status !== 'not_started')) why.push(`${ACCOUNTS.baseline.real} already started a baseline part`);
   }
   const cp = await login(ACCOUNTS.checkpoint.real);
   if (cp.ok) {

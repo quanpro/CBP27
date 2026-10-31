@@ -9,8 +9,8 @@
 //   - puts the dev server clock back if the test moved it.
 import { test as base, expect } from '@playwright/test';
 import { ACCOUNTS, COURSES, PINS } from './accounts.mjs';
-import { ORIGIN, PAGE_API, moveClock, fixtureKey, call as devCall } from './devapi.mjs';
-import { findLeaks, itemShapeProblems } from './scan.mjs';
+import { ORIGIN, PAGE_API, moveClock, fixtureKey, call as devCall, setConfig, build as devBuild, DEV_CONFIG_DEFAULTS } from './devapi.mjs';
+import { findLeaks, servedShapeProblems } from './scan.mjs';
 
 export { expect };
 
@@ -43,6 +43,7 @@ export class Hub {
     this.errors = [];      // uncaught page errors
     this.missingKeys = []; // "[i18n] missing" console warnings
     this.clockHours = 0;
+    this.configTouched = new Set();
   }
 
   /** Course code for a purpose in accounts.mjs. */
@@ -99,7 +100,7 @@ export class Hub {
     for (const r of this.records) {
       if (!r.data) { out.push(`${r.action}: response was not JSON`); continue; }
       for (const l of findLeaks(r.action, r.data)) out.push(`${r.action}: forbidden key "${l.key}" at ${l.path}`);
-      if (r.action === 'start' && r.data.ok) for (const p of itemShapeProblems(r.data.items)) out.push(`start: ${p}`);
+      for (const p of servedShapeProblems(r.action, r.data)) out.push(`${r.action}: ${p}`);
     }
     for (const e of this.errors) out.push(`page error: ${e}`);
     for (const m of this.missingKeys) out.push(`i18n: ${m}`);
@@ -108,6 +109,8 @@ export class Hub {
 
   async teardown() {
     if (this.clockHours) { await moveClock(-this.clockHours); this.clockHours = 0; }
+    for (const k of this.configTouched) await setConfig(k, DEV_CONFIG_DEFAULTS[k]);
+    this.configTouched.clear();
   }
 
   // ---------------------------------------------------------------- navigation
@@ -214,6 +217,31 @@ export class Hub {
     }
     if (mode === 'system') await expect(this.page.locator('html')).not.toHaveAttribute('data-theme', /./);
     else await expect(this.page.locator('html')).toHaveAttribute('data-theme', mode);
+  }
+
+  // ---------------------------------------------------------------- baseline switches
+  /**
+   * Turn a baseline switch (p1_open … results_open, minutes) on or off. Real: the dev server's Config
+   * (put back after the test). Mock: the demo state in localStorage (the page must have loaded the
+   * demo once); reload or navigate afterwards so the mock reads it.
+   */
+  async setSwitch(key, value) {
+    if (this.isReal) {
+      await setConfig(key, value);
+      this.configTouched.add(key);
+      return;
+    }
+    await this.page.evaluate(({ key, value }) => {
+      const s = JSON.parse(localStorage.getItem('hub.mock.v1'));
+      s.bl[key] = /^(TRUE|FALSE)$/i.test(String(value)) ? /^TRUE$/i.test(String(value)) : value;
+      localStorage.setItem('hub.mock.v1', JSON.stringify(s));
+    }, { key, value: String(value) });
+  }
+
+  /** Real only: buildProfiles() / buildSummary() now. */
+  async build(what) {
+    if (!this.isReal) throw new Error('build is for the real project');
+    return devBuild(what);
   }
 
   // ---------------------------------------------------------------- dev server clock (real only)

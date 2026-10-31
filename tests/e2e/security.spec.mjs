@@ -2,7 +2,7 @@
 // every test; these tests drive the paths explicitly and prove the guards themselves work.
 import { readFileSync, readdirSync } from 'node:fs';
 import { test, expect, ALLOWED_HOSTS } from './helpers/hub.mjs';
-import { findLeaks, itemShapeProblems } from './helpers/scan.mjs';
+import { findLeaks, itemShapeProblems, servedShapeProblems, NEVER, BASELINE_META } from './helpers/scan.mjs';
 import { PAGES, openPage } from './helpers/pages.mjs';
 
 const DOCS = new URL('../../docs/', import.meta.url);
@@ -45,6 +45,26 @@ test.describe('answer keys never reach the browser before a submit', () => {
     expect(findLeaks('submit', { missed: [{ correct: { id: 'a' }, why_en: 'x', why_vi: 'y' }], by_objective: { 1: { n: 2, correct: 1 } } })).toEqual([]);
     expect(findLeaks('submit', { missed: [{ answer: 'a' }] })).toHaveLength(1);
     expect(itemShapeProblems([{ item_id: 'X', course: 'A2', objective: 1, case_id: '', stem_en: '', stem_vi: '', why_en: '', options: [] }]).length).toBeGreaterThan(0);
+    // baseline v2: every scoring key is caught on any served item, in every action
+    const opt = (id) => ({ id, en: id, vi: id });
+    const mcq = { item_id: 'X1', type: 'mcq', section: 'A', case_id: 'C1', exhibit_ids: [], stem_en: 's', stem_vi: 's', options: ['a', 'b', 'c', 'd'].map(opt) };
+    for (const k of [...NEVER, ...BASELINE_META, 'why_en', 'why_vi']) {
+      const planted = { ok: true, sections: [{ id: 'A', items: [{ ...mcq, [k]: 'x' }] }] };
+      expect(findLeaks('start', planted), `planted ${k}`).toEqual([{ path: `sections[0].items[0].${k}`, key: k }]);
+      expect(findLeaks('baseline_next', { section: { items: [{ [k]: 'x' }] } }), `planted ${k} in baseline_next`).toHaveLength(1);
+    }
+    expect(findLeaks('rate_get', { items: [{ item_id: 'R', charter: '2' }] })).toHaveLength(1);
+    expect(findLeaks('profile', { p2: { top_dev: [{ item_id: 'R', charter: '1' }] } })).toHaveLength(1);
+    // the three known non-item "level" keys are fine, and only there
+    expect(findLeaks('start', { scale: [{ level: 0, en: 'x' }] })).toEqual([]);
+    expect(findLeaks('me', { certificates: { level: 'expert' } })).toEqual([]);
+    expect(findLeaks('profile', { p3: { level: 'WK' } })).toEqual([]);
+    expect(findLeaks('start', { p3: { level: 'WK' } })).toHaveLength(1);
+    expect(findLeaks('me', { baseline: { parts: { p3: { level: 'WK' } } } })).toHaveLength(1);
+    // shape whitelists: an extra field on a served baseline item is a problem
+    expect(servedShapeProblems('start', { ok: true, sections: [{ id: 'A', items: [mcq] }] })).toEqual([]);
+    expect(servedShapeProblems('start', { ok: true, sections: [{ id: 'A', items: [{ ...mcq, objective: 'x' }] }] })).toHaveLength(1);
+    expect(servedShapeProblems('baseline_next', { ok: true, section: { items: [{ item_id: 'R', type: 'rating', text_en: '', text_vi: '', anchor1_en: '', anchor1_vi: '', anchor4_en: '', anchor4_vi: '', allow_nr: false, mgr_en: '' }] } })).toHaveLength(1);
     void hub;
   });
 });
