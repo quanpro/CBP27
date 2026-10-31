@@ -71,7 +71,7 @@ function expireAllBl_() {
 
 function overrideFor_(code, wave, part) {
   var found = '';
-  readTable_('Overrides').rows.forEach(function (r) {
+  readTableOpt_('Overrides').rows.forEach(function (r) {
     if (normCode(r.employee_code) === code && normWave(r.wave) === wave && toInt(r.part, 0) === part) {
       var f = String(r.form || '').trim().toUpperCase();
       if (BL_FORMS.indexOf(f) >= 0) found = f; // the latest row wins
@@ -418,7 +418,7 @@ function ratees_(raterCode) {
 }
 
 function ratingRows_(wave) {
-  return readTable_('Ratings').rows.filter(function (r) { return normWave(r.wave) === wave; });
+  return readTableOpt_('Ratings').rows.filter(function (r) { return normWave(r.wave) === wave; });
 }
 
 /** Upserts one rater's values for one ratee (one row per wave, ratee, rater, role, item). Lock required. */
@@ -615,7 +615,7 @@ function buildProfilesLocked_() {
     var p = buildProfile_(u.code, ctx);
     if (p) rows.push({ employee_code: u.code, wave: cfg.wave, built_at: at, json: JSON.stringify(p) });
   });
-  var keep = readTable_('Profiles').rows.filter(function (r) { return normWave(r.wave) !== cfg.wave; })
+  var keep = readTableOpt_('Profiles').rows.filter(function (r) { return normWave(r.wave) !== cfg.wave; })
     .map(function (r) { return { employee_code: r.employee_code, wave: r.wave, built_at: r.built_at, json: r.json }; });
   replaceBody_('Profiles', SCHEMA.Profiles, keep.concat(rows));
   setLogInfo_('', 'profiles ' + rows.length);
@@ -628,7 +628,7 @@ function apiProfile_(body) {
   var cfg = config_();
   if (!cfg.results_open) throw apiError_('not_open', 'Your baseline profile is not ready yet.');
   var row = null;
-  readTable_('Profiles').rows.forEach(function (r) { if (normCode(r.employee_code) === s.code && normWave(r.wave) === cfg.wave) row = r; });
+  readTableOpt_('Profiles').rows.forEach(function (r) { if (normCode(r.employee_code) === s.code && normWave(r.wave) === cfg.wave) row = r; });
   var p = row ? parseJson_(row.json, null) : null;
   if (!p) {
     if (staleBl_(s.code).length) withLock_(function () { expireBl_(s.code); });

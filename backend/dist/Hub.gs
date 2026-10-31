@@ -2,7 +2,7 @@
  * Hub.gs · The 1% Planner Hub backend, bundled by tools/bundle_backend.mjs. Do not edit this
  * file: edit backend/*.gs and run `node tools/bundle_backend.mjs`.
  * Paste the whole file into the Apps Script editor (see backend/DEPLOY.md).
- * Sources: Seed.gs, Logic.gs, Data.gs, Code.gs, Auth.gs, Assess.gs, Admin.gs, Setup.gs
+ * Sources: Seed.gs, Logic.gs, Data.gs, Code.gs, Auth.gs, Assess.gs, Admin.gs, Setup.gs, Baseline.gs
  */
 
 // ============================================================================
@@ -985,14 +985,7 @@ function optionOf(item, letter) {
  * original letters; their order comes from the seed (F9: same seed → same order).
  */
 function serveItem(row, seed) {
-  var opts = [];
-  for (var i = 0; i < OPTION_LETTERS.length; i++) {
-    var l = OPTION_LETTERS[i];
-    if (str(row[l + '_en']).trim() !== '' || str(row[l + '_vi']).trim() !== '') {
-      opts.push({ id: l, en: str(row[l + '_en']), vi: str(row[l + '_vi']) });
-    }
-  }
-  if (seed !== undefined && seed !== null && seed !== '') opts = shuffle(opts, seed);
+  var opts = optionsOf(row, seed);
   return {
     item_id: str(row.item_id),
     course: str(row.course),
@@ -1077,22 +1070,6 @@ function isPass(nCorrect, nItems, passMark) {
   return nItems > 0 && nCorrect * 1000 >= Math.round(pm * 1000) * nItems;
 }
 
-/** Baseline: % per course over Part B + case items (courseMap from Items.course). */
-function byCourse(servedIds, answers, keyMap, courseMap) {
-  var acc = {}, order = [];
-  var g = grade(servedIds, answers, keyMap, {});
-  for (var i = 0; i < g.results.length; i++) {
-    var c = str(courseMap[g.results[i].item_id]);
-    if (!c) continue;
-    if (!acc[c]) { acc[c] = { n: 0, k: 0 }; order.push(c); }
-    acc[c].n++;
-    if (g.results[i].is_correct) acc[c].k++;
-  }
-  var out = {};
-  for (var j = 0; j < order.length; j++) out[order[j]] = Math.round(100 * acc[order[j]].k / acc[order[j]].n);
-  return out;
-}
-
 /** Objectives with at least one miss, ascending. */
 function weakObjectives(byObj) {
   var out = [];
@@ -1103,20 +1080,7 @@ function weakObjectives(byObj) {
   return out.map(objectiveOut);
 }
 
-/** Two largest gaps: lowest course score; tie → lower self-rating, then calendar order. */
-function gaps(byCourseMap, selfMap, courseOrder) {
-  selfMap = selfMap || {};
-  courseOrder = courseOrder || [];
-  var codes = Object.keys(byCourseMap || {});
-  var pos = function (c) { var i = courseOrder.indexOf(c); return i < 0 ? 999 : i; };
-  var self = function (c) { return typeof selfMap[c] === 'number' ? selfMap[c] : 99; };
-  codes.sort(function (a, b) {
-    return (byCourseMap[a] - byCourseMap[b]) || (self(a) - self(b)) || (pos(a) - pos(b));
-  });
-  return codes.slice(0, 2);
-}
-
-/** Spec 14 calibration flag (admin view only). */
+/** Spec 14 calibration flag (admin view; also the profile's "rates high, scores low"). */
 function calibrationFlag(selfLevel, pct) {
   if (typeof selfLevel !== 'number' || typeof pct !== 'number') return '';
   if (selfLevel >= 3 && pct < 50) return 'rates high, scores low';
@@ -1402,7 +1366,7 @@ function validateBank(items, courses, cases) {
   var caseIds = {};
   (cases || []).forEach(function (c) { if (str(c.case_id).trim()) caseIds[str(c.case_id).trim()] = true; });
 
-  var seen = {}, counts = { baseline_b: {}, baseline_c: 0, predict: {}, checkpoint: {}, objectives: {} };
+  var seen = {}, counts = { predict: {}, checkpoint: {}, objectives: {}, old_baseline: 0 };
   (items || []).forEach(function (it, idx) {
     var id = str(it.item_id).trim();
     var where = 'Items row ' + (idx + 2) + (id ? ' (' + id + ')' : '');
@@ -1410,10 +1374,11 @@ function validateBank(items, courses, cases) {
     if (seen[id]) errors.push(where + ': duplicate item_id');
     seen[id] = true;
     var a = str(it.assessment).trim().toLowerCase();
+    if (a === 'baseline') { counts.old_baseline++; return; } // v1 rows: ignored (Baseline v2 lives in BaselineItems)
     var form = str(it.form).trim().toUpperCase();
     var course = normCode(it.course);
-    if (['baseline', 'predict', 'checkpoint'].indexOf(a) < 0) errors.push(where + ': assessment must be baseline, predict or checkpoint');
-    var wantForm = a === 'baseline' ? ['BL'] : a === 'predict' ? ['PR'] : ['A', 'B'];
+    if (['predict', 'checkpoint'].indexOf(a) < 0) errors.push(where + ': assessment must be predict or checkpoint (the baseline lives in BaselineItems)');
+    var wantForm = a === 'predict' ? ['PR'] : ['A', 'B'];
     if (wantForm.indexOf(form) < 0) errors.push(where + ': form must be ' + wantForm.join(' or ') + ' for ' + a);
     if (!course || !codes[course]) errors.push(where + ': course ' + (course || '(empty)') + ' is not in Courses');
     if (!str(it.stem_en).trim()) errors.push(where + ': stem_en is empty');
@@ -1425,18 +1390,13 @@ function validateBank(items, courses, cases) {
     var key = str(it.answer).trim().toLowerCase();
     if (OPTION_LETTERS.indexOf(key) < 0) errors.push(where + ': answer must be a, b, c or d');
     var obj = normObjective(it.objective);
-    if (a !== 'baseline' || obj) {
-      var max = nObj[course] || 6;
-      if (!/^\d+$/.test(obj) || +obj < 1 || +obj > max) errors.push(where + ': objective must be 1–' + max);
-    }
+    var max = nObj[course] || 6;
+    if (!/^\d+$/.test(obj) || +obj < 1 || +obj > max) errors.push(where + ': objective must be 1–' + max);
     var cid = str(it.case_id).trim();
     if (cid && !caseIds[cid]) errors.push(where + ': case_id ' + cid + ' is not in Cases');
-    if ((a === 'predict' || a === 'checkpoint') && !str(it.why_en).trim()) warnings.push(where + ': why_en is empty');
+    if (!str(it.why_en).trim()) warnings.push(where + ': why_en is empty');
     if (!toBool(it.active === undefined || str(it.active).trim() === '' ? 'TRUE' : it.active)) return;
-    if (a === 'baseline') {
-      if (cid) counts.baseline_c++;
-      else counts.baseline_b[course] = (counts.baseline_b[course] || 0) + 1;
-    } else if (a === 'predict') counts.predict[course] = (counts.predict[course] || 0) + 1;
+    if (a === 'predict') counts.predict[course] = (counts.predict[course] || 0) + 1;
     else if (a === 'checkpoint') {
       var k = course + ':' + form;
       counts.checkpoint[k] = (counts.checkpoint[k] || 0) + 1;
@@ -1444,7 +1404,6 @@ function validateBank(items, courses, cases) {
     }
   });
   Object.keys(codes).forEach(function (c) {
-    if ((counts.baseline_b[c] || 0) !== 4) warnings.push(c + ': ' + (counts.baseline_b[c] || 0) + ' baseline Part B items (expected 4)');
     if ((counts.predict[c] || 0) !== 3) warnings.push(c + ': ' + (counts.predict[c] || 0) + ' predict items (expected 3)');
     ['A', 'B'].forEach(function (f) {
       var n = counts.checkpoint[c + ':' + f] || 0;
@@ -1454,7 +1413,631 @@ function validateBank(items, courses, cases) {
       }
     });
   });
-  if (counts.baseline_c !== 6) warnings.push('Baseline Part C: ' + counts.baseline_c + ' case items (expected 6)');
+  if (counts.old_baseline) warnings.push('Items: ' + counts.old_baseline + ' old baseline row(s) are ignored (Baseline v2 uses the BaselineItems tab)');
+  return { errors: errors, warnings: warnings, counts: counts };
+}
+
+// ---------------------------------------------------------------- Baseline v2 (specs/22)
+
+var BL_ASSESSMENTS = ['baseline_p1', 'baseline_p2', 'baseline_p3'];
+var BL_FORMS = ['A', 'B', 'C'];
+var BL_MODULES = ['DP', 'SP', 'RPM', 'CS'];
+var BL_LEVELS = ['BA', 'WK', 'FO', 'LE'];
+var BL_CHARTERS = ['1', '2', '3', '4', '5', 'QWS'];
+var BL_SECTIONS = { baseline_p1: ['A', 'B'], baseline_p2: ['SJT', 'RATE'], baseline_p3: ['CORE', 'MOD'] };
+var BL_ROLE_MODULE = { demand: 'DP', supply: 'SP', materials: 'RPM', cs: 'CS' };
+/** Course ← P3 module (P1 ← CORE; A1/A2/C1 come from Part 1; A3 has no score). */
+var BL_MODULE_COURSES = { SP: ['P2'], RPM: ['P3', 'P5'], DP: ['P4'], CS: ['P6'] };
+var BL_P1_COURSES = ['A1', 'A2', 'C1'];
+/** Fields an item never leaves the server with, before or after a sitting (specs/22 §3 Privacy). */
+var BL_PRIVATE_FIELDS = ['answer', 'answer_most', 'answer_least', 'why_en', 'why_vi', 'step', 'move', 'gate', 'level', 'charter'];
+
+/** 1 | 2 | 3 for baseline_p1..p3, else 0. */
+function blPart(assessment) { var i = BL_ASSESSMENTS.indexOf(str(assessment).trim().toLowerCase()); return i < 0 ? 0 : i + 1; }
+
+function normCharter(v) {
+  var s = str(v).trim().toUpperCase();
+  if (s === 'QWS') return 'QWS';
+  var n = toInt(s, 0);
+  return n >= 1 && n <= 5 ? String(n) : '';
+}
+
+function letterOrEmpty_(v) { var l = str(v).trim().toLowerCase(); return OPTION_LETTERS.indexOf(l) >= 0 ? l : ''; }
+
+/** One BaselineItems row (header-keyed strings) → the item the backend works with. */
+function normBaselineItem(r, idx) {
+  var assessment = str(r.assessment).trim().toLowerCase();
+  var section = str(r.section).trim().toUpperCase();
+  var type = str(r.item_type).trim().toLowerCase();
+  if (!type) type = section === 'SJT' ? 'sjt' : section === 'RATE' ? 'rating' : 'mcq';
+  var out = {
+    _idx: idx,
+    item_id: str(r.item_id).trim(),
+    assessment: assessment,
+    part: blPart(assessment) || toInt(r.part, 0),
+    section: section,
+    module: str(r.module).trim().toUpperCase(),
+    item_type: type,
+    form: str(r.form).trim().toUpperCase() || (assessment === 'baseline_p1' ? '' : 'ONE'),
+    order: toInt(r.order, 9999),
+    case_id: str(r.case_id).trim(),
+    exhibit_ids: str(r.exhibit_ids).split(/[;,]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; }),
+    answer: letterOrEmpty_(r.answer),
+    answer_most: letterOrEmpty_(r.answer_most),
+    answer_least: letterOrEmpty_(r.answer_least),
+    allow_nr: toBool(r.allow_nr),
+    step: str(r.step).trim(),
+    move: str(r.move).trim().toUpperCase().replace(/\s+/g, ' '),
+    objective: str(r.objective).trim(),
+    gate: str(r.gate).trim(),
+    level: str(r.level).trim().toUpperCase(),
+    charter: normCharter(r.charter),
+    active: str(r.active).trim() === '' ? true : toBool(r.active)
+  };
+  ['stem', 'a', 'b', 'c', 'd', 'why', 'self', 'mgr', 'anchor1', 'anchor4'].forEach(function (k) {
+    out[k + '_en'] = str(r[k + '_en']);
+    out[k + '_vi'] = str(r[k + '_vi']);
+  });
+  return out;
+}
+
+/** Sort key inside a part: section (as listed in BL_SECTIONS), then order, then item_id. */
+function blSortItems(items) {
+  return items.slice().sort(function (a, b) {
+    var sa = (BL_SECTIONS[a.assessment] || []).indexOf(a.section), sb = (BL_SECTIONS[b.assessment] || []).indexOf(b.section);
+    return (sa - sb) || (a.order - b.order) || (a.item_id < b.item_id ? -1 : a.item_id > b.item_id ? 1 : 0);
+  });
+}
+
+/** Non-empty options in letter order, shuffled by seed (same seed → same order, F9). */
+function optionsOf(row, seed) {
+  var opts = [];
+  for (var i = 0; i < OPTION_LETTERS.length; i++) {
+    var l = OPTION_LETTERS[i];
+    if (str(row[l + '_en']).trim() !== '' || str(row[l + '_vi']).trim() !== '') opts.push({ id: l, en: str(row[l + '_en']), vi: str(row[l + '_vi']) });
+  }
+  return seed !== undefined && seed !== null && seed !== '' ? shuffle(opts, seed) : opts;
+}
+
+/**
+ * The only shapes a baseline item leaves the server in (specs/22 §4), built from a whitelist:
+ * BMcq {item_id, type, section, case_id, exhibit_ids, stem_*, options} · BSjt {item_id, type, stem_*, options}
+ * · BRating {item_id, type, text_* (self wording), anchor1_*, anchor4_*, allow_nr}.
+ */
+function serveBaselineItem(it, seed) {
+  if (it.item_type === 'rating') {
+    return {
+      item_id: str(it.item_id), type: 'rating', text_en: str(it.self_en), text_vi: str(it.self_vi),
+      anchor1_en: str(it.anchor1_en), anchor1_vi: str(it.anchor1_vi), anchor4_en: str(it.anchor4_en), anchor4_vi: str(it.anchor4_vi),
+      allow_nr: !!it.allow_nr
+    };
+  }
+  if (it.item_type === 'sjt') return { item_id: str(it.item_id), type: 'sjt', stem_en: str(it.stem_en), stem_vi: str(it.stem_vi), options: optionsOf(it, seed) };
+  return {
+    item_id: str(it.item_id), type: 'mcq', section: str(it.section), case_id: str(it.case_id),
+    exhibit_ids: (it.exhibit_ids || []).slice(), stem_en: str(it.stem_en), stem_vi: str(it.stem_vi), options: optionsOf(it, seed)
+  };
+}
+
+/** A rating statement in manager wording (rate_get). */
+function managerRatingItem(it) {
+  return {
+    item_id: str(it.item_id), text_en: str(it.mgr_en), text_vi: str(it.mgr_vi),
+    anchor1_en: str(it.anchor1_en), anchor1_vi: str(it.anchor1_vi), anchor4_en: str(it.anchor4_en), anchor4_vi: str(it.anchor4_vi)
+  };
+}
+
+function ratingInt_(v) {
+  var n = typeof v === 'number' ? v : (/^\s*[1-4]\s*$/.test(str(v)) ? parseInt(str(v), 10) : NaN);
+  return n === Math.floor(n) && n >= 1 && n <= 4 ? n : null;
+}
+
+/**
+ * One learner answer, cleaned for its item type, or undefined when it is not a valid answer:
+ * mcq 'a'..'d' · sjt {most?, least?} (letters; partial picks are kept while saving) · rating 1..4,
+ * or 'NR' where the statement allows "not my role".
+ */
+function cleanBlValue(item, v) {
+  if (!item || v === null || v === undefined) return undefined;
+  if (item.item_type === 'mcq') { var l = letterOrEmpty_(v); return l || undefined; }
+  if (item.item_type === 'sjt') {
+    if (typeof v !== 'object' || Array.isArray(v)) return undefined;
+    var o = {}, m = letterOrEmpty_(v.most), le = letterOrEmpty_(v.least);
+    if (m) o.most = m;
+    if (le) o.least = le;
+    return o.most || o.least ? o : undefined;
+  }
+  if (item.item_type === 'rating') {
+    if (item.allow_nr && str(v).trim().toUpperCase() === 'NR') return 'NR';
+    var n = ratingInt_(v);
+    return n === null ? undefined : n;
+  }
+  return undefined;
+}
+
+/** {item_id: value} for the given ids only, each cleaned by cleanBlValue. */
+function cleanBlAnswers(answers, ids, byId) {
+  var out = {};
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return out;
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    if (!Object.prototype.hasOwnProperty.call(answers, id)) continue;
+    var v = cleanBlValue(byId[id], answers[id]);
+    if (v !== undefined) out[id] = v;
+  }
+  return out;
+}
+
+/** The first SJT item without both picks, or with most = least; null when every item is complete. */
+function sjtLockProblem(sjtIds, answers) {
+  answers = answers || {};
+  for (var i = 0; i < sjtIds.length; i++) {
+    var a = answers[sjtIds[i]];
+    if (!a || !a.most || !a.least || a.most === a.least) return sjtIds[i];
+  }
+  return null;
+}
+
+/**
+ * Part 1 form (specs/22 §3): an Overrides row wins (any of A/B/C, the only way to the backup);
+ * re-test: the live form not taken last wave; else the live form with fewer non-void starts in the
+ * person's role_area this wave; tie → hash(code + wave). Never the backup without an override.
+ * o: {override, live: [..], counts: {form: n}, previousForm, code, wave} → {form, reason}
+ */
+function chooseP1Form(o) {
+  o = o || {};
+  var ov = str(o.override).trim().toUpperCase();
+  if (BL_FORMS.indexOf(ov) >= 0) return { form: ov, reason: 'override' };
+  var live = [];
+  (o.live || []).forEach(function (f) { f = str(f).trim().toUpperCase(); if (BL_FORMS.indexOf(f) >= 0 && live.indexOf(f) < 0) live.push(f); });
+  if (!live.length) return { form: '', reason: 'no_live_form' };
+  var prev = str(o.previousForm).trim().toUpperCase();
+  var cands = live, retest = false;
+  if (prev && live.indexOf(prev) >= 0 && live.length > 1) {
+    cands = live.filter(function (f) { return f !== prev; });
+    if (cands.length === 1) return { form: cands[0], reason: 'retest_swap' };
+    retest = true;
+  } else if (prev) retest = true;
+  var counts = o.counts || {};
+  var n = function (f) { return toInt(counts[f], 0); };
+  var min = Math.min.apply(null, cands.map(n));
+  var best = cands.filter(function (f) { return n(f) === min; });
+  if (best.length === 1) return { form: best[0], reason: retest ? 'retest_balance' : 'balance' };
+  return { form: best[hashString(normCode(o.code) + str(o.wave)) % best.length], reason: 'hash' };
+}
+
+/** Part 3 module: Roster.p3_module (DP|SP|RPM|CS) wins, else role_area; '' when neither gives one. */
+function p3ModuleFor(p3Module, roleArea) {
+  var m = str(p3Module).trim().toUpperCase();
+  if (BL_MODULES.indexOf(m) >= 0) return m;
+  return BL_ROLE_MODULE[str(roleArea).trim().toLowerCase()] || '';
+}
+
+function stepNumber(step) { var m = /^\s*(\d+)/.exec(str(step)); return m ? parseInt(m[1], 10) : null; }
+
+function isRealMove_(m) { return !!m && !/^[—–\-]+$/.test(m); }
+
+function pctOf(c) { return c && c.n ? Math.round(100 * c.correct / c.n) : null; }
+
+function pctMap(counts) {
+  var out = {};
+  Object.keys(counts || {}).forEach(function (k) { out[k] = pctOf(counts[k]); });
+  return out;
+}
+
+function bump_(map, key, ok) {
+  if (!key) return;
+  var c = map[key] = map[key] || { n: 0, correct: 0 };
+  c.n++;
+  if (ok) c.correct++;
+}
+
+/**
+ * Multiple-choice part (Part 1, Part 3): unanswered = wrong. Counts {n, correct} by section, step,
+ * move, level, gate and linked course (Part 1: A1 ← steps 1–4; A2 ← SHAPE, SIZE, CHECK; C1 ← SO WHAT
+ * or step 6).
+ */
+function scoreBlMcq(servedIds, answers, byId) {
+  answers = answers || {};
+  var r = { n: 0, correct: 0, by_section: {}, by_step: {}, by_move: {}, by_level: {}, by_gate: {}, by_course: {} };
+  servedIds.forEach(function (id) {
+    var it = byId[id];
+    if (!it || it.item_type !== 'mcq') return;
+    var ok = !!it.answer && answers[id] === it.answer;
+    r.n++;
+    if (ok) r.correct++;
+    bump_(r.by_section, it.section, ok);
+    bump_(r.by_step, it.step, ok);
+    if (isRealMove_(it.move)) bump_(r.by_move, it.move, ok);
+    bump_(r.by_level, it.level, ok);
+    bump_(r.by_gate, it.gate, ok);
+    if (it.assessment === 'baseline_p1') {
+      var sn = stepNumber(it.step);
+      if (sn !== null && sn >= 1 && sn <= 4) bump_(r.by_course, 'A1', ok);
+      if (['SHAPE', 'SIZE', 'CHECK'].indexOf(it.move) >= 0) bump_(r.by_course, 'A2', ok);
+      if (it.move === 'SO WHAT' || sn === 6) bump_(r.by_course, 'C1', ok);
+    }
+  });
+  r.pct = r.n ? Math.round(100 * r.correct / r.n) : 0;
+  return r;
+}
+
+/** SJT: +1 most = key, +1 least = key (an item with most = least scores 0). By charter {sjt_points, sjt_max}. */
+function scoreSjt(servedIds, answers, byId) {
+  answers = answers || {};
+  var r = { points: 0, max: 0, by_charter: {} };
+  servedIds.forEach(function (id) {
+    var it = byId[id];
+    if (!it || it.item_type !== 'sjt') return;
+    var a = answers[id] || {}, p = 0;
+    if (!(a.most && a.least && a.most === a.least)) {
+      if (a.most && a.most === it.answer_most) p++;
+      if (a.least && a.least === it.answer_least) p++;
+    }
+    r.points += p;
+    r.max += 2;
+    if (it.charter) {
+      var c = r.by_charter[it.charter] = r.by_charter[it.charter] || { sjt_points: 0, sjt_max: 0 };
+      c.sjt_points += p;
+      c.sjt_max += 2;
+    }
+  });
+  r.pct = r.max ? Math.round(100 * r.points / r.max) : 0;
+  return r;
+}
+
+function mean_(xs) { return xs.length ? xs.reduce(function (s, x) { return s + x; }, 0) / xs.length : null; }
+
+/** Means of 1–4 ratings (NR and NA left out): overall and by charter → {mean, n, by_charter: {c: {mean, n}}}. */
+function ratingMeans(values, items) {
+  var all = [], by = {};
+  (items || []).forEach(function (it) {
+    var v = values ? values[it.item_id] : undefined;
+    var n = typeof v === 'number' ? v : ratingInt_(v);
+    if (n === null || n === undefined || isNaN(n)) return;
+    all.push(n);
+    if (it.charter) (by[it.charter] = by[it.charter] || []).push(n);
+  });
+  var out = { mean: mean_(all), n: all.length, by_charter: {} };
+  Object.keys(by).forEach(function (c) { out.by_charter[c] = { mean: mean_(by[c]), n: by[c].length }; });
+  return out;
+}
+
+/**
+ * Validates rating values for one rater. role 'manager': 1–4 or 'NA'; role 'self': 1–4 or 'NR'
+ * where allow_nr. null or '' clears a value. Unknown item ids are ignored.
+ * → {values: {item_id: 1..4|'NA'|'NR'|''}, bad: item_id|null}
+ */
+function cleanRatingValues(values, items, role) {
+  var out = {}, bad = null;
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return { values: out, bad: null };
+  (items || []).forEach(function (it) {
+    if (bad || !Object.prototype.hasOwnProperty.call(values, it.item_id)) return;
+    var v = values[it.item_id];
+    if (v === null || v === undefined || str(v).trim() === '') { out[it.item_id] = ''; return; }
+    var up = str(v).trim().toUpperCase();
+    if (role === 'manager' && up === 'NA') { out[it.item_id] = 'NA'; return; }
+    if (role === 'self' && up === 'NR' && it.allow_nr) { out[it.item_id] = 'NR'; return; }
+    var n = ratingInt_(v);
+    if (n === null) { bad = it.item_id; return; }
+    out[it.item_id] = n;
+  });
+  return { values: bad ? {} : out, bad: bad };
+}
+
+/** Mean and sample SD (n − 1); sd is null below two values. */
+function meanSd(xs) {
+  var v = (xs || []).filter(function (x) { return typeof x === 'number' && isFinite(x); });
+  var m = mean_(v);
+  if (v.length < 2) return { n: v.length, mean: m, sd: null };
+  var ss = v.reduce(function (s, x) { return s + (x - m) * (x - m); }, 0);
+  return { n: v.length, mean: m, sd: Math.sqrt(ss / (v.length - 1)) };
+}
+
+/** Mean-sigma linear equating onto a reference scale, clamped 0–100 and rounded. */
+function equateLinear(raw, from, to) {
+  if (!from || !to || !from.sd || to.sd === null || to.sd === undefined) return raw;
+  var x = to.mean + to.sd * (raw - from.mean) / from.sd;
+  return Math.max(0, Math.min(100, Math.round(x)));
+}
+
+/**
+ * Part 1 equating plan. scores {form: [raw_pct…]}. Applies when the live forms' means differ by
+ * more than threshold points. Reference = Form A (the spec's scale) when it has ≥ 2 scores with a
+ * spread; otherwise the pooled live-form scores (the backup is rarely sat). A form with fewer than
+ * two scores, or no spread, keeps its raw scores.
+ * → {apply, reference: 'A'|'pooled'|'', ref: {n, mean, sd}|null, stats: {form: {n, mean, sd}}, diff}
+ */
+function equatingPlan(scores, live, threshold, refForm) {
+  refForm = refForm || 'A';
+  var stats = {};
+  Object.keys(scores || {}).forEach(function (f) { stats[f] = meanSd(scores[f]); });
+  var liveWith = (live || []).filter(function (f) { return stats[f] && stats[f].n >= 1; });
+  var means = liveWith.map(function (f) { return stats[f].mean; });
+  var diff = means.length >= 2 ? Math.max.apply(null, means) - Math.min.apply(null, means) : 0;
+  var plan = { apply: false, reference: '', ref: null, stats: stats, diff: Math.round(diff * 10) / 10 };
+  if (means.length < 2 || !(diff > toNum(threshold, 5))) return plan;
+  var good = function (s) { return s && s.n >= 2 && s.sd > 0; };
+  if (good(stats[refForm])) { plan.reference = refForm; plan.ref = stats[refForm]; } else {
+    var pooled = [];
+    (live || []).forEach(function (f) { pooled = pooled.concat(scores[f] || []); });
+    var ps = meanSd(pooled);
+    if (!good(ps)) return plan;
+    plan.reference = 'pooled';
+    plan.ref = ps;
+  }
+  plan.apply = true;
+  return plan;
+}
+
+function scaledFor(plan, form, raw) {
+  if (!plan || !plan.apply || typeof raw !== 'number') return raw;
+  if (plan.reference === form) return raw;
+  var s = plan.stats[form];
+  if (!s || s.n < 2 || !(s.sd > 0)) return raw;
+  return equateLinear(raw, s, plan.ref);
+}
+
+/** Indicative level: the highest of BA < WK < FO < LE where it and every lower level are ≥ cut %. */
+function blLevel(byLevel, cut) {
+  cut = cut === undefined ? 70 : cut;
+  var level = null;
+  for (var i = 0; i < BL_LEVELS.length; i++) {
+    var c = (byLevel || {})[BL_LEVELS[i]];
+    if (!c || !c.n) continue;
+    if (100 * c.correct / c.n >= cut) level = BL_LEVELS[i]; else break;
+  }
+  return level;
+}
+
+/** SJT % per charter as a band: low ≤ 33, high ≥ 83, else mid. */
+function sjtBand(pct) {
+  if (pct === null || pct === undefined) return null;
+  return pct <= 33 ? 'low' : pct >= 83 ? 'high' : 'mid';
+}
+
+var EPS_ = 1e-9;
+
+/**
+ * One charter: index and flags. o = {sjt_points, sjt_max, self_mean, mgr_mean, mgr_n, min_rated, w_sjt, w_mgr}.
+ * The manager mean counts only with ≥ min_rated statements rated. Index = w_sjt × SJT% + w_mgr ×
+ * (mgr − 1) ÷ 3 × 100; a charter without SJT items (QWS) uses the manager part alone; no manager mean → null.
+ */
+function charterSummary(o) {
+  var sjt = o.sjt_max ? Math.round(100 * o.sjt_points / o.sjt_max) : null;
+  var mgr = typeof o.mgr_mean === 'number' && toInt(o.mgr_n, 0) >= toInt(o.min_rated, 2) ? o.mgr_mean : null;
+  var self = typeof o.self_mean === 'number' ? o.self_mean : null;
+  var index = null;
+  if (mgr !== null) {
+    var m = (mgr - 1) / 3 * 100;
+    index = Math.round(sjt === null ? m : toNum(o.w_sjt, 0.5) * sjt + toNum(o.w_mgr, 0.5) * m);
+  }
+  var flags = [];
+  if (self !== null && mgr !== null && self - mgr >= 1 - EPS_) flags.push('blind_spot');
+  if (self !== null && mgr !== null && mgr - self >= 1 - EPS_) flags.push('hidden_strength');
+  if (sjt !== null && sjt >= 67 && mgr !== null && mgr < 2.5) flags.push('knowing_doing');
+  return { sjt_pct: sjt, sjt_band: sjtBand(sjt), self_mean: self, mgr_mean: mgr, index: index, flags: flags };
+}
+
+/**
+ * The two statements with the lowest manager rating; tie → the larger self − manager gap, then
+ * item order. mgr/self {item_id: number}; items in order.
+ */
+function topDevelopment(mgr, self, items, k) {
+  k = k === undefined ? 2 : k;
+  var list = (items || []).filter(function (it) { return typeof (mgr || {})[it.item_id] === 'number'; });
+  var gap = function (it) { var s = (self || {})[it.item_id]; return typeof s === 'number' ? s - mgr[it.item_id] : -99; };
+  list = list.map(function (it, i) { return { it: it, i: i }; });
+  list.sort(function (a, b) { return (mgr[a.it.item_id] - mgr[b.it.item_id]) || (gap(b.it) - gap(a.it)) || (a.i - b.i); });
+  return list.slice(0, k).map(function (x) { return x.it; });
+}
+
+/**
+ * Course self-rating next to the linked score (specs/22 §3). p1Course {A1|A2|C1: {n, correct}},
+ * p3 {core_pct, module, module_pct}. flag = self ≥ 3 and score < 50 ("rates high, scores low").
+ */
+function courseLinks(selfMap, p1Course, p3, order) {
+  var score = {};
+  BL_P1_COURSES.forEach(function (c) { score[c] = p1Course ? pctOf(p1Course[c]) : null; });
+  score.P1 = p3 && typeof p3.core_pct === 'number' ? p3.core_pct : null;
+  Object.keys(BL_MODULE_COURSES).forEach(function (m) {
+    BL_MODULE_COURSES[m].forEach(function (c) { score[c] = p3 && p3.module === m && typeof p3.module_pct === 'number' ? p3.module_pct : null; });
+  });
+  score.A3 = null;
+  var out = {};
+  (order || []).forEach(function (c) {
+    var s = selfMap && typeof selfMap[c] === 'number' ? selfMap[c] : null;
+    var sc = score[c] === undefined ? null : score[c];
+    out[c] = { self: s, score_pct: sc, flag: calibrationFlag(s, sc) === 'rates high, scores low' };
+  });
+  return out;
+}
+
+/**
+ * The two lowest areas for the IDP. areas (in the listed order): [{area, name_en, name_vi, pct, self}]
+ * where self is 0–1 (null = unknown, sorts last). Tie → lower self, then the listed order.
+ */
+function idpGaps(areas, k) {
+  k = k === undefined ? 2 : k;
+  var list = (areas || []).filter(function (a) { return typeof a.pct === 'number'; }).map(function (a, i) { return { a: a, i: i }; });
+  var sv = function (a) { return typeof a.self === 'number' ? a.self : 99; };
+  list.sort(function (x, y) { return (x.a.pct - y.a.pct) || (sv(x.a) - sv(y.a)) || (x.i - y.i); });
+  return list.slice(0, k).map(function (x) { return { area: x.a.area, name_en: x.a.name_en, name_vi: x.a.name_vi, pct: x.a.pct }; });
+}
+
+function round1n_(x) { return typeof x === 'number' ? round1(x) : null; }
+
+/**
+ * Assembles one learner's profile (specs/22 §4 `profile`) from already-scored parts.
+ * inp = { wave, built_at, order, w_sjt, w_mgr, names: {p1_A, p1_B, p3_CORE, p3_DP…, charters: {c: {en, vi}}},
+ *   p1: {form, raw_pct, scaled_pct, by_section, by_step, by_move, by_course} | null,
+ *   p2: {by_charter: {c: {sjt_points, sjt_max}}, points, max, items: [rating items], self: {id: v}, mgr: {id: mean}} | null,
+ *   p3: {module, total_pct, core_pct, module_pct, by_level, by_gate} | null,
+ *   self_courses: {A2: 0..4} }
+ */
+function buildBaselineProfile(inp) {
+  var names = inp.names || {};
+  var nm = function (k, en) { var x = names[k] || {}; return { en: x.en || en, vi: x.vi || x.en || en }; };
+  var selfC = inp.self_courses || {};
+  var selfOf = function (codes) {
+    var v = codes.map(function (c) { return selfC[c]; }).filter(function (x) { return typeof x === 'number'; });
+    return v.length ? mean_(v) / 4 : null;
+  };
+  var out = { wave: inp.wave, built_at: inp.built_at, p1: null, p2: null, p3: null, courses: {}, gaps: [] };
+  var areas = [];
+
+  if (inp.p1) {
+    var p = inp.p1, sec = p.by_section || {};
+    out.p1 = {
+      form: p.form, raw_pct: p.raw_pct, scaled_pct: typeof p.scaled_pct === 'number' ? p.scaled_pct : p.raw_pct,
+      section_A_pct: pctOf(sec.A), section_B_pct: pctOf(sec.B), by_step: pctMap(p.by_step), by_move: pctMap(p.by_move)
+    };
+    var a = nm('p1_A', 'Part 1 · Section A'), b = nm('p1_B', 'Part 1 · Section B');
+    areas.push({ area: 'p1_A', name_en: a.en, name_vi: a.vi, pct: out.p1.section_A_pct, self: selfOf(BL_P1_COURSES) });
+    areas.push({ area: 'p1_B', name_en: b.en, name_vi: b.vi, pct: out.p1.section_B_pct, self: selfOf(BL_P1_COURSES) });
+  }
+
+  if (inp.p2) {
+    var q = inp.p2, items = q.items || [];
+    var sm = ratingMeans(q.self || {}, items), mm = ratingMeans(q.mgr || {}, items);
+    var charters = BL_CHARTERS.filter(function (c) {
+      return (q.by_charter && q.by_charter[c]) || items.some(function (it) { return it.charter === c; });
+    });
+    var byC = {};
+    charters.forEach(function (c) {
+      var sj = (q.by_charter || {})[c] || { sjt_points: 0, sjt_max: 0 };
+      var cs = charterSummary({
+        sjt_points: sj.sjt_points, sjt_max: sj.sjt_max,
+        self_mean: sm.by_charter[c] ? sm.by_charter[c].mean : null,
+        mgr_mean: mm.by_charter[c] ? mm.by_charter[c].mean : null, mgr_n: mm.by_charter[c] ? mm.by_charter[c].n : 0,
+        min_rated: c === 'QWS' ? 3 : 2, w_sjt: inp.w_sjt, w_mgr: inp.w_mgr
+      });
+      var n = nm('charter_' + c, c === 'QWS' ? 'QWS' : 'Charter ' + c);
+      byC[c] = { name_en: n.en, name_vi: n.vi, sjt_band: cs.sjt_band, self_mean: round1n_(cs.self_mean), mgr_mean: round1n_(cs.mgr_mean), index: cs.index, flags: cs.flags };
+      var areaPct = cs.index !== null ? cs.index : cs.sjt_pct;
+      areas.push({ area: 'p2_' + c, name_en: n.en, name_vi: n.vi, pct: areaPct, self: cs.self_mean === null ? null : (cs.self_mean - 1) / 3 });
+    });
+    var dev = topDevelopment(q.mgr || {}, q.self || {}, items).map(function (it) {
+      return { item_id: it.item_id, text_en: str(it.self_en), text_vi: str(it.self_vi) };
+    });
+    out.p2 = {
+      sjt_pct: q.max ? Math.round(100 * q.points / q.max) : null,
+      self_mean: round1n_(sm.mean), mgr_mean: round1n_(mm.mean), by_charter: byC, top_dev: dev
+    };
+  }
+
+  if (inp.p3) {
+    var r = inp.p3;
+    out.p3 = {
+      module: r.module, total_pct: r.total_pct, core_pct: r.core_pct, module_pct: r.module_pct,
+      by_level: pctMap(r.by_level), by_gate: pctMap(r.by_gate), level: blLevel(r.by_level)
+    };
+    var core = nm('p3_CORE', 'Part 3 · Core'), mod = nm('p3_' + r.module, 'Part 3 · ' + r.module);
+    areas.push({ area: 'p3_core', name_en: core.en, name_vi: core.vi, pct: r.core_pct, self: selfOf(['P1']) });
+    areas.push({ area: 'p3_mod', name_en: mod.en, name_vi: mod.vi, pct: r.module_pct, self: selfOf(BL_MODULE_COURSES[r.module] || []) });
+  }
+
+  out.courses = courseLinks(selfC, inp.p1 ? inp.p1.by_course : null, out.p3, inp.order || []);
+  out.gaps = idpGaps(areas);
+  return out;
+}
+
+/** Pearson correlation; null when either side has no spread. */
+function pearson(xs, ys) {
+  var n = Math.min(xs.length, ys.length);
+  if (n < 2) return null;
+  var mx = mean_(xs.slice(0, n)), my = mean_(ys.slice(0, n)), sxy = 0, sxx = 0, syy = 0;
+  for (var i = 0; i < n; i++) { var dx = xs[i] - mx, dy = ys[i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null;
+}
+
+/**
+ * Item statistics for one item over the people who were served it.
+ * rows [{score, max, total, pick}] (total = the person's part score including this item; pick
+ * 'a'..'d' or '' for blank). → {n, p_value (0–1), point_biserial (item vs rest of the part), dist {a,b,c,d,blank} %}
+ */
+function itemAnalysis(rows) {
+  var n = rows.length;
+  var dist = { a: 0, b: 0, c: 0, d: 0, blank: 0 };
+  rows.forEach(function (r) { var k = OPTION_LETTERS.indexOf(r.pick) >= 0 ? r.pick : 'blank'; dist[k]++; });
+  Object.keys(dist).forEach(function (k) { dist[k] = n ? Math.round(100 * dist[k] / n) : 0; });
+  var max = rows.length ? rows[0].max || 1 : 1;
+  var p = n ? mean_(rows.map(function (r) { return r.score / max; })) : null;
+  var pb = pearson(rows.map(function (r) { return r.score; }), rows.map(function (r) { return r.total - r.score; }));
+  return { n: n, p_value: p === null ? null : Math.round(p * 100) / 100, point_biserial: pb === null ? null : Math.round(pb * 100) / 100, dist: dist };
+}
+
+/**
+ * Validates the BaselineItems and Exhibits tabs (row objects keyed by header).
+ * opts {live: ['B','C'], backup: 'A'}. Structural problems are errors; blueprint counts are warnings.
+ */
+function validateBaselineBank(items, exhibits, opts) {
+  opts = opts || {};
+  var errors = [], warnings = [];
+  var exIds = {};
+  (exhibits || []).forEach(function (e, i) {
+    var id = str(e.exhibit_id).trim();
+    if (!id) { errors.push('Exhibits row ' + (i + 2) + ': exhibit_id is empty'); return; }
+    if (exIds[id]) errors.push('Exhibits row ' + (i + 2) + ' (' + id + '): duplicate exhibit_id');
+    exIds[id] = true;
+    if (!str(e.md_en).trim()) errors.push('Exhibits ' + id + ': md_en is empty');
+    else if (!str(e.md_vi).trim()) warnings.push('Exhibits ' + id + ': md_vi is empty');
+  });
+  var seen = {}, counts = {};
+  var count = function (k) { counts[k] = (counts[k] || 0) + 1; };
+  (items || []).forEach(function (raw, idx) {
+    var it = normBaselineItem(raw, idx);
+    var where = 'BaselineItems row ' + (idx + 2) + (it.item_id ? ' (' + it.item_id + ')' : '');
+    if (!it.item_id) { errors.push(where + ': item_id is empty'); return; }
+    if (seen[it.item_id]) errors.push(where + ': duplicate item_id');
+    seen[it.item_id] = true;
+    if (!blPart(it.assessment)) { errors.push(where + ': assessment must be baseline_p1, baseline_p2 or baseline_p3'); return; }
+    var secs = BL_SECTIONS[it.assessment];
+    if (secs.indexOf(it.section) < 0) errors.push(where + ': section must be ' + secs.join(' or '));
+    if (it.assessment === 'baseline_p1' && BL_FORMS.indexOf(it.form) < 0) errors.push(where + ': form must be A, B or C');
+    if (it.assessment !== 'baseline_p1' && it.form !== 'ONE') errors.push(where + ': form must be ONE');
+    if (it.assessment === 'baseline_p3' && it.section === 'MOD' && BL_MODULES.indexOf(it.module) < 0) errors.push(where + ': module must be DP, SP, RPM or CS');
+    var wantType = it.section === 'SJT' ? 'sjt' : it.section === 'RATE' ? 'rating' : 'mcq';
+    if (it.item_type !== wantType) errors.push(where + ': item_type must be ' + wantType + ' in section ' + it.section);
+    if (it.item_type === 'mcq' || it.item_type === 'sjt') {
+      if (!it.stem_en.trim()) errors.push(where + ': stem_en is empty');
+      else if (!it.stem_vi.trim()) warnings.push(where + ': stem_vi is empty');
+      OPTION_LETTERS.forEach(function (l) {
+        if (!it[l + '_en'].trim()) errors.push(where + ': option ' + l + '_en is empty');
+        else if (!it[l + '_vi'].trim()) warnings.push(where + ': option ' + l + '_vi is empty');
+      });
+    }
+    if (it.item_type === 'mcq' && !it.answer) errors.push(where + ': answer must be a, b, c or d');
+    if (it.item_type === 'sjt') {
+      if (!it.answer_most || !it.answer_least) errors.push(where + ': answer_most and answer_least must both be a, b, c or d');
+      else if (it.answer_most === it.answer_least) errors.push(where + ': answer_most and answer_least must differ');
+    }
+    if (it.item_type === 'rating') {
+      if (!it.self_en.trim() || !it.mgr_en.trim()) errors.push(where + ': a rating needs self_en and mgr_en');
+      if (!it.self_vi.trim() || !it.mgr_vi.trim()) warnings.push(where + ': self_vi or mgr_vi is empty');
+    } else if (it.allow_nr) warnings.push(where + ': allow_nr only applies to rating statements');
+    if (it.assessment === 'baseline_p2' && !it.charter) errors.push(where + ': charter must be 1–5 or QWS');
+    it.exhibit_ids.forEach(function (x) { if (!exIds[x]) errors.push(where + ': exhibit ' + x + ' is not in Exhibits'); });
+    if (!it.active) return;
+    if (it.assessment === 'baseline_p1') count('p1:' + it.form + ':' + it.section);
+    else if (it.assessment === 'baseline_p2') count('p2:' + it.section);
+    else count('p3:' + (it.section === 'MOD' ? it.module : 'CORE'));
+  });
+  var live = (opts.live || ['B', 'C']).map(function (f) { return str(f).trim().toUpperCase(); });
+  var backup = str(opts.backup === undefined ? 'A' : opts.backup).trim().toUpperCase();
+  BL_FORMS.forEach(function (f) {
+    var a = counts['p1:' + f + ':A'] || 0, b = counts['p1:' + f + ':B'] || 0;
+    var msg = 'Part 1 form ' + f + ': ' + (a + b) + ' active items (expected 32: 22 in Section A, 10 in Section B; now ' + a + ' + ' + b + ')';
+    if (live.indexOf(f) >= 0 && a + b !== 32) errors.push(msg + ' · this form is live');
+    else if (f === backup && a + b !== 32) warnings.push(msg + ' · backup form');
+    else if (live.indexOf(f) >= 0 && (a !== 22 || b !== 10)) warnings.push(msg);
+  });
+  [['p2:SJT', 15, 'Part 2 SJT'], ['p2:RATE', 23, 'Part 2 rating statements'], ['p3:CORE', 10, 'Part 3 core']].forEach(function (x) {
+    if ((counts[x[0]] || 0) !== x[1]) warnings.push(x[2] + ': ' + (counts[x[0]] || 0) + ' active items (expected ' + x[1] + ')');
+  });
+  BL_MODULES.forEach(function (m) {
+    if ((counts['p3:' + m] || 0) !== 18) warnings.push('Part 3 module ' + m + ': ' + (counts['p3:' + m] || 0) + ' active items (expected 18)');
+  });
   return { errors: errors, warnings: warnings, counts: counts };
 }
 
@@ -1475,12 +2058,22 @@ if (typeof module !== 'undefined' && module.exports) {
     lockMinutes: lockMinutes, nextLock: nextLock,
     hashString: hashString, mulberry32: mulberry32, shuffle: shuffle,
     optionOf: optionOf, serveItem: serveItem, cleanAnswers: cleanAnswers, cleanSelfRatings: cleanSelfRatings,
-    byObjective: byObjective, grade: grade, isPass: isPass, byCourse: byCourse, weakObjectives: weakObjectives,
-    gaps: gaps, calibrationFlag: calibrationFlag,
+    byObjective: byObjective, grade: grade, isPass: isPass, weakObjectives: weakObjectives,
+    calibrationFlag: calibrationFlag,
     pickForm: pickForm, canRetake: canRetake, checkpointGate: checkpointGate, unlocksUsed: unlocksUsed,
     revealKey: revealKey, parseDays: parseDays, recallDates: recallDates, recallForm: recallForm,
     recallItems: recallItems, excludedFromSummary: excludedFromSummary, summarise: summarise, streak: streak, panelWeighted: panelWeighted,
-    parseCsv: parseCsv, courseObjectiveCount: courseObjectiveCount, validateBank: validateBank
+    parseCsv: parseCsv, courseObjectiveCount: courseObjectiveCount, validateBank: validateBank,
+    BL_ASSESSMENTS: BL_ASSESSMENTS, BL_FORMS: BL_FORMS, BL_MODULES: BL_MODULES, BL_LEVELS: BL_LEVELS, BL_CHARTERS: BL_CHARTERS,
+    BL_SECTIONS: BL_SECTIONS, BL_PRIVATE_FIELDS: BL_PRIVATE_FIELDS, blPart: blPart, normCharter: normCharter,
+    normBaselineItem: normBaselineItem, blSortItems: blSortItems, optionsOf: optionsOf, serveBaselineItem: serveBaselineItem,
+    managerRatingItem: managerRatingItem, cleanBlValue: cleanBlValue, cleanBlAnswers: cleanBlAnswers, sjtLockProblem: sjtLockProblem,
+    chooseP1Form: chooseP1Form, p3ModuleFor: p3ModuleFor, stepNumber: stepNumber, pctOf: pctOf, pctMap: pctMap,
+    scoreBlMcq: scoreBlMcq, scoreSjt: scoreSjt, ratingMeans: ratingMeans, cleanRatingValues: cleanRatingValues,
+    meanSd: meanSd, equateLinear: equateLinear, equatingPlan: equatingPlan, scaledFor: scaledFor, blLevel: blLevel,
+    sjtBand: sjtBand, charterSummary: charterSummary, topDevelopment: topDevelopment, courseLinks: courseLinks,
+    idpGaps: idpGaps, buildBaselineProfile: buildBaselineProfile, pearson: pearson, itemAnalysis: itemAnalysis,
+    validateBaselineBank: validateBaselineBank
   };
 }
 
@@ -1498,7 +2091,7 @@ var SCHEMA = {
   Config: ['key', 'value', 'note'],
   Roster: ['employee_code', 'display_name', 'role_area', 'is_manager', 'manager_code', 'roles', 'pin_hash', 'pin_salt',
     'must_change_pin', 'failed_logins', 'locked_until', 'active', 'lang',
-    'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate', 'lock_history'],
+    'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate', 'lock_history', 'p3_module'],
   Courses: ['code', 'name_en', 'name_vi', 'self_en', 'self_vi',
     'obj1_en', 'obj1_vi', 'obj2_en', 'obj2_vi', 'obj3_en', 'obj3_vi', 'obj4_en', 'obj4_vi', 'obj5_en', 'obj5_vi', 'obj6_en', 'obj6_vi',
     'cycle', 'blink_url', 'online_from', 'checkpoint_close', 'forum_date', 'field_until', 'open', 'order'],
@@ -1510,7 +2103,9 @@ var SCHEMA = {
   Teams: ['team_id', 'project_title', 'members', 'sponsor_code', 'active'],
   Attempts: ['attempt_id', 'employee_code', 'assessment', 'course', 'form', 'attempt_no', 'status', 'started_at',
     'last_saved_at', 'submitted_at', 'served_items', 'answers', 'n_items', 'n_correct', 'score_pct', 'by_objective',
-    'by_course', 'passed', 'wave', 'seed', 'self_ratings', 'graded_answers'],
+    'by_course', 'passed', 'wave', 'seed', 'self_ratings', 'graded_answers',
+    'part', 'module', 'section_locks', 'raw_pct', 'scaled_pct', 'by_step', 'by_move', 'by_charter', 'by_level', 'by_gate',
+    'time_used_s', 'section_pct', 'deadline_at'],
   SelfRatings: ['employee_code', 'wave', 'course', 'level', 'submitted_at'],
   Unlocks: ['employee_code', 'course', 'unlocked_by', 'unlocked_at', 'reason'],
   Recall: ['employee_code', 'course', 'due_date', 'day', 'status', 'score_pct', 'done_at', 'attempt_id'],
@@ -1521,7 +2116,17 @@ var SCHEMA = {
     'comment', 'scored_at'],
   Summary: ['wave_or_course', 'group', 'n', 'metric', 'course', 'value', 'updated_at', 'count'],
   Pulse: ['forum_date', 'nps', 'useful', 'will_use', 'change_next', 'submitted_at'],
-  Log: ['ts', 'action', 'employee_code', 'ok', 'message']
+  Log: ['ts', 'action', 'employee_code', 'ok', 'message'],
+  // Baseline v2 (specs/22 §2)
+  BaselineItems: ['item_id', 'assessment', 'part', 'section', 'module', 'item_type', 'form', 'order', 'case_id', 'exhibit_ids',
+    'stem_en', 'stem_vi', 'a_en', 'a_vi', 'b_en', 'b_vi', 'c_en', 'c_vi', 'd_en', 'd_vi', 'answer', 'answer_most', 'answer_least',
+    'why_en', 'why_vi', 'self_en', 'self_vi', 'mgr_en', 'mgr_vi', 'anchor1_en', 'anchor1_vi', 'anchor4_en', 'anchor4_vi',
+    'allow_nr', 'step', 'move', 'objective', 'gate', 'level', 'charter', 'active'],
+  Exhibits: ['exhibit_id', 'part', 'form', 'title_en', 'title_vi', 'md_en', 'md_vi'],
+  BaselineText: ['key', 'en', 'vi'],
+  Ratings: ['wave', 'ratee_code', 'rater_code', 'rater_role', 'item_id', 'value', 'saved_at'],
+  Overrides: ['employee_code', 'wave', 'part', 'form', 'reason', 'by', 'at'],
+  Profiles: ['employee_code', 'wave', 'built_at', 'json']
 };
 
 /** Config defaults: [key, value, note]. Written once by setupSheet(); never overwritten. */
@@ -1529,22 +2134,33 @@ function configDefaults_() {
   var b = (typeof SEED !== 'undefined' && SEED.program && SEED.program.baseline) || {};
   return [
     ['wave', b.wave || '2026-11', 'Baseline wave id (re-test: 2027-12)'],
-    ['baseline_open_from', b.open_from || '2026-11-16', 'First day of the baseline window (YYYY-MM-DD)'],
-    ['baseline_open_to', b.open_to || '2026-11-27', 'Last day of the baseline window, open until 23:59:59'],
     ['pass_mark', '0.8', 'Checkpoint pass mark (0.8 = 8/10)'],
     ['retake_hours', '24', 'Hours between checkpoint attempts'],
     ['max_free_attempts', '2', 'Attempts without an Unlocks row'],
     ['team_view_min_n', '3', 'Smallest group shown in team views'],
     ['session_hours', '6', 'Hours a login lasts'],
-    ['baseline_minutes', '60', 'Baseline time limit (minutes)'],
-    ['baseline_grace_minutes', '10', 'Server grace after the baseline limit'],
     ['recall_days', '2,7,30', 'Recall days after max(forum date, pass date)'],
     ['late_days', '7', 'Checkpoint stays open until forum_date + late_days'],
     ['pitch_deadline', '2027-06-21', 'Last day for Pitch Day submissions'],
     ['capstone_deadline', '2027-12-20', 'Last day for capstone submissions'],
     ['lock_failures', '5', 'Wrong PINs before a lock'],
     ['course_open_default', 'TRUE', 'Default for Courses.open when blank'],
-    ['streak_skip_weeks', '2027-02-08', 'Mondays of weeks (comma-separated, e.g. Tết) that neither break nor add to the streak']
+    ['streak_skip_weeks', '2027-02-08', 'Mondays of weeks (comma-separated, e.g. Tết) that neither break nor add to the streak'],
+    // Baseline v2 (specs/22): manual switches, no dates
+    ['p1_open', 'FALSE', 'Baseline Part 1 open for everyone (menu: Baseline: open or close parts…)'],
+    ['p2_open', 'FALSE', 'Baseline Part 2 open for everyone'],
+    ['p3_open', 'FALSE', 'Baseline Part 3 open for everyone'],
+    ['rating_open', 'FALSE', 'Managers and admins can rate their reports (Part 2, 180°)'],
+    ['results_open', 'FALSE', 'Learners see their baseline profile; baseline team averages publish'],
+    ['p1_live', 'B,C', 'Part 1 live forms (served automatically, balanced by role_area)'],
+    ['p1_backup', 'A', 'Part 1 backup form (only through an Overrides row: Assign a Part 1 form…)'],
+    ['p1_minutes', '65', 'Part 1 timer (both sections)'],
+    ['p2_minutes', '35', 'Part 2 timer (SJT then self-rating)'],
+    ['p3_minutes', '48', 'Part 3 timer (self-rating opener, core, module)'],
+    ['grace_minutes', '5', 'Server grace after each part timer'],
+    ['p2_w_sjt', '0.5', 'Charter index weight of the SJT'],
+    ['p2_w_mgr', '0.5', 'Charter index weight of the manager rating'],
+    ['equate_threshold_pts', '5', 'Equate Part 1 forms when live-form means differ by more than this (percentage points)']
   ];
 }
 
@@ -1652,6 +2268,12 @@ function readTable_(name) {
   }
   memo[name] = t;
   return t;
+}
+
+/** Like readTable_, but a tab that does not exist yet reads as empty (the Baseline v2 tabs, before setupSheet runs on an updated deployment). */
+function readTableOpt_(name) {
+  if (!req_().tables[name] && !ss_().getSheetByName(name)) return { name: name, headers: [], col: {}, rows: [] };
+  return readTable_(name);
 }
 
 function invalidate_(name) { delete req_().tables[name]; }
@@ -1840,15 +2462,11 @@ function config_() {
   var pm = toNum(get('pass_mark'), 0.8);
   r.cfg = {
     wave: normWave(get('wave')),
-    baseline_open_from: normDate(get('baseline_open_from')),
-    baseline_open_to: normDate(get('baseline_open_to')),
     pass_mark: pm > 1 ? pm / 100 : pm,
     retake_hours: toNum(get('retake_hours'), 24),
     max_free_attempts: toInt(get('max_free_attempts'), 2),
     team_view_min_n: Math.max(3, toInt(get('team_view_min_n'), 3)),
     session_hours: toNum(get('session_hours'), 6),
-    baseline_minutes: toInt(get('baseline_minutes'), 60),
-    baseline_grace_minutes: toInt(get('baseline_grace_minutes'), 10),
     recall_days: parseDays(get('recall_days')),
     late_days: toInt(get('late_days'), 7),
     pitch_deadline: normDate(get('pitch_deadline')),
@@ -1856,9 +2474,32 @@ function config_() {
     lock_failures: Math.max(1, toInt(get('lock_failures'), 5)),
     course_open_default: toBool(get('course_open_default')),
     streak_skip_weeks: String(raw.streak_skip_weeks === undefined ? d.streak_skip_weeks : raw.streak_skip_weeks)
-      .split(/[,;\s]+/).map(normDate).filter(function (x) { return x; })
+      .split(/[,;\s]+/).map(normDate).filter(function (x) { return x; }),
+    p1_open: toBool(get('p1_open')),
+    p2_open: toBool(get('p2_open')),
+    p3_open: toBool(get('p3_open')),
+    rating_open: toBool(get('rating_open')),
+    results_open: toBool(get('results_open')),
+    p1_live: formList_(get('p1_live')),
+    p1_backup: formList_(get('p1_backup'))[0] || '',
+    p1_minutes: Math.max(1, toInt(get('p1_minutes'), 65)),
+    p2_minutes: Math.max(1, toInt(get('p2_minutes'), 35)),
+    p3_minutes: Math.max(1, toInt(get('p3_minutes'), 48)),
+    grace_minutes: Math.max(0, toInt(get('grace_minutes'), 5)),
+    p2_w_sjt: toNum(get('p2_w_sjt'), 0.5),
+    p2_w_mgr: toNum(get('p2_w_mgr'), 0.5),
+    equate_threshold_pts: toNum(get('equate_threshold_pts'), 5)
   };
   return r.cfg;
+}
+
+function formList_(v) {
+  var out = [];
+  String(v || '').split(/[,;\s]+/).forEach(function (f) {
+    f = f.trim().toUpperCase();
+    if (BL_FORMS.indexOf(f) >= 0 && out.indexOf(f) < 0) out.push(f);
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------- Courses, Items, Episodes, Cases
@@ -1943,7 +2584,7 @@ function loadItemGroups_() {
     (groups[k] = groups[k] || []).push(it);
   });
   courses_().forEach(function (c) {
-    [['baseline', 'BL'], ['predict', 'PR'], ['checkpoint', 'A'], ['checkpoint', 'B']].forEach(function (p) {
+    [['predict', 'PR'], ['checkpoint', 'A'], ['checkpoint', 'B']].forEach(function (p) {
       var k = itemGroupKey_(p[0], c.code, p[1]);
       if (!groups[k]) groups[k] = [];
     });
@@ -1966,13 +2607,6 @@ function itemGroups_(keys) {
 function itemsFor_(assessment, course, form) {
   var k = itemGroupKey_(assessment, normCode(course), form);
   return itemGroups_([k])[k];
-}
-
-function baselineItems_() {
-  var keys = courseOrder_().map(function (c) { return itemGroupKey_('baseline', c, 'BL'); });
-  var g = itemGroups_(keys), out = [];
-  keys.forEach(function (k) { out = out.concat(g[k]); });
-  return out;
 }
 
 function episodes_() {
@@ -2005,6 +2639,94 @@ function cases_() {
   return list;
 }
 
+// ---------------------------------------------------------------- Baseline v2 items, exhibits, text (specs/22 §2)
+
+/** Cache group of baseline items: Part 1 per form, Part 2 per section, Part 3 core and each module (each well under 90 KB). */
+function blGroupKey_(assessment, form, module) { return 'bl:' + assessment + ':' + (form || '') + ':' + (module || ''); }
+
+function blAllGroupKeys_() {
+  var keys = BL_FORMS.map(function (f) { return blGroupKey_('baseline_p1', f, ''); });
+  keys.push(blGroupKey_('baseline_p2', '', 'SJT'), blGroupKey_('baseline_p2', '', 'RATE'), blGroupKey_('baseline_p3', '', ''));
+  BL_MODULES.forEach(function (m) { keys.push(blGroupKey_('baseline_p3', '', m)); });
+  return keys;
+}
+
+function blItemGroupKeyOf_(it) {
+  if (it.assessment === 'baseline_p1') return blGroupKey_('baseline_p1', it.form, '');
+  if (it.assessment === 'baseline_p3') return blGroupKey_('baseline_p3', '', it.section === 'MOD' ? it.module : '');
+  return blGroupKey_('baseline_p2', '', it.section === 'RATE' ? 'RATE' : 'SJT');
+}
+
+function loadBlGroups_() {
+  var groups = {};
+  blAllGroupKeys_().forEach(function (k) { groups[k] = []; });
+  readTableOpt_('BaselineItems').rows.forEach(function (r, i) {
+    var it = normBaselineItem(r, i);
+    if (!it.item_id || !blPart(it.assessment)) return;
+    var k = blItemGroupKeyOf_(it);
+    if (groups[k]) groups[k].push(it);
+  });
+  cachePutAll_(groups);
+  return groups;
+}
+
+/** Baseline items of the given groups (inactive ones included, for grading). */
+function blGroups_(keys) {
+  var got = cacheGetAll_(keys);
+  if (keys.some(function (k) { return !got[k]; })) {
+    var all = loadBlGroups_();
+    keys.forEach(function (k) { got[k] = all[k] || []; });
+  }
+  return got;
+}
+
+function blGroup_(assessment, form, module) {
+  if (assessment === 'baseline_p2' && !module) {
+    var g = blGroups_([blGroupKey_('baseline_p2', '', 'SJT'), blGroupKey_('baseline_p2', '', 'RATE')]);
+    return g[blGroupKey_('baseline_p2', '', 'SJT')].concat(g[blGroupKey_('baseline_p2', '', 'RATE')]);
+  }
+  var k = blGroupKey_(assessment, form, module);
+  return blGroups_([k])[k];
+}
+
+/** Every item an attempt can refer to (Part 1: its form; Part 3: core + its module). */
+function blItemsForAttempt_(att) {
+  if (att.assessment === 'baseline_p1') return blGroup_('baseline_p1', att.form, '');
+  if (att.assessment === 'baseline_p2') return blGroup_('baseline_p2', '', '');
+  var g = blGroups_([blGroupKey_('baseline_p3', '', ''), blGroupKey_('baseline_p3', '', att.module)]);
+  return g[blGroupKey_('baseline_p3', '', '')].concat(att.module ? g[blGroupKey_('baseline_p3', '', att.module)] : []);
+}
+
+/** Exhibits {exhibit_id: {part, form, title_en, title_vi, md_en, md_vi}}. Cached 10 min. */
+function blExhibits_() {
+  var map = cacheGet_('bl_exhibits');
+  if (!map) {
+    map = {};
+    readTableOpt_('Exhibits').rows.forEach(function (e) {
+      var id = String(e.exhibit_id || '').trim();
+      if (id) map[id] = { part: String(e.part || '').trim(), form: String(e.form || '').trim().toUpperCase(), title_en: e.title_en || '', title_vi: e.title_vi || '', md_en: e.md_en || '', md_vi: e.md_vi || '' };
+    });
+    cachePutAll_({ bl_exhibits: map });
+  }
+  return map;
+}
+
+/** BaselineText {key: {en, vi}}. Cached 10 min. */
+function blText_() {
+  var map = cacheGet_('bl_text');
+  if (!map) {
+    map = {};
+    readTableOpt_('BaselineText').rows.forEach(function (t) {
+      var k = String(t.key || '').trim();
+      if (k) map[k] = { en: t.en || '', vi: t.vi || '' };
+    });
+    cachePutAll_({ bl_text: map });
+  }
+  return map;
+}
+
+function blTextOf_(key) { var t = blText_()[key]; return t ? { en: t.en, vi: t.vi || t.en } : { en: '', vi: '' }; }
+
 // ---------------------------------------------------------------- Roster
 
 function rosterRows_() { return readTable_('Roster').rows; }
@@ -2034,7 +2756,8 @@ function userView_(row) {
     must_change_pin: toBool(row.must_change_pin),
     consent_at: row.consent_at || '',
     certificate: normCertificate_(row.certificate),
-    session_ver: toInt(row.session_ver, 0)
+    session_ver: toInt(row.session_ver, 0),
+    p3_module: String(row.p3_module || '').trim().toUpperCase()
   };
 }
 
@@ -2111,13 +2834,13 @@ function writeLogNow_(outcome) {
  * The client posts JSON as text/plain (no CORS preflight); nothing here ever returns HTML.
  */
 
-var BACKEND_VERSION = '1.0.0';
+var BACKEND_VERSION = '2.0.0';
 var MAX_BODY_BYTES_ = 200000;
 
 /** Actions that get one Log row (never with PINs, answers or tokens). */
 var LOGGED_ACTIONS_ = {
   login: true, change_pin: true, consent: true, logout: true, start: true, submit: true,
-  capstone_submit: true, panel_score: true, unlock_retake: true
+  capstone_submit: true, panel_score: true, unlock_retake: true, baseline_next: true, rate_save: true
 };
 
 function routes_() {
@@ -2133,6 +2856,11 @@ function routes_() {
     save: apiSave_,
     submit: apiSubmit_,
     review: apiReview_,
+    baseline_next: apiBaselineNext_,
+    rate_list: apiRateList_,
+    rate_get: apiRateGet_,
+    rate_save: apiRateSave_,
+    profile: apiProfile_,
     team_summary: apiTeamSummary_,
     team_status: apiTeamStatus_,
     unlock_retake: apiUnlockRetake_,
@@ -2485,7 +3213,7 @@ function apiSetLang_(body) {
  * team views, capstone and panel. Shapes follow specs/20_api_contract.md exactly.
  */
 
-var ASSESSMENTS_ = ['baseline', 'predict', 'checkpoint', 'recall'];
+var ASSESSMENTS_ = ['predict', 'checkpoint', 'recall', 'baseline_p1', 'baseline_p2', 'baseline_p3'];
 
 // ---------------------------------------------------------------- attempts
 
@@ -2517,7 +3245,21 @@ function parseAttempt_(r) {
     wave: normWave(r.wave),
     seed: r.seed || r.attempt_id,
     self_ratings: parseJson_(r.self_ratings, {}),
-    graded: parseJson_(r.graded_answers, null)
+    graded: parseJson_(r.graded_answers, null),
+    // Baseline v2
+    part: toInt(r.part, 0),
+    module: String(r.module || '').trim().toUpperCase(),
+    section_locks: parseJson_(r.section_locks, {}),
+    deadline_at: r.deadline_at || '',
+    raw_pct: String(r.raw_pct || '').trim() === '' ? null : toInt(r.raw_pct, 0),
+    scaled_pct: String(r.scaled_pct || '').trim() === '' ? null : toInt(r.scaled_pct, 0),
+    section_pct: parseJson_(r.section_pct, {}),
+    by_step: parseJson_(r.by_step, {}),
+    by_move: parseJson_(r.by_move, {}),
+    by_charter: parseJson_(r.by_charter, {}),
+    by_level: parseJson_(r.by_level, {}),
+    by_gate: parseJson_(r.by_gate, {}),
+    time_used_s: String(r.time_used_s || '').trim() === '' ? null : toInt(r.time_used_s, 0)
   };
 }
 
@@ -2551,7 +3293,7 @@ function findAttemptById_(id) {
 
 function newId_(prefix) { return prefix + Utilities.getUuid().replace(/-/g, '').slice(0, 20); }
 
-function createAttempt_(code, assessment, course, form, attemptNo, served, wave) {
+function createAttempt_(code, assessment, course, form, attemptNo, served, wave, extra) {
   var now = nowMs_();
   var row = {
     attempt_id: newId_('at_'), employee_code: code, assessment: assessment, course: course, form: form,
@@ -2559,6 +3301,7 @@ function createAttempt_(code, assessment, course, form, attemptNo, served, wave)
     served_items: JSON.stringify(served), answers: '{}', n_items: served.length, n_correct: '', score_pct: '',
     by_objective: '', by_course: '', passed: '', wave: wave || '', seed: Utilities.getUuid(), self_ratings: ''
   };
+  Object.keys(extra || {}).forEach(function (k) { row[k] = extra[k]; });
   var rowNum = appendRows_('Attempts', [row]);
   var parsed = parseAttempt_(Object.keys(row).reduce(function (o, k) { o[k] = toCell_(row[k]); return o; }, { _row: rowNum }));
   setLogInfo_(code, assessment + ' ' + (course || '') + ' ' + parsed.attempt_id);
@@ -2566,7 +3309,7 @@ function createAttempt_(code, assessment, course, form, attemptNo, served, wave)
 }
 
 function itemsForAttempt_(att) {
-  if (att.assessment === 'baseline') return baselineItems_();
+  if (isBl_(att)) return blItemsForAttempt_(att);
   if (att.assessment === 'predict') return itemsFor_('predict', att.course, 'PR');
   return itemsFor_('checkpoint', att.course, att.form);
 }
@@ -2590,50 +3333,6 @@ function orderedMap_(map, order) {
   return out;
 }
 
-// ---------------------------------------------------------------- baseline timing (F8)
-
-function baselineHardEndMs_(att, cfg) {
-  return att.started_ms + (cfg.baseline_minutes + cfg.baseline_grace_minutes) * 60000;
-}
-
-function staleBaselines_(code) {
-  var cfg = config_(), now = nowMs_();
-  return userAttempts_(code).filter(function (a) {
-    return a.assessment === 'baseline' && a.status === 'open' && now > baselineHardEndMs_(a, cfg);
-  });
-}
-
-/** Grades abandoned baselines from the last save (status expired). Lock required. */
-function expireBaselines_(code) {
-  var cfg = config_();
-  staleBaselines_(code).forEach(function (a) {
-    finalizeBaseline_(a, a.answers, a.self_ratings, 'expired', baselineHardEndMs_(a, cfg));
-  });
-}
-
-function finalizeBaseline_(att, answers, selfRatings, status, submittedMs) {
-  assertLocked_();
-  var byId = indexItems_(baselineItems_());
-  var served = att.served.filter(function (id) { return byId[id]; });
-  var key = {}, obj = {}, crs = {};
-  served.forEach(function (id) { key[id] = byId[id].answer; obj[id] = byId[id].objective; crs[id] = byId[id].course; });
-  var clean = cleanAnswers(answers, served);
-  var g = grade(served, clean, key, obj);
-  var order = courseOrder_();
-  var bc = orderedMap_(byCourse(served, clean, key, crs), order);
-  var self = cleanSelfRatings(selfRatings, order);
-  var at = iso7(submittedMs);
-  updateRow_('Attempts', att._row, {
-    status: status, submitted_at: at, answers: JSON.stringify(clean), graded_answers: JSON.stringify(clean), self_ratings: JSON.stringify(self),
-    n_items: g.n_items, n_correct: g.n_correct, score_pct: g.score_pct,
-    by_objective: JSON.stringify(g.by_objective), by_course: JSON.stringify(bc), passed: ''
-  });
-  var srRows = order.filter(function (c) { return c in self; }).map(function (c) {
-    return { employee_code: att.code, wave: att.wave, course: c, level: self[c], submitted_at: at };
-  });
-  if (srRows.length) appendRows_('SelfRatings', srRows);
-}
-
 // ---------------------------------------------------------------- results
 
 function reviewRow_(item, your, reveal) {
@@ -2650,13 +3349,6 @@ function reviewRow_(item, your, reveal) {
     why_vi: reveal ? item.why_vi : '',
     is_correct: !!y && y === item.answer
   };
-}
-
-function baselineSummary_(att) {
-  var order = courseOrder_();
-  var self = cleanSelfRatings(att.self_ratings, order);
-  var bc = orderedMap_(att.by_course, order);
-  return { score_pct: att.score_pct, by_course: bc, self: self, gaps: gaps(bc, self, order) };
 }
 
 /** Everything the gate needs for one person and course. */
@@ -2745,10 +3437,7 @@ function reviewResult_(att) {
 }
 
 function resultFor_(att) {
-  if (att.assessment === 'baseline') {
-    var b = baselineSummary_(att);
-    return { assessment: 'baseline', score_pct: b.score_pct, by_course: b.by_course, self: b.self, gaps: b.gaps };
-  }
+  if (isBl_(att)) return blResult_(att);
   if (att.assessment === 'checkpoint') return checkpointResult_(att);
   return reviewResult_(att);
 }
@@ -2758,33 +3447,9 @@ function resultFor_(att) {
 function apiMe_(body) {
   var s = requireSession_(body, true);
   var cfg = config_(), now = nowMs_();
-  if (staleBaselines_(s.code).length) withLock_(function () { expireBaselines_(s.code); });
+  if (staleBl_(s.code).length) withLock_(function () { expireBl_(s.code); });
   var atts = userAttempts_(s.code);
-
-  // baseline
-  var order = courseOrder_();
-  var mineB = atts.filter(function (a) { return a.assessment === 'baseline'; });
-  var cur = mineB.filter(function (a) { return a.wave === cfg.wave; });
-  var openB = cur.filter(function (a) { return a.status === 'open'; })[0] || null;
-  var doneB = cur.filter(isDone_)[0] || null;
-  var baseline = {
-    wave: cfg.wave, open_from: cfg.baseline_open_from, open_to: cfg.baseline_open_to,
-    window: windowState(now, cfg.baseline_open_from, cfg.baseline_open_to),
-    status: doneB ? 'submitted' : openB ? 'in_progress' : 'not_started'
-  };
-  if (doneB) {
-    baseline.attempt_id = doneB.attempt_id;
-    baseline.started_at = doneB.started_at;
-    baseline.submitted_at = doneB.submitted_at;
-    baseline.result = baselineSummary_(doneB);
-  } else if (openB) {
-    baseline.attempt_id = openB.attempt_id;
-    baseline.started_at = openB.started_at;
-    baseline.deadline_at = iso7(openB.started_ms + cfg.baseline_minutes * 60000);
-  }
-  var prev = mineB.filter(function (a) { return isDone_(a) && a.wave && a.wave < cfg.wave; })
-    .sort(function (a, b) { return a.wave < b.wave ? 1 : a.wave > b.wave ? -1 : 0; })[0];
-  if (prev) baseline.previous = { wave: prev.wave, score_pct: prev.score_pct, by_course: orderedMap_(prev.by_course, order) };
+  var baseline = blMeState_(s, atts);
 
   // watched episodes
   var watchedRows = readTable_('Watched').rows.filter(function (w) { return normCode(w.employee_code) === s.code; });
@@ -2891,34 +3556,15 @@ function notOpenError_(c) {
 }
 
 function startPayload_(att, resumed) {
-  var cfg = config_();
+  if (isBl_(att)) return blStartPayload_(att, resumed);
   var byId = indexItems_(itemsForAttempt_(att));
   var served = att.served.filter(function (id) { return byId[id]; });
   var out = {
     attempt_id: att.attempt_id, assessment: att.assessment, course: att.course, form: att.form,
     attempt_no: att.attempt_no, started_at: att.started_at, resumed: !!resumed
   };
-  if (att.assessment === 'baseline') {
-    out.deadline_at = iso7(att.started_ms + cfg.baseline_minutes * 60000);
-    out.time_limit_min = cfg.baseline_minutes;
-  }
   out.answers = cleanAnswers(att.answers, served);
-  if (att.assessment === 'baseline') out.self_ratings = cleanSelfRatings(att.self_ratings, courseOrder_());
   out.items = served.map(function (id) { return serveItem(byId[id], att.seed + ':' + id); });
-  if (att.assessment === 'baseline') {
-    out.self = courses_().map(function (c) { return { course: c.code, en: c.self_en, vi: c.self_vi }; });
-    // Labels as the page shows them, e.g. "1 · Basic (BA)" (same as the demo mock).
-    out.scale = (SEED.scale || []).map(function (x) {
-      var tail = x.abbr ? ' (' + x.abbr + ')' : '';
-      return { level: x.level, en: x.level + ' · ' + x.en + tail, vi: x.level + ' · ' + x.vi + tail, desc_en: x.desc_en, desc_vi: x.desc_vi };
-    });
-    var caseId = '';
-    served.forEach(function (id) { if (!caseId && byId[id].case_id) caseId = byId[id].case_id; });
-    var cs = cases_().filter(function (x) { return x.case_id === caseId; })[0];
-    if (cs) out['case'] = { case_id: cs.case_id, title_en: cs.title_en, title_vi: cs.title_vi, context_en: cs.context_en, context_vi: cs.context_vi };
-    var nC = served.filter(function (id) { return byId[id].case_id; }).length;
-    out.parts = { A: out.self.length, B: served.length - nC, C: nC };
-  }
   return out;
 }
 
@@ -2927,37 +3573,13 @@ function apiStart_(body) {
   var assessment = String(body.assessment || '').trim().toLowerCase();
   if (ASSESSMENTS_.indexOf(assessment) < 0) throw apiError_('bad_request', 'Unknown assessment');
   var courseCode = normCode(body.course);
-  if (assessment !== 'baseline' && !courseByCode_(courseCode)) throw apiError_('not_found', 'Unknown course');
+  if (blPart(assessment)) return withLock_(function () { return startBl_(s, assessment); });
+  if (!courseByCode_(courseCode)) throw apiError_('not_found', 'Unknown course');
   return withLock_(function () {
-    if (assessment === 'baseline') return startBaseline_(s);
     if (assessment === 'predict') return startPredict_(s, courseCode);
     if (assessment === 'checkpoint') return startCheckpoint_(s, courseCode);
     return startRecall_(s, courseCode, body.day);
   });
-}
-
-function startBaseline_(s) {
-  var cfg = config_(), now = nowMs_();
-  expireBaselines_(s.code);
-  var mine = userAttempts_(s.code).filter(function (a) { return a.assessment === 'baseline' && a.wave === cfg.wave; });
-  var open = mine.filter(function (a) { return a.status === 'open'; })[0];
-  if (open) { setLogInfo_(s.code, 'baseline resume ' + open.attempt_id); return startPayload_(open, true); }
-  if (mine.some(isDone_)) throw apiError_('already_submitted', 'You have already taken the baseline in this wave.');
-  var w = windowState(now, cfg.baseline_open_from, cfg.baseline_open_to);
-  if (w !== 'open') {
-    throw apiError_('not_open', 'The baseline window is not open.', w === 'before' ? { opens_at: dayStartIso7(cfg.baseline_open_from) } : null);
-  }
-  var items = baselineItems_().filter(function (i) { return i.active; });
-  var seed = Utilities.getUuid();
-  var partB = [];
-  courseOrder_().forEach(function (code) {
-    var ids = items.filter(function (i) { return i.course === code && !i.case_id; }).sort(byIdx_).map(function (i) { return i.item_id; });
-    partB = partB.concat(shuffle(ids, seed + ':' + code));
-  });
-  var partC = items.filter(function (i) { return i.case_id; }).sort(byIdx_).map(function (i) { return i.item_id; });
-  if (!partB.length) throw apiError_('not_found', 'The baseline has no items yet.');
-  var att = createAttempt_(s.code, 'baseline', '', 'BL', 1, partB.concat(partC), cfg.wave);
-  return startPayload_(att, false);
 }
 
 function startPredict_(s, code) {
@@ -3051,15 +3673,10 @@ function apiSave_(body) {
   var att = parseAttempt_(readRow_('Attempts', rowNum));
   if (att.code !== s.code || att.status === 'void') throw apiError_('not_found', 'Attempt not found');
   if (att.status !== 'open') throw apiError_('already_submitted', 'This attempt is already submitted.');
-  var cfg = config_(), now = nowMs_();
-  if (att.assessment === 'baseline' && now > baselineHardEndMs_(att, cfg)) {
-    throw apiError_('already_submitted', 'Time is up: this baseline is graded from your last save.');
-  }
+  var now = nowMs_();
   var at = iso7(now);
-  var patch = { answers: JSON.stringify(cleanAnswers(body.answers, att.served)), last_saved_at: at };
-  if (att.assessment === 'baseline' && body.self_ratings !== undefined) {
-    patch.self_ratings = JSON.stringify(cleanSelfRatings(body.self_ratings, courseOrder_()));
-  }
+  var patch = isBl_(att) ? blSavePatch_(att, body) : { answers: JSON.stringify(cleanAnswers(body.answers, att.served)) };
+  patch.last_saved_at = at;
   updateRow_('Attempts', rowNum, patch);
   return { saved_at: at };
 }
@@ -3078,17 +3695,8 @@ function apiSubmit_(body) {
     if (att.status !== 'open') throw apiError_('not_found', 'Attempt not found');
     var cfg = config_(), now = nowMs_();
 
-    if (att.assessment === 'baseline') {
-      if (now > baselineHardEndMs_(att, cfg)) {
-        finalizeBaseline_(att, att.answers, att.self_ratings, 'expired', baselineHardEndMs_(att, cfg));
-      } else {
-        var order = courseOrder_();
-        var self = cleanSelfRatings(body.self_ratings !== undefined ? body.self_ratings : att.self_ratings, order);
-        if (Object.keys(self).length < order.length) {
-          throw apiError_('bad_request', 'Please rate all ' + order.length + ' statements in Part A.', { field: 'self_ratings' });
-        }
-        finalizeBaseline_(att, body.answers !== undefined ? body.answers : att.answers, self, 'submitted', now);
-      }
+    if (isBl_(att)) {
+      blSubmit_(att, body);
       return resultFor_(findAttemptById_(id));
     }
 
@@ -3137,21 +3745,8 @@ function apiReview_(body) {
 
 // ---------------------------------------------------------------- team views
 
-/** Baseline averages are published only once nobody can still add to them (window + timer + grace). */
-function baselinePublishMs_(cfg) {
-  var end = dayEnd7(cfg.baseline_open_to);
-  return isNaN(end) ? NaN : end + (cfg.baseline_minutes + cfg.baseline_grace_minutes) * 60000;
-}
-
 /** A course's checkpoint metrics are published only after its late window (late_until) has closed. */
 function checkpointPublishMs_(c) { return dayEnd7(lateUntil_(c)); }
-
-/** Grades every abandoned baseline (all people) so a published average never moves later. Lock required. */
-function expireAllStaleBaselines_() {
-  var codes = {};
-  allAttempts_().forEach(function (a) { if (a.assessment === 'baseline' && a.status === 'open') codes[a.code] = true; });
-  Object.keys(codes).forEach(function (c) { expireBaselines_(c); });
-}
 
 /**
  * Rows for the Summary tab, built only by buildSummary() (menu or hourly trigger), never on a
@@ -3162,9 +3757,7 @@ function expireAllStaleBaselines_() {
 function buildSummaryRows_() {
   var cfg = config_(), now = nowMs_(), updated = iso7(now);
   var minN = cfg.team_view_min_n;
-  var order = courseOrder_();
   var courses = courses_();
-  expireAllStaleBaselines_();
   var people = rosterRows_().map(userView_).filter(function (u) { return u.active && u.code; });
   var atts = allAttempts_();
   var byCode = {};
@@ -3174,26 +3767,7 @@ function buildSummaryRows_() {
     out.push({ wave_or_course: key, group: g.group, n: g.n, metric: metric, course: course, value: value, updated_at: updated, count: count });
   };
 
-  if (now > baselinePublishMs_(cfg)) {
-    var baseRows = [];
-    people.forEach(function (u) {
-      var a = (byCode[u.code] || []).filter(function (x) { return x.assessment === 'baseline' && x.wave === cfg.wave && isDone_(x); })[0];
-      if (!a) return;
-      var self = cleanSelfRatings(a.self_ratings, order), values = {};
-      order.forEach(function (c) {
-        values['pct:' + c] = typeof a.by_course[c] === 'number' ? a.by_course[c] : null;
-        values['self:' + c] = c in self ? self[c] : null;
-      });
-      baseRows.push({ group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw, values: values });
-    });
-    summarise(baseRows, minN).forEach(function (g) {
-      order.forEach(function (c) {
-        var sv = g.avg['self:' + c], pv = g.avg['pct:' + c];
-        emit(cfg.wave, g, 'self', c, sv === null || sv === undefined ? '' : round1(sv), g.count['self:' + c] || 0);
-        emit(cfg.wave, g, 'baseline_pct', c, pv === null || pv === undefined ? '' : Math.round(pv), g.count['pct:' + c] || 0);
-      });
-    });
-  }
+  if (cfg.results_open) blSummaryRows_(people, minN, emit);
 
   var published = courses.filter(function (c) { return now > checkpointPublishMs_(c); });
   if (published.length) {
@@ -3221,17 +3795,17 @@ function buildSummaryRows_() {
 }
 
 /**
- * team_summary {token} → {updated_at, min_n, wave, baseline_published, baseline_publish_after,
- * baseline: [{group, n, courses: {A2: {self, pct}}}],
+ * team_summary {token} → {updated_at, min_n, wave, baseline_published, baseline_publish_after: null,
+ * baseline: [{group, n, p1_pct, p2_sjt_pct, p2_mgr_mean, p3_core_pct}],
  * checkpoints: [{group, n, courses: {A2: {first_try_pass, passed_by_forum, n_first_try, n_by_forum}}}]}
- * Reads the Summary tab only (never computed on a request). Groups are empty until published.
+ * Reads the Summary tab only (never computed on a request). Baseline groups only while results_open.
  */
 function apiTeamSummary_(body) {
   requireSession_(body);
   var cfg = config_(), now = nowMs_();
   var minN = cfg.team_view_min_n;
   var order = courseOrder_();
-  var basePublished = now > baselinePublishMs_(cfg);
+  var basePublished = cfg.results_open;
   var cpOpen = {};
   courses_().forEach(function (c) { cpOpen[c.code] = now > checkpointPublishMs_(c); });
   var groupsOrder = ['all'].concat(ROLE_GROUPS);
@@ -3240,14 +3814,13 @@ function apiTeamSummary_(body) {
   readTable_('Summary').rows.forEach(function (r) {
     var g = String(r.group || '').trim().toLowerCase(), n = toInt(r.n, 0), c = normCode(r.course), m = String(r.metric || '').trim();
     var k = toInt(r.count, 0);
-    if (groupsOrder.indexOf(g) < 0 || n < minN || !c || order.indexOf(c) < 0) return;
+    if (groupsOrder.indexOf(g) < 0 || n < minN) return;
     var v = k >= minN ? val(r.value) : null; // defence in depth: small counts never shown
-    if ((m === 'self' || m === 'baseline_pct') && normWave(r.wave_or_course) === cfg.wave) {
+    if (BL_SUMMARY_METRICS_[m] && normWave(r.wave_or_course) === cfg.wave) {
       if (!basePublished) return;
-      var b = base[g] = base[g] || { group: g, n: n, courses: {} };
-      var bc = b.courses[c] = b.courses[c] || { self: null, pct: null };
-      if (m === 'self') bc.self = v; else bc.pct = v;
-    } else if (m === 'checkpoint_first_try_pass' || m === 'checkpoint_pass_by_forum') {
+      var b = base[g] = base[g] || { group: g, n: n, p1_pct: null, p2_sjt_pct: null, p2_mgr_mean: null, p3_core_pct: null };
+      b[BL_SUMMARY_METRICS_[m]] = v;
+    } else if ((m === 'checkpoint_first_try_pass' || m === 'checkpoint_pass_by_forum') && c && order.indexOf(c) >= 0) {
       if (!cpOpen[c]) return;
       var p = cps[g] = cps[g] || { group: g, n: n, courses: {} };
       var pc = p.courses[c] = p.courses[c] || { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 };
@@ -3255,19 +3828,17 @@ function apiTeamSummary_(body) {
     } else return;
     if (r.updated_at && r.updated_at > updated) updated = r.updated_at;
   });
-  var finish = function (map, empty) {
-    return groupsOrder.filter(function (g) { return map[g]; }).map(function (g) {
-      var full = {};
-      order.forEach(function (c) { full[c] = map[g].courses[c] || empty(); });
-      map[g].courses = full;
-      return map[g];
-    });
-  };
+  var cpList = groupsOrder.filter(function (g) { return cps[g]; }).map(function (g) {
+    var full = {};
+    order.forEach(function (c) { full[c] = cps[g].courses[c] || { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 }; });
+    cps[g].courses = full;
+    return cps[g];
+  });
   return {
     updated_at: updated || null, min_n: minN, wave: cfg.wave,
-    baseline_published: basePublished, baseline_publish_after: cfg.baseline_open_to,
-    baseline: finish(base, function () { return { self: null, pct: null }; }),
-    checkpoints: finish(cps, function () { return { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 }; })
+    baseline_published: basePublished, baseline_publish_after: null,
+    baseline: groupsOrder.filter(function (g) { return base[g]; }).map(function (g) { return base[g]; }),
+    checkpoints: cpList
   };
 }
 
@@ -3288,8 +3859,7 @@ function apiTeamStatus_(body) {
         var st = checkpointState_(u.code, c, mine);
         courses[c] = st.passed ? 'passed' : needsChat_(st) ? 'needs_chat' : st.attempts.length ? 'not_yet' : 'not_started';
       });
-      var done = mine.some(function (a) { return a.assessment === 'baseline' && a.wave === cfg.wave && isDone_(a); });
-      return { code: u.code, first_name: u.first_name, baseline: done ? 'done' : 'not_done', courses: courses };
+      return { code: u.code, first_name: u.first_name, baseline: blTeamStatus_(mine, cfg), courses: courses };
     })
   };
 }
@@ -3517,11 +4087,15 @@ function onOpen() {
     .addSeparator()
     .addItem('Rebuild summaries', 'menuRebuildSummaries')
     .addItem('Install hourly summary trigger', 'menuInstallTrigger')
-    .addItem('Baseline heatmap', 'menuBaselineHeatmap')
     .addItem('Course gate report', 'menuGateReport')
     .addItem('IDP export', 'menuIdpExport')
     .addItem('Recall due list', 'menuRecallDue')
     .addItem('Panel results', 'menuPanelResults')
+    .addSeparator()
+    .addItem('Baseline: open or close parts…', 'menuBaselineSwitches')
+    .addItem('Assign a Part 1 form…', 'menuAssignP1Form')
+    .addItem('Build baseline profiles', 'menuBuildProfiles')
+    .addItem('Baseline v2 reports', 'menuBaselineReports')
     .addToUi();
 }
 
@@ -3559,8 +4133,8 @@ function adminRun_(action, fn) {
 
 function menuImportCsv() {
   var html = '<p>Paste the whole CSV file (with its header row), choose the tab and press Import. ' +
-    '<b>Items</b> and <b>Cases</b> are replaced; <b>Courses</b> rows are updated by code and keep your dates and Blink links.</p>' +
-    '<select id="tab"><option>Items</option><option>Courses</option><option>Cases</option></select> ' +
+    '<b>Items</b>, <b>Cases</b>, <b>BaselineItems</b>, <b>Exhibits</b> and <b>BaselineText</b> are replaced; <b>Courses</b> rows are updated by code and keep your dates and Blink links.</p>' +
+    '<select id="tab"><option>Items</option><option>Courses</option><option>Cases</option><option>BaselineItems</option><option>Exhibits</option><option>BaselineText</option></select> ' +
     '<button onclick="go()">Import</button><br><textarea id="csv" style="width:100%;height:230px;margin-top:8px"></textarea>' +
     '<pre id="out" style="white-space:pre-wrap"></pre>' +
     '<script>function go(){document.getElementById("out").textContent="Importing…";' +
@@ -3572,8 +4146,8 @@ function menuImportCsv() {
 
 /** Called from the import dialog. Returns a plain-text report. */
 function adminImportCsv(tab, csvText) {
-  var keyCol = { Items: 'item_id', Courses: 'code', Cases: 'case_id' }[tab];
-  if (!keyCol) throw new Error('Choose Items, Courses or Cases');
+  var keyCol = { Items: 'item_id', Courses: 'code', Cases: 'case_id', BaselineItems: 'item_id', Exhibits: 'exhibit_id', BaselineText: 'key' }[tab];
+  if (!keyCol) throw new Error('Choose Items, Courses, Cases, BaselineItems, Exhibits or BaselineText');
   var rows = parseCsv(csvText);
   if (rows.length < 2) throw new Error('The CSV needs a header row and at least one data row');
   var headers = rows[0].map(headerKey_);
@@ -3626,17 +4200,20 @@ function ensureTabColumns_(tab, cols, report) {
   report.push(tab + ': kept extra column(s) ' + cols.join(', ') + '.');
 }
 
-/** Repairs Items/Courses/Cases (columns, plain text, default dates) and validates the bank. */
+/** Repairs Items/Courses/Cases and the baseline tabs (columns, plain text, default dates) and validates both banks. */
 function validateNow_() {
   var report = [];
   adminRun_('', function () {
     var ss = ss_();
-    ['Items', 'Courses', 'Cases'].forEach(function (n) { ensureTab_(ss, n, SCHEMA[n], report); normaliseTab_(n, report); });
+    ['Items', 'Courses', 'Cases', 'BaselineItems', 'Exhibits', 'BaselineText'].forEach(function (n) { ensureTab_(ss, n, SCHEMA[n], report); normaliseTab_(n, report); });
     seedCourses_(report);
     clearCaches_();
   });
   resetRequest_();
   var res = validateBank(readTable_('Items').rows, readTable_('Courses').rows, readTable_('Cases').rows);
+  var cfg = config_();
+  var bl = validateBaselineBank(readTable_('BaselineItems').rows, readTable_('Exhibits').rows, { live: cfg.p1_live, backup: cfg.p1_backup });
+  res = { errors: res.errors.concat(bl.errors), warnings: res.warnings.concat(bl.warnings) };
   var summary = [
     (res.errors.length ? '✖ ' + res.errors.length + ' problem(s) to fix' : '✔ No problems') +
       (res.warnings.length ? ', ' + res.warnings.length + ' warning(s)' : '') + '.'
@@ -3649,7 +4226,7 @@ function validateNow_() {
 function menuValidate() {
   var v = validateNow_();
   var html = '<p><b>' + escapeHtml(v.summary[0]) + '</b></p>' + listHtml_('Repairs', v.repairs) +
-    listHtml_('Problems (fix in the Items / Courses / Cases tab)', v.errors.slice(0, 100)) +
+    listHtml_('Problems (fix in the Items / Courses / Cases / BaselineItems / Exhibits tab)', v.errors.slice(0, 100)) +
     listHtml_('Warnings (counts against the blueprint)', v.warnings.slice(0, 100));
   showHtml_('Validate items / courses', html, 480);
 }
@@ -3663,7 +4240,7 @@ function menuSeedEpisodes() {
 function menuRefreshCache() {
   resetRequest_();
   clearCaches_();
-  notify_('Cache', 'Done: the Hub reads Items, Courses, Config and Episodes fresh from the Sheet now.');
+  notify_('Cache', 'Done: the Hub reads Items, Courses, Config, Episodes and the baseline tabs fresh from the Sheet now.');
 }
 
 // ---------------------------------------------------------------- PINs
@@ -3775,8 +4352,9 @@ function menuUnlock() {
 
 /**
  * Marks an attempt void: it no longer counts anywhere (attempt numbers, forms, gate,
- * summaries, once-per-wave baseline). A voided pass also voids its pending recall rows;
- * a voided recall attempt makes that recall day available again.
+ * summaries, once-per-part-per-wave baseline: the person can sit that part again). A voided
+ * pass also voids its pending recall rows; a voided recall attempt makes that recall day
+ * available again; a voided Part 2 clears its self-ratings in Ratings.
  */
 function voidAttempt_(attemptId, reason) {
   var id = String(attemptId || '').trim();
@@ -3792,6 +4370,12 @@ function voidAttempt_(attemptId, reason) {
           if (String(r.status).trim().toLowerCase() !== 'done') updateRow_('Recall', r._row, { status: 'void' });
         });
       }
+    }
+    if (att.assessment === 'baseline_p2') {
+      readTable_('Ratings').rows.forEach(function (r) {
+        if (normWave(r.wave) === att.wave && normCode(r.ratee_code) === att.code && normCode(r.rater_code) === att.code &&
+          String(r.rater_role).trim().toLowerCase() === 'self' && String(r.value).trim() !== '') updateRow_('Ratings', r._row, { value: '' });
+      });
     }
     if (att.assessment === 'recall') {
       var rr = recallRowForAttempt_(att);
@@ -3814,11 +4398,12 @@ function menuVoidAttempt() {
 
 // ---------------------------------------------------------------- summaries and trigger
 
-/** Rebuilds the Summary tab (team-view rules). Also the hourly trigger's handler. */
+/** Rebuilds the Summary tab (team-view rules). Also the hourly trigger's handler: while results_open it also builds the baseline profiles. */
 function buildSummary() {
   resetRequest_();
   var n = 0;
   withLock_(function () {
+    if (config_().results_open) buildProfilesLocked_();
     var rows = buildSummaryRows_();
     replaceBody_('Summary', SCHEMA.Summary, rows);
     n = rows.length;
@@ -3841,7 +4426,7 @@ function installSummaryTrigger_() {
 
 function menuInstallTrigger() {
   installSummaryTrigger_();
-  notify_('Hourly summary', 'Installed: the Summary tab is rebuilt every hour.');
+  notify_('Hourly summary', 'Installed: the Summary tab is rebuilt every hour (and the baseline profiles while Results are open).');
 }
 
 // ---------------------------------------------------------------- dashboards
@@ -3874,38 +4459,6 @@ function scoreColour_(pct) {
 
 function adminPeople_() {
   return rosterRows_().map(userView_).filter(function (u) { return u.active && u.code && !u.is_test; });
-}
-
-/** Dash_Baseline: people × courses (score % and self-rating), calibration flags. */
-function buildDashBaseline_() {
-  var rowsOut = [], bgs = [];
-  adminRun_('', function () {
-    var cfg = config_(), order = courseOrder_();
-    var atts = allAttempts_();
-    var header = ['code', 'name', 'role_area', 'wave', 'overall_pct'];
-    order.forEach(function (c) { header.push(c + ' %', c + ' self'); });
-    header.push('flags');
-    adminPeople_().forEach(function (u) {
-      var a = atts.filter(function (x) { return x.code === u.code && x.assessment === 'baseline' && x.wave === cfg.wave && isDone_(x); })[0];
-      if (!a) return;
-      var self = cleanSelfRatings(a.self_ratings, order), flags = [];
-      var row = [u.code, u.display_name, u.role_area, a.wave, a.score_pct], bg = ['#ffffff', '#ffffff', '#ffffff', '#ffffff', scoreColour_(a.score_pct)];
-      order.forEach(function (c) {
-        var pct = typeof a.by_course[c] === 'number' ? a.by_course[c] : '';
-        var sv = c in self ? self[c] : '';
-        row.push(pct, sv);
-        bg.push(scoreColour_(pct), '#ffffff');
-        var f = calibrationFlag(sv === '' ? null : sv, pct === '' ? null : pct);
-        if (f) flags.push(c + ': ' + f);
-      });
-      row.push(flags.join('; '));
-      bg.push(flags.length ? '#fce5cd' : '#ffffff');
-      rowsOut.push(row);
-      bgs.push(bg);
-    });
-    writeDash_('Dash_Baseline', header, rowsOut, bgs);
-  });
-  return rowsOut.length;
 }
 
 /** Dash_Gate: per course pass status, first-try pass rate and the three most-missed items. */
@@ -3956,34 +4509,26 @@ function buildDashGate_() {
   return out.length;
 }
 
-/** Dash_IDP: two largest gaps, suggested capability goals and checkpoint status per person. */
+/** Dash_IDP: the two baseline gaps (specs/22 IDP areas), suggested goals and checkpoint status per person. */
 function buildDashIdp_() {
   var out = [];
   adminRun_('', function () {
-    var cfg = config_(), order = courseOrder_();
-    var scale = SEED.scale || [];
-    var levelName = function (l) { var s = scale.filter(function (x) { return x.level === l; })[0]; return s ? s.en : String(l); };
+    var order = courseOrder_();
+    var ctx = blProfileContext_();
     var atts = allAttempts_();
     var header = ['code', 'name', 'role_area', 'gap_1', 'gap_2', 'goal_1', 'goal_2', 'checkpoints_passed', 'checkpoint_status'];
     adminPeople_().forEach(function (u) {
       var mine = atts.filter(function (a) { return a.code === u.code; });
-      var b = mine.filter(function (a) { return a.assessment === 'baseline' && a.wave === cfg.wave && isDone_(a); })[0];
-      var g = b ? baselineSummary_(b) : null;
-      var goal = function (code) {
-        if (!code) return '';
-        var c = courseByCode_(code);
-        var cur = g.self[code];
-        var target = Math.min(4, (typeof cur === 'number' ? cur : 0) + 1);
-        return 'Reach ' + levelName(target) + ' in ' + code + (c && c.name_en ? ' ' + c.name_en : '') +
-          ' by Mar 2028 (evidence: checkpoint passed, field sign-off, re-test score; baseline ' + g.by_course[code] + '%)';
-      };
+      var p = buildProfile_(u.code, ctx);
+      var g = p ? p.gaps : [];
+      var goal = function (x) { return x ? 'Raise ' + x.name_en + ' from ' + x.pct + '% by the Dec 2027 re-test (evidence: checkpoints passed, field sign-off, re-test score)' : ''; };
       var status = order.map(function (c) {
         var cp = mine.filter(function (a) { return a.assessment === 'checkpoint' && a.course === c && isDone_(a); });
         return c + ' ' + (cp.some(function (a) { return a.passed; }) ? '✓' : cp.length ? 'not yet' : '–');
       });
       var passedN = order.filter(function (c) { return mine.some(function (a) { return a.assessment === 'checkpoint' && a.course === c && a.passed; }); }).length;
-      out.push([u.code, u.display_name, u.role_area, g ? g.gaps[0] || '' : 'no baseline', g ? g.gaps[1] || '' : '',
-        g ? goal(g.gaps[0]) : '', g ? goal(g.gaps[1]) : '', passedN + '/' + order.length, status.join(' · ')]);
+      out.push([u.code, u.display_name, u.role_area, p ? (g[0] ? g[0].name_en + ' (' + g[0].pct + '%)' : '') : 'no baseline', g[1] ? g[1].name_en + ' (' + g[1].pct + '%)' : '',
+        goal(g[0]), goal(g[1]), passedN + '/' + order.length, status.join(' · ')]);
     });
     writeDash_('Dash_IDP', header, out);
   });
@@ -4040,10 +4585,248 @@ function buildDashPanel_() {
 
 function menuPanelResults() { var n = buildDashPanel_(); notify_('Panel results', 'Dash_Panel: ' + n + ' team score(s). Pitch Day weights communication double; the capstone weights result and value double.'); }
 
-function menuBaselineHeatmap() { var n = buildDashBaseline_(); notify_('Baseline heatmap', 'Dash_Baseline: ' + n + ' person(s).'); }
 function menuGateReport() { buildDashGate_(); notify_('Course gate report', 'Dash_Gate is up to date.'); }
 function menuIdpExport() { var n = buildDashIdp_(); notify_('IDP export', 'Dash_IDP: ' + n + ' person(s). Copy the goals into the HR system.'); }
 function menuRecallDue() { var n = buildDashRecall_(); notify_('Recall due list', 'Dash_Recall: ' + n + ' recall(s) due this week or overdue.'); }
+
+// ---------------------------------------------------------------- Baseline v2 (specs/22 §2)
+
+var BL_SWITCHES_ = [
+  ['p1_open', 'Part 1 · Problem solving with data'],
+  ['p2_open', 'Part 2 · Leadership behaviours'],
+  ['p3_open', 'Part 3 · Core planning'],
+  ['rating_open', 'Manager rating'],
+  ['results_open', 'Results (profiles and team averages)']
+];
+
+/** Current switches {p1_open: bool, …} read fresh from the Sheet. */
+function adminGetBaselineSwitches() {
+  resetRequest_();
+  clearCaches_();
+  var cfg = config_(), out = {};
+  BL_SWITCHES_.forEach(function (x) { out[x[0]] = !!cfg[x[0]]; });
+  return out;
+}
+
+/** Writes the given switches to Config (TRUE/FALSE), refreshes the cache, returns a plain-text report. */
+function adminSetBaselineSwitches(values) {
+  values = values || {};
+  var changed = [];
+  adminRun_('admin_baseline_switches', function () {
+    var rows = readTable_('Config').rows, byKey = {};
+    rows.forEach(function (r) { byKey[String(r.key || '').trim()] = r; });
+    var add = [];
+    BL_SWITCHES_.forEach(function (x) {
+      if (!Object.prototype.hasOwnProperty.call(values, x[0])) return;
+      var v = toBool(values[x[0]]) ? 'TRUE' : 'FALSE';
+      var r = byKey[x[0]];
+      if (r) { if (String(r.value).trim().toUpperCase() !== v) { updateRow_('Config', r._row, { value: v }); changed.push(x[1] + ': ' + (v === 'TRUE' ? 'open' : 'closed')); } }
+      else { add.push({ key: x[0], value: v, note: x[1] }); changed.push(x[1] + ': ' + (v === 'TRUE' ? 'open' : 'closed')); }
+    });
+    if (add.length) appendRows_('Config', add);
+    setLogInfo_('', changed.join('; ').slice(0, 120));
+    clearCaches_();
+  });
+  var now = adminGetBaselineSwitches();
+  return (changed.length ? 'Saved: ' + changed.join(' · ') + '.' : 'Nothing changed.') + '\n' +
+    BL_SWITCHES_.map(function (x) { return x[1] + ': ' + (now[x[0]] ? 'OPEN' : 'closed'); }).join('\n');
+}
+
+function menuBaselineSwitches() {
+  var st = adminGetBaselineSwitches();
+  var rows = BL_SWITCHES_.map(function (x) {
+    return '<label style="display:block;margin:6px 0"><input type="checkbox" id="' + x[0] + '"' + (st[x[0]] ? ' checked' : '') + '> ' +
+      escapeHtml(x[1]) + ' <span style="color:#666">(now ' + (st[x[0]] ? 'open' : 'closed') + ')</span></label>';
+  }).join('');
+  var ids = JSON.stringify(BL_SWITCHES_.map(function (x) { return x[0]; }));
+  var html = '<p>Tick a part to open it for everyone at once; untick to close it. Closing stops new starts; a sitting in progress can still be finished until its own timer ends. ' +
+    '<b>Results</b> shows each learner their profile and publishes the baseline team averages.</p>' + rows +
+    '<button onclick="go()" style="margin-top:8px">Save</button><pre id="out" style="white-space:pre-wrap"></pre>' +
+    '<script>function go(){var v={};' + ids + '.forEach(function(k){v[k]=document.getElementById(k).checked;});' +
+    'document.getElementById("out").textContent="Saving…";google.script.run.withSuccessHandler(function(r){document.getElementById("out").textContent=r;})' +
+    '.withFailureHandler(function(e){document.getElementById("out").textContent="Error: "+e.message;}).adminSetBaselineSwitches(v);}</script>';
+  showHtml_('Baseline: open or close parts', html, 380);
+}
+
+/** Writes an Overrides row: the Part 1 form this person gets at their next start in this wave. */
+function assignP1Form_(code, form, reason, by) {
+  var c = normCode(code), f = String(form || '').trim().toUpperCase(), msg = '';
+  if (BL_FORMS.indexOf(f) < 0) throw new Error('Form must be A, B or C');
+  adminRun_('admin_assign_form', function () {
+    var cfg = config_();
+    if (!findRosterRow_(c)) throw new Error('No roster row for ' + c);
+    appendRows_('Overrides', [{ employee_code: c, wave: cfg.wave, part: 1, form: f, reason: guardCell(String(reason || '').slice(0, 200)), by: guardCell(by || 'admin'), at: iso7(nowMs_()) }]);
+    var cur = userAttempts_(c).filter(function (a) { return a.assessment === 'baseline_p1' && a.wave === cfg.wave; })[0];
+    msg = 'Done: ' + c + ' gets Part 1 form ' + f + ' at their next start in wave ' + cfg.wave + '.' +
+      (cur ? ' They already have a Part 1 attempt (' + cur.attempt_id + ', form ' + cur.form + ', ' + cur.status + '): void it first (Void an attempt…) so they can sit again.' : '');
+    setLogInfo_(c, 'form ' + f);
+  });
+  return msg;
+}
+
+function menuAssignP1Form() {
+  var code = ask_('Assign a Part 1 form (1/3)', 'Employee code:'); if (!code) return;
+  var form = ask_('Assign a Part 1 form (2/3)', 'Form A, B or C (A is the backup form):'); if (!form) return;
+  var reason = ask_('Assign a Part 1 form (3/3)', 'Reason (e.g. saw a live form, re-sit after a technical problem):'); if (reason === null) return;
+  var by = '';
+  try { by = Session.getActiveUser().getEmail(); } catch (e) { by = ''; }
+  try { notify_('Assign a Part 1 form', assignP1Form_(code, form, reason, by || 'admin')); } catch (e) { notify_('Assign a Part 1 form', e.message); }
+}
+
+function menuBuildProfiles() {
+  var n = buildProfiles();
+  notify_('Build baseline profiles', 'Profiles: ' + n + ' person(s) for wave ' + config_().wave + '. Learners see theirs only while Results are open.');
+}
+
+function pctCell_(v) { return typeof v === 'number' ? v : ''; }
+
+/** The five Baseline v2 dashboards (admin only, never on the Hub). Returns row counts. */
+function buildBaselineReports_() {
+  var counts = {};
+  adminRun_('', function () {
+    var cfg = config_();
+    expireAllBl_();
+    applyEquating_(cfg);
+    var ctx = blProfileContext_();
+    var people = adminPeople_();
+    var peopleByCode = {};
+    people.forEach(function (u) { peopleByCode[u.code] = u; });
+    var profiles = {};
+    people.forEach(function (u) { profiles[u.code] = buildProfile_(u.code, ctx); });
+
+    // Dash_BL2_Heatmap: person × area
+    var heatHeader = ['code', 'name', 'role_area', 'p1_form', 'p1_raw', 'p1_scaled', 'p1_A', 'p1_B', 'p2_sjt'];
+    BL_CHARTERS.forEach(function (c) { heatHeader.push('charter_' + c + '_index'); });
+    heatHeader.push('p3_module', 'p3_core', 'p3_module_pct', 'p3_level');
+    var heat = [], heatBg = [];
+    people.forEach(function (u) {
+      var p = profiles[u.code];
+      if (!p) return;
+      var row = [u.code, u.display_name, u.role_area, p.p1 ? p.p1.form : '', p.p1 ? p.p1.raw_pct : '', p.p1 ? p.p1.scaled_pct : '',
+        p.p1 ? pctCell_(p.p1.section_A_pct) : '', p.p1 ? pctCell_(p.p1.section_B_pct) : '', p.p2 ? pctCell_(p.p2.sjt_pct) : ''];
+      BL_CHARTERS.forEach(function (c) { var x = p.p2 && p.p2.by_charter[c]; row.push(x && x.index !== null ? x.index : ''); });
+      row.push(p.p3 ? p.p3.module : '', p.p3 ? pctCell_(p.p3.core_pct) : '', p.p3 ? pctCell_(p.p3.module_pct) : '', p.p3 ? p.p3.level || '' : '');
+      heat.push(row);
+      heatBg.push(row.map(function (v, i) { return i >= 4 && typeof v === 'number' ? scoreColour_(v) : '#ffffff'; }));
+    });
+    writeDash_('Dash_BL2_Heatmap', heatHeader, heat, heatBg);
+    counts.heatmap = heat.length;
+
+    // Dash_BL2_Items: p-value, point-biserial (item vs rest of the part), distractor %
+    var itemsOut = [];
+    var addStats = function (att, byId) {
+      var served = blServed_(att, byId), g = gradedAnswers_(att);
+      var total = 0, scores = {};
+      served.forEach(function (id) {
+        var it = byId[id], sc = 0;
+        if (it.item_type === 'mcq') sc = g[id] === it.answer ? 1 : 0;
+        else if (it.item_type === 'sjt') { var a = g[id] || {}; if (!(a.most && a.most === a.least)) sc = (a.most === it.answer_most ? 1 : 0) + (a.least === it.answer_least ? 1 : 0); }
+        else return;
+        scores[id] = sc;
+        total += sc;
+      });
+      return { scores: scores, total: total, g: g, served: served };
+    };
+    var stat = {};
+    BL_ASSESSMENTS.forEach(function (asmt) {
+      Object.keys(ctx.byCode).forEach(function (code) {
+        var att = ctx.byCode[code][asmt];
+        if (!att || !peopleByCode[code]) return;
+        var byId = indexItems_(blItemsForAttempt_(att));
+        var r = addStats(att, byId);
+        r.served.forEach(function (id) {
+          var it = byId[id], s = stat[id] = stat[id] || { it: it, rows: [], least: [], ratings: [] };
+          if (it.item_type === 'rating') { s.ratings.push(r.g[id]); return; }
+          var pick = it.item_type === 'sjt' ? ((r.g[id] || {}).most || '') : (r.g[id] || '');
+          s.rows.push({ score: r.scores[id], max: it.item_type === 'sjt' ? 2 : 1, total: r.total, pick: pick });
+          if (it.item_type === 'sjt') s.least.push((r.g[id] || {}).least || '');
+        });
+      });
+    });
+    var mgrAll = {};
+    Object.keys(ctx.mgr).forEach(function (code) { if (!peopleByCode[code]) return; Object.keys(ctx.mgr[code]).forEach(function (id) { mgrAll[id] = (mgrAll[id] || []).concat(ctx.mgr[code][id]); }); });
+    Object.keys(stat).sort().forEach(function (id) {
+      var s = stat[id], it = s.it;
+      if (it.item_type === 'rating') {
+        var nums = s.ratings.filter(function (v) { return typeof v === 'number'; });
+        var m = meanSd(nums), mg = meanSd(mgrAll[id] || []);
+        itemsOut.push([id, it.assessment, it.form, it.section, it.item_type, s.ratings.length, m.mean === null ? '' : round1(m.mean), '', '',
+          'self NR ' + (s.ratings.length ? Math.round(100 * (s.ratings.length - nums.length) / s.ratings.length) : 0) + '% · manager mean ' + (mg.mean === null ? '–' : round1(mg.mean)) + ' (n ' + mg.n + ')']);
+        return;
+      }
+      var a = itemAnalysis(s.rows);
+      var dist = 'a ' + a.dist.a + '% · b ' + a.dist.b + '% · c ' + a.dist.c + '% · d ' + a.dist.d + '% · blank ' + a.dist.blank + '%';
+      if (it.item_type === 'sjt') {
+        var ld = itemAnalysis(s.least.map(function (l) { return { score: 0, max: 1, total: 0, pick: l }; })).dist;
+        dist = 'most: ' + dist + ' | least: a ' + ld.a + '% · b ' + ld.b + '% · c ' + ld.c + '% · d ' + ld.d + '% · blank ' + ld.blank + '%';
+      }
+      itemsOut.push([id, it.assessment, it.form, it.section, it.item_type, a.n, a.p_value === null ? '' : a.p_value, a.point_biserial === null ? '' : a.point_biserial,
+        it.item_type === 'sjt' ? 'most ' + it.answer_most + ' / least ' + it.answer_least : it.answer, dist]);
+    });
+    writeDash_('Dash_BL2_Items', ['item_id', 'assessment', 'form', 'section', 'type', 'n', 'p_value_or_mean', 'point_biserial', 'key', 'distribution'], itemsOut);
+    counts.items = itemsOut.length;
+
+    // Dash_BL2_Forms: starts and mean per Part 1 form
+    var p1All = allAttempts_().filter(function (a) { return a.assessment === 'baseline_p1' && a.wave === cfg.wave && peopleByCode[a.code]; });
+    var forms = BL_FORMS.map(function (f) {
+      var mine = p1All.filter(function (a) { return a.form === f; });
+      var done = mine.filter(isDone_);
+      var raw = meanSd(done.map(function (a) { return a.raw_pct; })), sc = meanSd(done.map(function (a) { return a.scaled_pct === null ? a.raw_pct : a.scaled_pct; }));
+      var byRole = ROLE_GROUPS.map(function (g) { return g + ' ' + mine.filter(function (a) { return peopleByCode[a.code].role_area === g; }).length; }).join(' · ');
+      return [f, cfg.p1_live.indexOf(f) >= 0 ? 'live' : f === cfg.p1_backup ? 'backup' : 'off', mine.length, done.length,
+        raw.mean === null ? '' : round1(raw.mean), raw.sd === null ? '' : round1(raw.sd), sc.mean === null ? '' : round1(sc.mean), byRole];
+    });
+    var plan = equatingPlan((function () { var o = {}; p1All.filter(isDone_).forEach(function (a) { (o[a.form] = o[a.form] || []).push(a.raw_pct); }); return o; })(), cfg.p1_live, cfg.equate_threshold_pts, 'A');
+    forms.push(['equating', plan.apply ? 'applied (reference ' + plan.reference + ')' : 'not applied', '', '', '', '', '', 'live-form mean difference ' + plan.diff + ' pts (threshold ' + cfg.equate_threshold_pts + ')']);
+    writeDash_('Dash_BL2_Forms', ['form', 'use', 'starts', 'submitted', 'mean_raw', 'sd_raw', 'mean_scaled', 'starts_by_role'], forms);
+    counts.forms = forms.length;
+
+    // Dash_BL2_Raters: mean and spread per rater (leniency)
+    var raters = {};
+    ratingRows_(cfg.wave).forEach(function (r) {
+      if (String(r.rater_role).trim().toLowerCase() !== 'manager') return;
+      var rc = normCode(r.rater_code), x = raters[rc] = raters[rc] || { ratees: {}, vals: [], na: 0, n: 0 };
+      var v = String(r.value || '').trim().toUpperCase();
+      if (!v) return;
+      x.n++;
+      x.ratees[normCode(r.ratee_code)] = true;
+      if (v === 'NA') x.na++; else x.vals.push(toInt(v, 0));
+    });
+    var raterOut = Object.keys(raters).sort().map(function (rc) {
+      var x = raters[rc], m = meanSd(x.vals);
+      var selfMeans = Object.keys(x.ratees).map(function (c) { var p = profiles[c] || buildProfile_(c, ctx); return p && p.p2 ? p.p2.self_mean : null; }).filter(function (v) { return typeof v === 'number'; });
+      var row = findRosterRow_(rc);
+      return [rc, row ? row.display_name : '', Object.keys(x.ratees).length, x.n, m.mean === null ? '' : round1(m.mean), m.sd === null ? '' : round1(m.sd),
+        x.n ? Math.round(100 * x.na / x.n) : 0, selfMeans.length ? round1(meanSd(selfMeans).mean) : ''];
+    });
+    writeDash_('Dash_BL2_Raters', ['rater_code', 'name', 'ratees', 'ratings', 'mean', 'sd', 'na_pct', 'ratees_self_mean'], raterOut);
+    counts.raters = raterOut.length;
+
+    // Dash_BL2_Flags: blind spot / hidden strength / knowing–doing / rates high, scores low
+    var flags = [];
+    people.forEach(function (u) {
+      var p = profiles[u.code];
+      if (!p) return;
+      if (p.p2) Object.keys(p.p2.by_charter).forEach(function (c) {
+        var x = p.p2.by_charter[c];
+        x.flags.forEach(function (f) { flags.push([u.code, u.display_name, u.role_area, 'charter ' + c, f, 'self ' + x.self_mean + ' · manager ' + x.mgr_mean + ' · SJT ' + (x.sjt_band || '–')]); });
+      });
+      Object.keys(p.courses).forEach(function (k) {
+        var x = p.courses[k];
+        if (x.flag) flags.push([u.code, u.display_name, u.role_area, k, 'rates_high_scores_low', 'self ' + x.self + ' · score ' + x.score_pct + '%']);
+      });
+    });
+    writeDash_('Dash_BL2_Flags', ['code', 'name', 'role_area', 'area', 'flag', 'detail'], flags);
+    counts.flags = flags.length;
+  });
+  return counts;
+}
+
+function menuBaselineReports() {
+  var c = buildBaselineReports_();
+  notify_('Baseline v2 reports', 'Dash_BL2_Heatmap ' + c.heatmap + ' person(s) · Dash_BL2_Items ' + c.items + ' item(s) · Dash_BL2_Forms · Dash_BL2_Raters ' + c.raters +
+    ' rater(s) · Dash_BL2_Flags ' + c.flags + ' flag(s). Admin only: never shown on the Hub.');
+}
 
 // ============================================================================
 // Setup.gs
@@ -4227,4 +5010,679 @@ function notify_(title, message) {
   } catch (e) {
     console.log(title + '\n' + message);
   }
+}
+
+// ============================================================================
+// Baseline.gs
+// ============================================================================
+/**
+ * Baseline.gs · Baseline v2 (specs/22): three parts opened by manual switches, once per part per
+ * wave, one timer per part; the Part 2 SJT lock; manager rating (180°); scoring at submit; the
+ * profile (built by buildProfiles(), published while results_open); team numbers.
+ * Pure rules (form choice, scoring, equating, flags, level, gaps) live in Logic.gs.
+ * Privacy: items leave only through serveBaselineItem / managerRatingItem (whitelists); keys,
+ * explanations, step, move, gate, level and charter never do.
+ */
+
+var BL_SWITCH_ = { baseline_p1: 'p1_open', baseline_p2: 'p2_open', baseline_p3: 'p3_open' };
+var BL_MINUTES_ = { baseline_p1: 'p1_minutes', baseline_p2: 'p2_minutes', baseline_p3: 'p3_minutes' };
+/** Summary metric → team_summary baseline field. */
+var BL_SUMMARY_METRICS_ = { bl2_p1_pct: 'p1_pct', bl2_p2_sjt_pct: 'p2_sjt_pct', bl2_p2_mgr_mean: 'p2_mgr_mean', bl2_p3_core_pct: 'p3_core_pct' };
+
+function isBl_(a) { return !!a && blPart(a.assessment) > 0; }
+
+function blDeadlineMs_(att, cfg) {
+  var d = parseTime(att.deadline_at);
+  return isNaN(d) ? att.started_ms + cfg[BL_MINUTES_[att.assessment]] * 60000 : d;
+}
+
+function blHardEndMs_(att, cfg) { return blDeadlineMs_(att, cfg) + cfg.grace_minutes * 60000; }
+
+function sjtLock_(att) { return att.section_locks && att.section_locks.SJT ? att.section_locks.SJT : null; }
+
+function blServed_(att, byId) { return att.served.filter(function (id) { return byId[id]; }); }
+
+/**
+ * The answers that count for an attempt, from raw client (or saved) answers: each cleaned for its
+ * item type; Part 2 SJT answers come from the lock record once locked (frozen), and rating answers
+ * are ignored before the lock (the statements were not sent yet).
+ */
+function blEffectiveAnswers_(att, raw, byId) {
+  var served = blServed_(att, byId);
+  var lock = att.assessment === 'baseline_p2' ? sjtLock_(att) : null;
+  var ids = served.filter(function (id) {
+    if (att.assessment !== 'baseline_p2') return true;
+    return byId[id].section === 'SJT' ? !lock : !!lock;
+  });
+  var out = cleanBlAnswers(raw, ids, byId);
+  if (lock) {
+    var frozen = cleanBlAnswers(lock.answers || {}, served.filter(function (id) { return byId[id].section === 'SJT'; }), byId);
+    Object.keys(frozen).forEach(function (id) { out[id] = frozen[id]; });
+  }
+  var ordered = {};
+  served.forEach(function (id) { if (Object.prototype.hasOwnProperty.call(out, id)) ordered[id] = out[id]; });
+  return ordered;
+}
+
+// ---------------------------------------------------------------- expiry
+
+function staleBl_(code) {
+  var cfg = config_(), now = nowMs_();
+  return userAttempts_(code).filter(function (a) { return isBl_(a) && a.status === 'open' && now > blHardEndMs_(a, cfg); });
+}
+
+/** Auto-submits expired parts from the last save (status expired). Lock required. */
+function expireBl_(code) {
+  var cfg = config_();
+  staleBl_(code).forEach(function (a) { finalizeBl_(a, a.answers, a.self_ratings, 'expired', blHardEndMs_(a, cfg)); });
+}
+
+function expireAllBl_() {
+  var codes = {};
+  allAttempts_().forEach(function (a) { if (isBl_(a) && a.status === 'open') codes[a.code] = true; });
+  Object.keys(codes).forEach(expireBl_);
+  invalidate_('Attempts');
+}
+
+// ---------------------------------------------------------------- start
+
+function overrideFor_(code, wave, part) {
+  var found = '';
+  readTableOpt_('Overrides').rows.forEach(function (r) {
+    if (normCode(r.employee_code) === code && normWave(r.wave) === wave && toInt(r.part, 0) === part) {
+      var f = String(r.form || '').trim().toUpperCase();
+      if (BL_FORMS.indexOf(f) >= 0) found = f; // the latest row wins
+    }
+  });
+  return found;
+}
+
+function pickP1Form_(s, cfg) {
+  var atts = allAttempts_();
+  var people = {};
+  rosterRows_().map(userView_).forEach(function (u) { people[u.code] = u; });
+  var counts = {};
+  cfg.p1_live.forEach(function (f) { counts[f] = 0; });
+  atts.forEach(function (a) {
+    if (a.assessment !== 'baseline_p1' || a.wave !== cfg.wave || !(a.form in counts)) return;
+    var u = people[a.code];
+    if (!u || u.is_test || u.role_area !== s.user.role_area) return;
+    counts[a.form]++;
+  });
+  var prev = atts.filter(function (a) { return a.code === s.code && a.assessment === 'baseline_p1' && isDone_(a) && a.wave && a.wave < cfg.wave; })
+    .sort(function (a, b) { return a.wave < b.wave ? 1 : a.wave > b.wave ? -1 : 0; })[0];
+  var r = chooseP1Form({ override: overrideFor_(s.code, cfg.wave, 1), live: cfg.p1_live, counts: counts, previousForm: prev ? prev.form : '', code: s.code, wave: cfg.wave });
+  if (!r.form) throw apiError_('not_found', 'Part 1 has no live form yet.');
+  return r.form;
+}
+
+function startBl_(s, assessment) {
+  var cfg = config_(), now = nowMs_();
+  expireBl_(s.code);
+  var mine = userAttempts_(s.code).filter(function (a) { return a.assessment === assessment && a.wave === cfg.wave; });
+  var open = mine.filter(function (a) { return a.status === 'open'; })[0];
+  if (open) { setLogInfo_(s.code, assessment + ' resume ' + open.attempt_id); return blStartPayload_(open, true); }
+  if (mine.some(isDone_)) throw apiError_('already_submitted', 'You have already done this part in this wave.');
+  if (!cfg[BL_SWITCH_[assessment]]) throw apiError_('not_open', 'This part of the baseline is not open.');
+  var part = blPart(assessment), form = 'ONE', module = '', items;
+  if (part === 1) {
+    form = pickP1Form_(s, cfg);
+    items = blGroup_('baseline_p1', form, '');
+  } else if (part === 2) {
+    items = blGroup_('baseline_p2', '', '');
+  } else {
+    module = p3ModuleFor(s.user.p3_module, s.user.role_area);
+    if (!module) throw apiError_('not_found', 'No Part 3 module is set for you yet. Please ask HR.');
+    items = blItemsForAttempt_({ assessment: assessment, module: module });
+  }
+  var served = blSortItems(items.filter(function (i) { return i.active; })).map(function (i) { return i.item_id; });
+  if (!served.length) throw apiError_('not_found', 'This part has no questions yet.');
+  var minutes = cfg[BL_MINUTES_[assessment]];
+  var att = createAttempt_(s.code, assessment, '', form, 1, served, cfg.wave, {
+    part: part, module: module, deadline_at: iso7(now + minutes * 60000), section_locks: ''
+  });
+  return blStartPayload_(att, false);
+}
+
+function blSection_(id, titleKey, introKey) {
+  var t = blTextOf_(titleKey), i = introKey ? blTextOf_(introKey) : { en: '', vi: '' };
+  return { id: id, title_en: t.en, title_vi: t.vi, intro_en: i.en, intro_vi: i.vi, locked: false, items: [] };
+}
+
+function blRateSection_(att, byId) {
+  var sec = blSection_('RATE', 'p2_sec_RATE', 'p2_sec_RATE_intro');
+  if (sjtLock_(att)) {
+    sec.items = blServed_(att, byId).filter(function (id) { return byId[id].section === 'RATE'; })
+      .map(function (id) { return serveBaselineItem(byId[id], att.seed + ':' + id); });
+  }
+  return sec;
+}
+
+function blScale4_(naKey) {
+  var points = [1, 2, 3, 4].map(function (v) { var t = blTextOf_('p2_scale_' + v); return { v: v, en: t.en, vi: t.vi }; });
+  var x = blTextOf_(naKey);
+  return { points: points, extra: { en: x.en, vi: x.vi } };
+}
+
+/** start/resume payload (specs/22 §4). */
+function blStartPayload_(att, resumed) {
+  var cfg = config_();
+  var byId = indexItems_(blItemsForAttempt_(att));
+  var served = blServed_(att, byId);
+  var part = blPart(att.assessment);
+  var deadline = blDeadlineMs_(att, cfg);
+  var title = blTextOf_('p' + part + '_title'), intro = blTextOf_('p' + part + '_intro');
+  var out = {
+    attempt_id: att.attempt_id, assessment: att.assessment, part: part, form: att.form, module: att.module || '',
+    started_at: att.started_at, deadline_at: iso7(deadline), time_limit_min: Math.round((deadline - att.started_ms) / 60000),
+    resumed: !!resumed, title_en: title.en, title_vi: title.vi, intro_en: intro.en, intro_vi: intro.vi,
+    answers: blEffectiveAnswers_(att, att.answers, byId)
+  };
+  var serve = function (sec) {
+    return served.filter(function (id) { return byId[id].section === sec; }).map(function (id) { return serveBaselineItem(byId[id], att.seed + ':' + id); });
+  };
+  if (part === 1) {
+    var a = blSection_('A', 'p1_sec_A', 'p1_sec_A_intro'), b = blSection_('B', 'p1_sec_B', 'p1_sec_B_intro_' + att.form);
+    a.items = serve('A');
+    b.items = serve('B');
+    out.sections = [a, b];
+  } else if (part === 2) {
+    var sj = blSection_('SJT', 'p2_sec_SJT', 'p2_sec_SJT_intro');
+    sj.items = serve('SJT');
+    sj.locked = !!sjtLock_(att);
+    out.sections = [sj, blRateSection_(att, byId)];
+    var sc = blScale4_('p2_scale_nr');
+    out.rating_scale = { points: sc.points, nr: sc.extra };
+  } else {
+    var core = blSection_('CORE', 'p3_sec_CORE', 'p3_sec_CORE_intro'), mod = blSection_('MOD', 'p3_sec_' + att.module, 'p3_sec_' + att.module + '_intro');
+    core.items = serve('CORE');
+    mod.items = serve('MOD');
+    out.sections = [core, mod];
+  }
+  if (part === 1 || part === 3) {
+    var ex = blExhibits_(), exOut = {};
+    out.sections.forEach(function (sec) {
+      sec.items.forEach(function (it) {
+        (it.exhibit_ids || []).forEach(function (x) {
+          if (ex[x] && !exOut[x]) exOut[x] = { title_en: ex[x].title_en, title_vi: ex[x].title_vi, md_en: ex[x].md_en, md_vi: ex[x].md_vi };
+        });
+      });
+    });
+    out.exhibits = exOut;
+  }
+  if (part === 1) {
+    var cases = {};
+    served.forEach(function (id) {
+      var c = byId[id].case_id;
+      if (c && !cases[c]) { var t = blTextOf_('p1_case_' + att.form + '_' + c); cases[c] = { title_en: t.en, title_vi: t.vi }; }
+    });
+    out.cases = cases;
+  }
+  if (part === 3) {
+    var text = blText_(), lines = [];
+    Object.keys(text).forEach(function (k) { var m = /^p3_glossary_(\d+)$/.exec(k); if (m) lines.push({ n: parseInt(m[1], 10), en: text[k].en, vi: text[k].vi || text[k].en }); });
+    lines.sort(function (x, y) { return x.n - y.n; });
+    out.glossary = { en: lines.map(function (l) { return l.en; }), vi: lines.map(function (l) { return l.vi; }) };
+    out.self_ratings = cleanSelfRatings(att.self_ratings, courseOrder_());
+    out.self = courses_().map(function (c) { return { course: c.code, en: c.self_en, vi: c.self_vi }; });
+    out.scale = (SEED.scale || []).map(function (x) {
+      var tail = x.abbr ? ' (' + x.abbr + ')' : '';
+      return { level: x.level, en: x.level + ' · ' + x.en + tail, vi: x.level + ' · ' + x.vi + tail, desc_en: x.desc_en, desc_vi: x.desc_vi };
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- save, SJT lock, submit
+
+/** Patch for `save` (no lock, F4): answers per type and lock rules; Part 3 self-ratings. */
+function blSavePatch_(att, body) {
+  var cfg = config_();
+  if (nowMs_() > blHardEndMs_(att, cfg)) throw apiError_('already_submitted', 'Time is up: this part is graded from your last save.');
+  var byId = indexItems_(blItemsForAttempt_(att));
+  var patch = {};
+  if (body.answers !== undefined) patch.answers = JSON.stringify(blEffectiveAnswers_(att, body.answers, byId));
+  if (att.assessment === 'baseline_p3' && body.self_ratings !== undefined) patch.self_ratings = JSON.stringify(cleanSelfRatings(body.self_ratings, courseOrder_()));
+  return patch;
+}
+
+/**
+ * baseline_next {token, attempt_id, answers} (Part 2) → {locked: ['SJT'], section: RATE with items}.
+ * Saves the answers, requires every SJT item with two different picks, then freezes them.
+ */
+function apiBaselineNext_(body) {
+  var s = requireSession_(body);
+  var id = String(body.attempt_id || '').trim();
+  if (!id) throw apiError_('bad_request', 'attempt_id is required');
+  return withLock_(function () {
+    var att = findAttemptById_(id);
+    if (!att || att.code !== s.code || att.status === 'void') throw apiError_('not_found', 'Attempt not found');
+    if (att.assessment !== 'baseline_p2') throw apiError_('bad_request', 'Only Part 2 has a next section.');
+    setLogInfo_(s.code, 'baseline_p2 next ' + id);
+    if (isDone_(att)) throw apiError_('already_submitted', 'This part is already submitted.');
+    var cfg = config_(), now = nowMs_();
+    if (now > blHardEndMs_(att, cfg)) {
+      finalizeBl_(att, att.answers, att.self_ratings, 'expired', blHardEndMs_(att, cfg));
+      throw apiError_('already_submitted', 'Time is up: this part is graded from your last save.');
+    }
+    var byId = indexItems_(blItemsForAttempt_(att));
+    if (!sjtLock_(att)) {
+      var answers = blEffectiveAnswers_(att, body.answers !== undefined ? body.answers : att.answers, byId);
+      updateRow_('Attempts', att._row, { answers: JSON.stringify(answers), last_saved_at: iso7(now) });
+      var sjtIds = blServed_(att, byId).filter(function (x) { return byId[x].section === 'SJT'; });
+      var bad = sjtLockProblem(sjtIds, answers);
+      if (bad) throw apiError_('bad_request', 'Choose one most and one different least effective option in every situation.', { field: bad });
+      var frozen = {};
+      sjtIds.forEach(function (x) { frozen[x] = answers[x]; });
+      var locks = att.section_locks && typeof att.section_locks === 'object' ? att.section_locks : {};
+      locks.SJT = { at: iso7(now), answers: frozen };
+      updateRow_('Attempts', att._row, { section_locks: JSON.stringify(locks) });
+      att.section_locks = locks;
+    }
+    return { locked: ['SJT'], section: blRateSection_(att, byId) };
+  });
+}
+
+/** submit for a baseline part (inside the lock). Server-side expiry grades the last save without the checks. */
+function blSubmit_(att, body) {
+  var cfg = config_(), now = nowMs_();
+  if (now > blHardEndMs_(att, cfg)) { finalizeBl_(att, att.answers, att.self_ratings, 'expired', blHardEndMs_(att, cfg)); return; }
+  var byId = indexItems_(blItemsForAttempt_(att));
+  var answers = blEffectiveAnswers_(att, body.answers !== undefined ? body.answers : att.answers, byId);
+  var self = att.self_ratings;
+  if (att.assessment === 'baseline_p2') {
+    if (!sjtLock_(att)) throw apiError_('bad_request', 'Finish and lock Part 2A first.', { field: 'SJT' });
+    var missing = blServed_(att, byId).filter(function (x) { return byId[x].section === 'RATE' && answers[x] === undefined; })[0];
+    if (missing) throw apiError_('bad_request', 'Please answer every statement.', { field: missing });
+  }
+  if (att.assessment === 'baseline_p3') {
+    var order = courseOrder_();
+    self = cleanSelfRatings(body.self_ratings !== undefined ? body.self_ratings : att.self_ratings, order);
+    if (Object.keys(self).length < order.length) throw apiError_('bad_request', 'Please rate all ' + order.length + ' statements first.', { field: 'self_ratings' });
+  }
+  finalizeBl_(att, answers, self, 'submitted', now);
+}
+
+/** Scores a part and stores everything in its Attempts row (lock required). */
+function finalizeBl_(att, rawAnswers, selfRatings, status, submittedMs) {
+  assertLocked_();
+  var cfg = config_();
+  var byId = indexItems_(blItemsForAttempt_(att));
+  var served = blServed_(att, byId);
+  var answers = blEffectiveAnswers_(att, rawAnswers, byId);
+  var deadline = blDeadlineMs_(att, cfg);
+  var used = status === 'expired' ? deadline - att.started_ms : Math.min(submittedMs, blHardEndMs_(att, cfg)) - att.started_ms;
+  var at = iso7(submittedMs);
+  var patch = {
+    status: status, submitted_at: at, answers: JSON.stringify(answers), graded_answers: JSON.stringify(answers),
+    time_used_s: Math.max(0, Math.round(used / 1000)), passed: ''
+  };
+  if (att.assessment === 'baseline_p2') {
+    var sj = scoreSjt(served, answers, byId);
+    var rateItems = served.filter(function (x) { return byId[x].section === 'RATE'; }).map(function (x) { return byId[x]; });
+    var means = ratingMeans(answers, rateItems);
+    var byCharter = {};
+    BL_CHARTERS.forEach(function (c) {
+      var x = sj.by_charter[c], m = means.by_charter[c];
+      if (!x && !m) return;
+      byCharter[c] = { sjt_points: x ? x.sjt_points : 0, sjt_max: x ? x.sjt_max : 0, self_mean: m ? round1(m.mean) : null };
+    });
+    Object.assign(patch, {
+      n_items: sj.max, n_correct: sj.points, score_pct: sj.pct, raw_pct: sj.pct, by_charter: JSON.stringify(byCharter),
+      section_pct: JSON.stringify({ SJT: sj.pct })
+    });
+    updateRow_('Attempts', att._row, patch);
+    var vals = {};
+    rateItems.forEach(function (it) { vals[it.item_id] = answers[it.item_id] === undefined ? '' : answers[it.item_id]; });
+    upsertRatings_(att.wave, att.code, att.code, 'self', vals, at);
+    return;
+  }
+  var sc = scoreBlMcq(served, answers, byId);
+  Object.assign(patch, { n_items: sc.n, n_correct: sc.correct, score_pct: sc.pct, raw_pct: sc.pct });
+  if (att.assessment === 'baseline_p1') {
+    Object.assign(patch, {
+      scaled_pct: sc.pct, by_step: JSON.stringify(sc.by_step), by_move: JSON.stringify(sc.by_move),
+      by_course: JSON.stringify(sc.by_course), section_pct: JSON.stringify({ A: pctOf(sc.by_section.A), B: pctOf(sc.by_section.B) })
+    });
+    updateRow_('Attempts', att._row, patch);
+    return;
+  }
+  var order = courseOrder_();
+  var self = cleanSelfRatings(selfRatings, order);
+  Object.assign(patch, {
+    by_level: JSON.stringify(sc.by_level), by_gate: JSON.stringify(sc.by_gate), self_ratings: JSON.stringify(self),
+    section_pct: JSON.stringify({ CORE: pctOf(sc.by_section.CORE), MOD: pctOf(sc.by_section.MOD) })
+  });
+  updateRow_('Attempts', att._row, patch);
+  var srRows = order.filter(function (c) { return c in self; }).map(function (c) {
+    return { employee_code: att.code, wave: att.wave, course: c, level: self[c], submitted_at: at };
+  });
+  if (srRows.length) appendRows_('SelfRatings', srRows);
+}
+
+/** What a learner sees after a sitting: "Part N done" and time used (no score, no feedback). */
+function blResult_(att) {
+  return { assessment: att.assessment, part: blPart(att.assessment), submitted_at: att.submitted_at, time_used_s: att.time_used_s };
+}
+
+// ---------------------------------------------------------------- me, team_status
+
+function blPartItemCount_(assessment, user, att) {
+  var cfg = config_();
+  var count = function (list) { return list.filter(function (i) { return i.active; }).length; };
+  if (att) return att.served.length;
+  if (assessment === 'baseline_p1') return count(blGroup_('baseline_p1', cfg.p1_live[0] || 'B', ''));
+  if (assessment === 'baseline_p2') return count(blGroup_('baseline_p2', '', ''));
+  var m = p3ModuleFor(user.p3_module, user.role_area);
+  return count(blItemsForAttempt_({ assessment: 'baseline_p3', module: m }));
+}
+
+function canRate_(user) { return user.is_manager || user.roles.indexOf('admin') >= 0; }
+
+/** me.baseline (specs/22 §4). */
+function blMeState_(s, atts) {
+  var cfg = config_();
+  var parts = {}, anyDone = false;
+  BL_ASSESSMENTS.forEach(function (a, i) {
+    var cur = atts.filter(function (x) { return x.assessment === a && x.wave === cfg.wave; });
+    var open = cur.filter(function (x) { return x.status === 'open'; })[0] || null;
+    var done = cur.filter(isDone_)[0] || null;
+    var st = {
+      open: cfg[BL_SWITCH_[a]], status: done ? 'submitted' : open ? 'in_progress' : 'not_started',
+      minutes: cfg[BL_MINUTES_[a]], n_items: blPartItemCount_(a, s.user, done || open)
+    };
+    var att = done || open;
+    if (att) {
+      st.attempt_id = att.attempt_id;
+      st.started_at = att.started_at;
+      if (done) st.submitted_at = att.submitted_at; else st.deadline_at = iso7(blDeadlineMs_(att, cfg));
+      if (a === 'baseline_p1') st.form = att.form;
+    }
+    if (done) anyDone = true;
+    parts['p' + (i + 1)] = st;
+  });
+  var out = { wave: cfg.wave, parts: parts, results_open: cfg.results_open, profile_ready: cfg.results_open && anyDone, rating: null };
+  if (canRate_(s.user)) {
+    var list = rateList_(s.code, cfg);
+    out.rating = { open: cfg.rating_open, to_rate: list.length, done: list.filter(function (r) { return r.status === 'complete'; }).length };
+  }
+  var prevWaves = {};
+  atts.forEach(function (a) { if (isBl_(a) && isDone_(a) && a.wave && a.wave < cfg.wave) (prevWaves[a.wave] = prevWaves[a.wave] || []).push(blPart(a.assessment)); });
+  var pw = Object.keys(prevWaves).sort().pop();
+  if (pw) out.previous = { wave: pw, parts_done: prevWaves[pw].filter(function (p, i, l) { return l.indexOf(p) === i; }).sort() };
+  return out;
+}
+
+/** team_status baseline: {p1, p2, p3} = done | in_progress | not_done (no scores). */
+function blTeamStatus_(mine, cfg) {
+  var out = {};
+  BL_ASSESSMENTS.forEach(function (a, i) {
+    var cur = mine.filter(function (x) { return x.assessment === a && x.wave === cfg.wave; });
+    out['p' + (i + 1)] = cur.some(isDone_) ? 'done' : cur.some(function (x) { return x.status === 'open'; }) ? 'in_progress' : 'not_done';
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------- Ratings (180°)
+
+function rateItems_() {
+  return blSortItems(blGroup_('baseline_p2', '', 'RATE').filter(function (i) { return i.active && i.section === 'RATE'; }));
+}
+
+/** Active, non-test people whose Roster.manager_code is the rater (managers included: Quân rates them). */
+function ratees_(raterCode) {
+  return rosterRows_().map(userView_).filter(function (u) { return u.active && u.code && !u.is_test && u.code !== raterCode && u.manager_code === raterCode; });
+}
+
+function ratingRows_(wave) {
+  return readTableOpt_('Ratings').rows.filter(function (r) { return normWave(r.wave) === wave; });
+}
+
+/** Upserts one rater's values for one ratee (one row per wave, ratee, rater, role, item). Lock required. */
+function upsertRatings_(wave, ratee, rater, role, values, at) {
+  var existing = {};
+  ratingRows_(wave).forEach(function (r) {
+    if (normCode(r.ratee_code) === ratee && normCode(r.rater_code) === rater && String(r.rater_role).trim().toLowerCase() === role) existing[String(r.item_id).trim()] = r;
+  });
+  var add = [];
+  Object.keys(values).forEach(function (id) {
+    var v = values[id];
+    if (existing[id]) {
+      if (String(existing[id].value) !== String(v)) updateRow_('Ratings', existing[id]._row, { value: v, saved_at: at });
+    } else if (v !== '') add.push({ wave: wave, ratee_code: ratee, rater_code: rater, rater_role: role, item_id: id, value: v, saved_at: at });
+  });
+  if (add.length) appendRows_('Ratings', add);
+  invalidate_('Ratings');
+}
+
+function managerValues_(rows, ratee, rater) {
+  var vals = {}, saved = '';
+  rows.forEach(function (r) {
+    if (normCode(r.ratee_code) !== ratee || normCode(r.rater_code) !== rater || String(r.rater_role).trim().toLowerCase() !== 'manager') return;
+    var v = String(r.value || '').trim().toUpperCase();
+    if (!v) return;
+    vals[String(r.item_id).trim()] = v === 'NA' ? 'NA' : toInt(v, 0);
+    if (r.saved_at && r.saved_at > saved) saved = r.saved_at;
+  });
+  return { values: vals, saved_at: saved || null };
+}
+
+function rateList_(raterCode, cfg) {
+  var items = rateItems_(), rows = ratingRows_(cfg.wave);
+  return ratees_(raterCode).map(function (u) {
+    var mv = managerValues_(rows, u.code, raterCode);
+    var n = items.filter(function (it) { return mv.values[it.item_id] !== undefined; }).length;
+    return { code: u.code, first_name: u.first_name, role_area: u.role_area, status: !n ? 'not_started' : n >= items.length && items.length ? 'complete' : 'in_progress', saved_at: mv.saved_at };
+  });
+}
+
+function requireRater_(s) {
+  if (!canRate_(s.user)) throw apiError_('forbidden', 'Only managers can rate their team.');
+}
+
+function rateeFor_(s, code) {
+  var c = normCode(code);
+  var u = ratees_(s.code).filter(function (x) { return x.code === c; })[0];
+  if (!u) throw apiError_('forbidden', 'You can rate only your own team members.');
+  return u;
+}
+
+/** rate_list {token} → {open, wave, reports: [{code, first_name, role_area, status, saved_at}]} (manager/admin). */
+function apiRateList_(body) {
+  var s = requireSession_(body);
+  requireRater_(s);
+  var cfg = config_();
+  return { open: cfg.rating_open, wave: cfg.wave, reports: rateList_(s.code, cfg) };
+}
+
+/**
+ * rate_get {token, ratee} → manager wording, guide, scale (1–4 + N/A), saved values. Not before
+ * rating opens: the statements describe what the Part 2 SJT rewards, and raters are learners too.
+ */
+function apiRateGet_(body) {
+  var s = requireSession_(body);
+  requireRater_(s);
+  var cfg = config_();
+  var u = rateeFor_(s, body.ratee);
+  if (!cfg.rating_open) throw apiError_('not_open', 'Manager rating is not open yet.');
+  var mv = managerValues_(ratingRows_(cfg.wave), u.code, s.code);
+  var guide = blTextOf_('p2_rater_guide'), sc = blScale4_('p2_scale_na');
+  return {
+    open: cfg.rating_open, ratee: { code: u.code, first_name: u.first_name }, guide_en: guide.en, guide_vi: guide.vi,
+    scale: { points: sc.points, na: sc.extra }, items: rateItems_().map(managerRatingItem), values: mv.values, saved_at: mv.saved_at
+  };
+}
+
+/** rate_save {token, ratee, values} → {saved_at, complete}. Partial saves are fine; null or '' clears a value. */
+function apiRateSave_(body) {
+  var s = requireSession_(body);
+  requireRater_(s);
+  var cfg = config_();
+  if (!cfg.rating_open) throw apiError_('not_open', 'Manager rating is not open.');
+  var u = rateeFor_(s, body.ratee);
+  var items = rateItems_();
+  var cv = cleanRatingValues(body.values, items, 'manager');
+  if (cv.bad) throw apiError_('bad_request', 'Ratings are 1–4 or N/A.', { field: cv.bad });
+  return withLock_(function () {
+    var at = iso7(nowMs_());
+    setLogInfo_(s.code, 'rate ' + u.code);
+    upsertRatings_(cfg.wave, u.code, s.code, 'manager', cv.values, at);
+    var mv = managerValues_(ratingRows_(cfg.wave), u.code, s.code);
+    return { saved_at: at, complete: items.length > 0 && items.every(function (it) { return mv.values[it.item_id] !== undefined; }) };
+  });
+}
+
+// ---------------------------------------------------------------- profiles
+
+/** Everything buildProfile_ needs, read once. */
+function blProfileContext_() {
+  var cfg = config_();
+  var byCode = {};
+  allAttempts_().forEach(function (a) { if (isBl_(a) && isDone_(a) && a.wave === cfg.wave) (byCode[a.code] = byCode[a.code] || {})[a.assessment] = a; });
+  var mgr = {};
+  ratingRows_(cfg.wave).forEach(function (r) {
+    if (String(r.rater_role).trim().toLowerCase() !== 'manager') return;
+    var v = toInt(r.value, 0);
+    if (v < 1 || v > 4) return;
+    var c = normCode(r.ratee_code), id = String(r.item_id).trim();
+    var m = (mgr[c] = mgr[c] || {});
+    (m[id] = m[id] || []).push(v);
+  });
+  var text = blText_(), names = {};
+  ['p1_A', 'p1_B'].forEach(function (k) { names[k] = text['p1_sec_' + k.slice(3)]; });
+  names.p3_CORE = text.p3_sec_CORE;
+  BL_MODULES.forEach(function (m) { names['p3_' + m] = text['p3_sec_' + m]; });
+  BL_CHARTERS.forEach(function (c) { names['charter_' + c] = text['p2_charter_' + c]; });
+  return { cfg: cfg, byCode: byCode, mgr: mgr, names: names, rateItems: rateItems_(), order: courseOrder_() };
+}
+
+/** One person's profile, or null when they have no submitted part and no manager rating. */
+function buildProfile_(code, ctx) {
+  var cfg = ctx.cfg, mine = ctx.byCode[code] || {};
+  var p1 = mine.baseline_p1, p2 = mine.baseline_p2, p3 = mine.baseline_p3;
+  var mgrRaw = ctx.mgr[code] || {}, mgr = {};
+  Object.keys(mgrRaw).forEach(function (id) { mgr[id] = mgrRaw[id].reduce(function (s, x) { return s + x; }, 0) / mgrRaw[id].length; });
+  if (!p1 && !p2 && !p3 && !Object.keys(mgr).length) return null;
+  var counts = function (att) {
+    var byId = indexItems_(blItemsForAttempt_(att));
+    return scoreBlMcq(blServed_(att, byId), gradedAnswers_(att), byId);
+  };
+  var inp = {
+    wave: cfg.wave, built_at: iso7(nowMs_()), order: ctx.order, w_sjt: cfg.p2_w_sjt, w_mgr: cfg.p2_w_mgr, names: ctx.names,
+    self_courses: p3 ? cleanSelfRatings(p3.self_ratings, ctx.order) : {}, p1: null, p2: null, p3: null
+  };
+  if (p1) {
+    var c1 = counts(p1);
+    inp.p1 = { form: p1.form, raw_pct: p1.raw_pct, scaled_pct: p1.scaled_pct, by_section: c1.by_section, by_step: c1.by_step, by_move: c1.by_move, by_course: c1.by_course };
+  }
+  if (p2 || Object.keys(mgr).length) {
+    var self = {}, sj = { points: 0, max: 0, by_charter: {} };
+    if (p2) {
+      var byId2 = indexItems_(blItemsForAttempt_(p2));
+      var g2 = gradedAnswers_(p2);
+      sj = scoreSjt(blServed_(p2, byId2), g2, byId2);
+      ctx.rateItems.forEach(function (it) { if (g2[it.item_id] !== undefined) self[it.item_id] = g2[it.item_id]; });
+    }
+    inp.p2 = { by_charter: sj.by_charter, points: sj.points, max: p2 ? sj.max : 0, items: ctx.rateItems, self: self, mgr: mgr };
+  }
+  if (p3) {
+    var c3 = counts(p3);
+    inp.p3 = { module: p3.module, total_pct: p3.raw_pct, core_pct: pctOf(c3.by_section.CORE), module_pct: pctOf(c3.by_section.MOD), by_level: c3.by_level, by_gate: c3.by_gate };
+  }
+  return buildBaselineProfile(inp);
+}
+
+/** Part 1 equating (mean-sigma, specs/22 §3): writes scaled_pct on every submitted Part 1 attempt. Lock required. */
+function applyEquating_(cfg) {
+  var people = {};
+  rosterRows_().map(userView_).forEach(function (u) { people[u.code] = u; });
+  var atts = allAttempts_().filter(function (a) { return a.assessment === 'baseline_p1' && a.wave === cfg.wave && isDone_(a) && a.raw_pct !== null; });
+  var scores = {};
+  atts.forEach(function (a) {
+    var u = people[a.code];
+    if (!u || u.is_test || !u.active) return;
+    (scores[a.form] = scores[a.form] || []).push(a.raw_pct);
+  });
+  var plan = equatingPlan(scores, cfg.p1_live, cfg.equate_threshold_pts, 'A');
+  atts.forEach(function (a) {
+    var sc = scaledFor(plan, a.form, a.raw_pct);
+    if (sc !== a.scaled_pct) updateRow_('Attempts', a._row, { scaled_pct: sc });
+  });
+  invalidate_('Attempts');
+  return plan;
+}
+
+/** buildProfiles(): expiry, equating, then one Profiles row per person for the current wave (menu + hourly while results_open). */
+function buildProfiles() {
+  resetRequest_();
+  var n = 0;
+  withLock_(function () { n = buildProfilesLocked_(); });
+  return n;
+}
+
+function buildProfilesLocked_() {
+  var cfg = config_();
+  expireAllBl_();
+  applyEquating_(cfg);
+  var ctx = blProfileContext_();
+  var at = iso7(nowMs_());
+  var rows = [];
+  rosterRows_().map(userView_).forEach(function (u) {
+    if (!u.code || !u.active) return;
+    var p = buildProfile_(u.code, ctx);
+    if (p) rows.push({ employee_code: u.code, wave: cfg.wave, built_at: at, json: JSON.stringify(p) });
+  });
+  var keep = readTableOpt_('Profiles').rows.filter(function (r) { return normWave(r.wave) !== cfg.wave; })
+    .map(function (r) { return { employee_code: r.employee_code, wave: r.wave, built_at: r.built_at, json: r.json }; });
+  replaceBody_('Profiles', SCHEMA.Profiles, keep.concat(rows));
+  setLogInfo_('', 'profiles ' + rows.length);
+  return rows.length;
+}
+
+/** profile {token} → the learner's own profile; not_open until results_open. */
+function apiProfile_(body) {
+  var s = requireSession_(body);
+  var cfg = config_();
+  if (!cfg.results_open) throw apiError_('not_open', 'Your baseline profile is not ready yet.');
+  var row = null;
+  readTableOpt_('Profiles').rows.forEach(function (r) { if (normCode(r.employee_code) === s.code && normWave(r.wave) === cfg.wave) row = r; });
+  var p = row ? parseJson_(row.json, null) : null;
+  if (!p) {
+    if (staleBl_(s.code).length) withLock_(function () { expireBl_(s.code); });
+    invalidate_('Attempts');
+    p = buildProfile_(s.code, blProfileContext_()); // not built yet (the hourly job will write it)
+  }
+  if (!p) throw apiError_('not_found', 'You have not taken a baseline part in this wave.');
+  return p;
+}
+
+// ---------------------------------------------------------------- team numbers (Summary rows)
+
+/** Baseline team averages for the Summary tab (only called while results_open; graded fresh after expiry). */
+function blSummaryRows_(people, minN, emit) {
+  var cfg = config_();
+  expireAllBl_();
+  var fresh = {};
+  allAttempts_().forEach(function (a) { if (isBl_(a) && isDone_(a) && a.wave === cfg.wave) (fresh[a.code] = fresh[a.code] || {})[a.assessment] = a; });
+  var ctx = blProfileContext_();
+  var rows = people.map(function (u) {
+    var m = fresh[u.code] || {}, mg = ctx.mgr[u.code] || {}, all = [];
+    Object.keys(mg).forEach(function (id) { all = all.concat(mg[id]); });
+    var p1 = m.baseline_p1, p3 = m.baseline_p3;
+    return {
+      group: u.role_area, is_manager: u.is_manager, roles: u.roles_raw,
+      values: {
+        bl2_p1_pct: p1 ? (p1.scaled_pct !== null ? p1.scaled_pct : p1.raw_pct) : null,
+        bl2_p2_sjt_pct: m.baseline_p2 ? m.baseline_p2.raw_pct : null,
+        bl2_p2_mgr_mean: all.length ? all.reduce(function (s, x) { return s + x; }, 0) / all.length : null,
+        bl2_p3_core_pct: p3 && p3.section_pct && typeof p3.section_pct.CORE === 'number' ? p3.section_pct.CORE : null
+      }
+    };
+  }).filter(function (r) { return Object.keys(r.values).some(function (k) { return r.values[k] !== null; }); });
+  summarise(rows, minN).forEach(function (g) {
+    Object.keys(BL_SUMMARY_METRICS_).forEach(function (k) {
+      var v = g.avg[k];
+      emit(cfg.wave, g, k, 'BL2', v === null || v === undefined ? '' : (k === 'bl2_p2_mgr_mean' ? round1(v) : Math.round(v)), g.count[k] || 0);
+    });
+  });
 }

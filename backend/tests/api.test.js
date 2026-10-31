@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // End-to-end tests through doPost on the Node harness (invented fixtures only).
-// Run: node backend/tests/api.test.js   (re-runs itself under TZ=UTC and America/New_York)
+// Run: node backend/tests/api.test.js   (re-runs itself under TZ=UTC, Asia/Ho_Chi_Minh and America/New_York)
 'use strict';
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -1241,6 +1241,60 @@ section('F5 coercion: setup makes every tab plain text and repairs converted cel
   eq(h.table('Courses').length, 10);
 });
 
+section('setupSheet on the live Sheet: v1 tabs kept, baseline columns added, BaselineItems pasted in the bank\'s own column order', () => {
+  const h = createHarness({ now: T('2026-11-16T09:00:00+07:00') });
+  // what the live Sheet looks like: v1 tabs with data, BaselineItems pasted by hand (alphabetical headers, no allow_nr, unformatted cells)
+  const put = (name, rows) => { const sh = h.ss.insertSheet(name); if (rows[0].length > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), rows[0].length - sh.getMaxColumns()); sh.getRange(1, 1, rows.length, rows[0].length).setValues(rows); return sh; };
+  put('Config', [['key', 'value', 'note'], ['wave', '2026-11', ''], ['baseline_open_from', '2026-11-16', 'old'], ['baseline_minutes', '60', 'old']]);
+  put('Attempts', [['attempt_id', 'employee_code', 'assessment', 'status', 'wave'], ['at_old1', 'T001', 'baseline', 'submitted', '2026-11']]);
+  const bank = fx.buildBaselineItems();
+  const cols = Object.keys(bank[0]).filter((k) => k !== 'allow_nr').sort();
+  put('BaselineItems', [cols].concat(bank.map((it) => cols.map((c) => it[c]))));
+  h.run('setupSheet');
+  const conf = Object.fromEntries(h.table('Config').map((r) => [r.key, r.value]));
+  eq([conf.wave, conf.baseline_open_from, conf.baseline_minutes], ['2026-11', '2026-11-16', '60'], 'old keys left alone (no longer read)');
+  eq([conf.p1_open, conf.p1_live, conf.p1_backup, conf.p1_minutes, conf.p2_minutes, conf.p3_minutes, conf.grace_minutes, conf.p2_w_sjt, conf.p2_w_mgr, conf.equate_threshold_pts, conf.results_open, conf.rating_open],
+    ['FALSE', 'B,C', 'A', '65', '35', '48', '5', '0.5', '0.5', '5', 'FALSE', 'FALSE']);
+  const att = h.table('Attempts');
+  eq([att.length, att[0].attempt_id, att[0].assessment], [1, 'at_old1', 'baseline'], 'old attempts kept');
+  for (const c of ['part', 'module', 'section_locks', 'raw_pct', 'scaled_pct', 'by_step', 'by_move', 'by_charter', 'by_level', 'by_gate', 'time_used_s']) ok(c in att[0], 'Attempts.' + c);
+  const bi = h.table('BaselineItems');
+  eq(bi.length, 216); ok('allow_nr' in bi[0], 'allow_nr added at the end');
+  eq(typeof bi[0].order, 'string', 'cells the Sheet had turned into numbers are text again');
+  for (const t of ['Exhibits', 'BaselineText', 'Ratings', 'Overrides', 'Profiles']) ok(h.sheet(t), t + ' created');
+  ok(h.sheet('Roster').getRange(1, 1, 1, h.sheet('Roster').getLastColumn()).getValues()[0].includes('p3_module'));
+  // the rest of the fixtures, then a Part 2 sitting reads BaselineItems by header
+  fx.loadFixtures(h, { baseline: false });
+  h.appendObjects('Exhibits', fx.buildExhibits());
+  h.appendObjects('BaselineText', fx.buildBaselineText());
+  for (const n of fx.NR_POSITIONS) h.updateWhere('BaselineItems', 'item_id', 'MOCK-BL-2R' + String(n).padStart(2, '0'), { allow_nr: 'TRUE' });
+  h.setConfig('p2_open', 'TRUE');
+  const v = h.run('validateNow_');
+  eq(v.errors, []);
+  const tok = JSON.parse(h.postRaw(JSON.stringify({ action: 'login', code: 'T001', pin: PIN }))).token;
+  const s = h.call({ action: 'start', token: tok, assessment: 'baseline_p2' });
+  eq(s.ok, true); eq(s.sections[0].items.length, 15);
+  const nx = h.call({ action: 'baseline_next', token: tok, attempt_id: s.attempt_id, answers: sjtAnswers(s.sections[0].items) });
+  eq(nx.section.items.filter((x) => x.allow_nr).length, 3);
+  eq(blLeaks(nx), []); eq(blLeaks(s), []);
+});
+
+section('new code on the old Sheet (before Set up / repair tabs): me, team views and rating still answer', () => {
+  const h = harness('2026-11-16T09:00:00+07:00', { config: { p1_open: 'TRUE', rating_open: 'TRUE' } });
+  for (const t of ['BaselineItems', 'Exhibits', 'BaselineText', 'Ratings', 'Overrides', 'Profiles']) h.ss.deleteSheet(h.sheet(t));
+  h.run('clearCaches_');
+  const tok = h.login('T001');
+  eq(h.ok({ action: 'me', token: tok }).baseline.parts.p1, { open: true, status: 'not_started', minutes: 65, n_items: 0 });
+  h.err({ action: 'start', token: tok, assessment: 'baseline_p1' }, 'not_found');
+  const mt = h.login('T010');
+  eq(h.ok({ action: 'me', token: mt }).baseline.rating, { open: true, to_rate: 4, done: 0 });
+  h.ok({ action: 'team_status', token: mt });
+  h.ok({ action: 'rate_list', token: mt });
+  h.ok({ action: 'team_summary', token: tok });
+  h.run('setupSheet');
+  ok(h.sheet('BaselineItems') && h.sheet('Profiles'), 'setup creates them');
+});
+
 section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate, import, trigger', () => {
   const h = harness('2027-01-05T09:00:00+07:00');
   h.run('onOpen');
@@ -1302,8 +1356,8 @@ section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate,
   for (const k of ['p1_open', 'p2_open', 'p3_open', 'rating_open', 'results_open']) ok(new RegExp('id="' + k + '">').test(dlgS.html), k + ' shown closed');
   const t2 = h.login('T002');
   h.err({ action: 'start', token: t2, assessment: 'baseline_p1' }, 'not_open');
-  const rep = h.run('adminSetBaselineSwitches', { p1_open: true, p2_open: true, p3_open: 'TRUE', rating_open: false });
-  ok(/Saved: Part 1 · Problem solving with data: open/.test(rep) && /Results \(profiles and team averages\): closed/.test(rep));
+  const swRep = h.run('adminSetBaselineSwitches', { p1_open: true, p2_open: true, p3_open: 'TRUE', rating_open: false });
+  ok(/Saved: Part 1 · Problem solving with data: open/.test(swRep) && /Results \(profiles and team averages\): closed/.test(swRep));
   eq(Object.fromEntries(h.table('Config').map((r) => [r.key, r.value])).p1_open, 'TRUE');
   ok(h.table('Log').some((r) => r.action === 'admin_baseline_switches'));
   h.run('menuBaselineSwitches');
@@ -1329,14 +1383,14 @@ section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate,
   ok(/Dash_BL2_Heatmap 2 person/.test(h.ui.alerts.pop().message));
   const heat = h.table('Dash_BL2_Heatmap');
   eq(heat.map((r) => r.code), ['T002', 'T003']);
-  eq([heat[0].p1_raw, heat[0].p3_module, heat[1].p3_module], [String(Math.round(100 * 30 / 32)), 'SP', 'RPM']);
+  eq([heat[0].p1_raw, heat[0].p3_module, heat[1].p3_module], [String(Math.round(100 * 30 / 32)), 'DP', 'DP'], 'both demand');
   ok(h.sheet('Dash_BL2_Heatmap').backgrounds.length === 1, 'heatmap colours');
   const di = h.table('Dash_BL2_Items');
   const p1row = di.find((r) => r.type === 'mcq' && r.assessment === 'baseline_p1');
   eq(p1row.n, '1'); ok(/a \d+% · b \d+% · c \d+% · d \d+% · blank \d+%/.test(p1row.distribution));
   ok(di.some((r) => r.type === 'sjt' && /most: .*\| least: /.test(r.distribution)));
   ok(di.some((r) => r.type === 'rating' && /manager mean 1 \(n 1\)/.test(r.distribution)));
-  const core = di.find((r) => r.item_id === 'MOCK-BL-3CORE01');
+  const core = di.find((r) => r.item_id === 'MOCK-BL-3CORE05');
   eq([core.n, core.p_value_or_mean], ['2', '0.5']); ok(core.point_biserial !== '', 'point-biserial with two takers');
   const df = h.table('Dash_BL2_Forms');
   eq(df.map((r) => r.form), ['A', 'B', 'C', 'equating']); eq(df[0].use, 'backup');
@@ -1418,7 +1472,7 @@ if (failed) { console.error(`✖ api tests: ${failed} of ${sections.length} sect
 console.log(`✔ api tests: ${sections.length} sections, ${count} assertions passed in ${Date.now() - t0} ms (TZ=${tz})`);
 
 if (!process.env.API_TZ_CHILD) {
-  for (const zone of ['UTC', 'America/New_York']) {
+  for (const zone of ['UTC', 'Asia/Ho_Chi_Minh', 'America/New_York']) {
     const r = spawnSync(process.execPath, [__filename], { env: Object.assign({}, process.env, { TZ: zone, API_TZ_CHILD: '1' }), encoding: 'utf8' });
     process.stdout.write('  ' + (r.stdout || '').trim() + '\n');
     if (r.status !== 0) { console.error(r.stderr); console.error(`✖ api tests failed under TZ=${zone}`); process.exit(1); }

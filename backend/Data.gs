@@ -188,6 +188,12 @@ function readTable_(name) {
   return t;
 }
 
+/** Like readTable_, but a tab that does not exist yet reads as empty (the Baseline v2 tabs, before setupSheet runs on an updated deployment). */
+function readTableOpt_(name) {
+  if (!req_().tables[name] && !ss_().getSheetByName(name)) return { name: name, headers: [], col: {}, rows: [] };
+  return readTable_(name);
+}
+
 function invalidate_(name) { delete req_().tables[name]; }
 
 function headersOf_(name) {
@@ -572,7 +578,7 @@ function blItemGroupKeyOf_(it) {
 function loadBlGroups_() {
   var groups = {};
   blAllGroupKeys_().forEach(function (k) { groups[k] = []; });
-  readTable_('BaselineItems').rows.forEach(function (r, i) {
+  readTableOpt_('BaselineItems').rows.forEach(function (r, i) {
     var it = normBaselineItem(r, i);
     if (!it.item_id || !blPart(it.assessment)) return;
     var k = blItemGroupKeyOf_(it);
@@ -614,7 +620,7 @@ function blExhibits_() {
   var map = cacheGet_('bl_exhibits');
   if (!map) {
     map = {};
-    readTable_('Exhibits').rows.forEach(function (e) {
+    readTableOpt_('Exhibits').rows.forEach(function (e) {
       var id = String(e.exhibit_id || '').trim();
       if (id) map[id] = { part: String(e.part || '').trim(), form: String(e.form || '').trim().toUpperCase(), title_en: e.title_en || '', title_vi: e.title_vi || '', md_en: e.md_en || '', md_vi: e.md_vi || '' };
     });
@@ -628,7 +634,7 @@ function blText_() {
   var map = cacheGet_('bl_text');
   if (!map) {
     map = {};
-    readTable_('BaselineText').rows.forEach(function (t) {
+    readTableOpt_('BaselineText').rows.forEach(function (t) {
       var k = String(t.key || '').trim();
       if (k) map[k] = { en: t.en || '', vi: t.vi || '' };
     });

@@ -5,14 +5,14 @@ This puts the backend (grading, retake rules, privacy) into **your** Google acco
 **What you need**
 - Your Google account, with 2-step verification switched on.
 - From this repository: `backend/dist/Hub.gs` and `backend/dist/appsscript.json` (open each on GitHub ▸ **Raw** ▸ select all ▸ copy).
-- From your private folder (never from GitHub): `Items.csv`, `Courses.csv`, `Cases.csv`.
+- From your private folder (never from GitHub): `Items.csv`, `Courses.csv`, `Cases.csv`, and for the baseline the bank's `Items.csv` (→ **BaselineItems**) and `Exhibits.csv` (→ **Exhibits**) plus the **BaselineText** rows.
 
 > Never upload the CSV files, PINs or anything from the Sheet to GitHub. The repository is public.
 
 ---
 
 ## 1 · Create the Sheet
-> **Already done for the CBP27 build:** a private Sheet named **1pct-planner-data** is in Quân's Google Drive, with the **Items**, **Courses** and **Cases** tabs filled in. Open it and go straight to step 2. In step 6, skip the import and just run **Validate items / courses**.
+> **Already done for the CBP27 build:** a private Sheet named **1pct-planner-data** is in Quân's Google Drive, with the **Items**, **Courses** and **Cases** tabs filled in. Open it and go straight to step 2. In step 6, skip the import of those three and just run **Validate items / courses**; the baseline tabs are loaded in step 6b.
 
 1. Go to <https://sheets.new>. Name the file **1pct-planner-data** (top left).
 2. Leave sharing as it is for now (private). Step 12 covers sharing.
@@ -46,9 +46,19 @@ Do this for **Items**, **Courses** and **Cases**, one at a time:
 2. **File ▸ Import ▸ Upload** ▸ choose `Items.csv`.
 3. Import location: **Replace current sheet**. Separator: **Comma**. **Untick "Convert text to numbers, dates and formulas"**. Press **Import data**.
 
-Then run **1% Planner ▸ Validate items / courses**. It puts back the plain-text format, refills the Courses calendar columns that the import removed (order, cycle, online_from, checkpoint_close, forum_date, field_until, open) and lists any problems. You want "✔ No problems". Warnings about counts mean a course has fewer or more items than the blueprint (4 baseline, 3 predict, 10 per checkpoint form).
+Then run **1% Planner ▸ Validate items / courses**. It puts back the plain-text format, refills the Courses calendar columns that the import removed (order, cycle, online_from, checkpoint_close, forum_date, field_until, open) and lists any problems. You want "✔ No problems". Warnings about counts mean a course has fewer or more items than the blueprint (3 predict, 10 per checkpoint form). Old `baseline` rows left in Items are ignored (one warning says how many).
 
 Alternative: **1% Planner ▸ Import items from CSV…** lets you paste the CSV text instead (Courses rows are then updated by code and keep your dates and links).
+
+## 6b · Load the Baseline v2 tabs (BaselineItems, Exhibits, BaselineText)
+`setupSheet` (step 5, or **Set up / repair tabs** on an existing Sheet) creates the empty tabs **BaselineItems**, **Exhibits**, **BaselineText**, **Ratings**, **Overrides** and **Profiles**, adds the new columns to **Roster** (`p3_module`) and **Attempts**, and adds the new Config keys. It never deletes anything.
+1. **Exhibits** first: click the tab ▸ **File ▸ Import ▸ Upload** ▸ the bank's `Exhibits.csv` ▸ **Replace current sheet**, Comma, **untick "Convert text to numbers, dates and formulas"** (exhibit lines that start with `-` must stay text).
+2. **BaselineItems**: same steps with the bank's `Items.csv`. The column order does not matter (the Hub reads by header). The bank has no `allow_nr` column: run **Set up / repair tabs** once to add it back at the end, then type `TRUE` in `allow_nr` for the three "not my role" statements (rating statements R03, R10 and R13 of Part 2).
+3. **BaselineText**: one row per key (`key`, `en`, `vi`): section titles and intros, case titles, the 1–4 scale labels, `p2_scale_na` (manager form), `p2_scale_nr` (self form), the charter names, the rater guide, the Part 3 glossary lines. The key list is in `specs/11_sheet_schema.md`.
+4. **Validate items / courses** also checks the baseline: unique ids, each live Part 1 form has 32 items, every SJT has two different keys, every mcq key is a–d, every rating statement has self and manager wording, and every exhibit an item points to exists. You want "✔ No problems" (if you import BaselineItems before Exhibits, every exhibit is reported missing until Exhibits is in).
+5. **Refresh cache**.
+
+Instead of File ▸ Import you can paste the CSV text into **Import items from CSV…** and choose BaselineItems, Exhibits or BaselineText (the tab is replaced).
 
 ## 7 · Check Courses, Episodes and Config
 - **Courses**: the calendar dates come from the public course list. Paste each course's Blink playlist link into `blink_url` when HR has it. `open = TRUE` means the course opens by itself on `online_from`; set `FALSE` to hold a course back.
@@ -58,18 +68,26 @@ Alternative: **1% Planner ▸ Import items from CSV…** lets you paste the CSV 
 | key | default | meaning |
 |---|---|---|
 | wave | 2026-11 | baseline wave (re-test: 2027-12) |
-| baseline_open_from / baseline_open_to | 2026-11-16 / 2026-11-27 | baseline window, open until 23:59:59 on the last day (re-test 2027-11-29 / 2027-12-10) |
 | pass_mark | 0.8 | checkpoint pass mark (8 of 10) |
 | retake_hours | 24 | wait between checkpoint attempts |
 | max_free_attempts | 2 | the 3rd attempt needs an unlock |
 | late_days | 7 | the checkpoint stays open until forum date + 7 days (later attempts need an unlock). The correct answers are shown only to people who have passed |
 | team_view_min_n | 3 | smallest group shown in team views |
 | session_hours | 6 | how long a login lasts |
-| baseline_minutes / baseline_grace_minutes | 60 / 10 | baseline timer and server grace |
 | recall_days | 2,7,30 | recall days after the forum (or after a late pass) |
 | pitch_deadline / capstone_deadline | 2027-06-21 / 2027-12-20 | last day to submit |
 | lock_failures | 5 | wrong PINs before a lock: 15 min, then 30 min; the **3rd lock within 7 days stays until you clear it** (see step 9) |
 | streak_skip_weeks | 2027-02-08 | Mondays of weeks (comma-separated) that neither break nor add to a learner's weekly streak, e.g. the Tết week; leave empty for none |
+| p1_open / p2_open / p3_open | FALSE | baseline part open for everyone (use **Baseline: open or close parts…**) |
+| rating_open | FALSE | managers and admins can rate their reports |
+| results_open | FALSE | learners see their baseline profile; baseline team averages publish |
+| p1_live / p1_backup | B,C / A | Part 1 forms; the backup only through **Assign a Part 1 form…** |
+| p1_minutes / p2_minutes / p3_minutes | 65 / 35 / 48 | one timer per part (fixed when a person starts) |
+| grace_minutes | 5 | server grace after each part's timer; after it the last save is graded |
+| p2_w_sjt / p2_w_mgr | 0.5 / 0.5 | charter index = SJT weight × SJT % + manager weight × manager score |
+| equate_threshold_pts | 5 | Part 1 scores are equated when the live forms' means differ by more than this |
+
+The old keys `baseline_open_from`, `baseline_open_to`, `baseline_minutes` and `baseline_grace_minutes` are no longer used (you may delete those rows).
 
 After editing Items, Courses, Episodes or Config, run **1% Planner ▸ Refresh cache** (otherwise the Hub picks the change up within 10 minutes).
 
@@ -83,7 +101,8 @@ After editing Items, Courses, Episodes or Config, run **1% Planner ▸ Refresh c
 | preferred_name | optional: the name for the greeting (otherwise the last word of display_name) |
 | role_area | `demand`, `supply`, `materials` or `cs` |
 | is_manager | `TRUE` for the three managers, else `FALSE` |
-| manager_code | the person's manager's code |
+| manager_code | the person's manager's code (also decides who rates whom in Baseline Part 2: put your own code as the manager_code of the three managers and of your direct reports) |
+| p3_module | optional: `DP`, `SP`, `RPM` or `CS` for the Baseline Part 3 module (otherwise from role_area: demand → DP, supply → SP, materials → RPM, cs → CS; set it for anyone without a role_area) |
 | roles | `learner`; managers `learner;manager`; judges `panel`; you and HR `admin`; add `test` for test accounts (left out of every summary) |
 | active | `TRUE` (`FALSE` blocks the login) |
 | lang | `en` or `vi` |
@@ -129,6 +148,19 @@ Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learn
 3. In the Sheet: **Attempts** has the row (status `submitted`, score); **Log** shows login / change_pin / start / submit with no PIN and no answers.
 4. Put A2's `online_from` back to `2027-01-04`, run **Refresh cache**, and void the test attempts (**Void an attempt…** with the `attempt_id` from column A of Attempts).
 
+## 11b · Running the baseline (Baseline v2)
+Everything is opened by hand, for everyone at once. No dates are involved.
+
+**Open or close a part.** **1% Planner ▸ Baseline: open or close parts…** shows five switches with their current state: **Part 1**, **Part 2**, **Part 3**, **Manager rating**, **Results**. Tick or untick and press **Save** (it writes the Config rows and refreshes the cache at once). While a part is open, every active person can start it **once per wave**. Closing a part stops new starts; anyone already in a sitting can still finish until their own timer runs out (then the last save is graded automatically).
+
+**Part 1 forms.** Forms B and C are served automatically, balanced within each role group; form A is the backup and is never served on its own. To give someone a specific form (the backup after a leak, a re-sit after a technical problem, a person who has seen a live form): **1% Planner ▸ Assign a Part 1 form…** (code, form, reason). It writes an **Overrides** row that applies at their next start. If they already have a Part 1 attempt, the dialog says so: **Void an attempt…** first, then they can sit again.
+
+**Manager rating.** Turn on **Manager rating** after the parts (the statements describe what Part 2 rewards, and managers sit Part 2 too). Managers and admins then see **Rate my team** on the Hub: the rater guide, the 23 statements in manager wording, 1–4 or N/A. Each rater–person set can be edited while rating is open. Who rates whom comes from `Roster.manager_code`; test users and inactive people are not listed. Learners never see item-level manager ratings.
+
+**Results.** **1% Planner ▸ Build baseline profiles** grades any expired sitting, equates Part 1 (when the live forms' means differ by more than `equate_threshold_pts`) and writes one **Profiles** row per person. Check the numbers in the reports below, then turn on **Results**: learners see their profile on the Hub and the team page shows the baseline averages (groups under 3, managers and test users left out). While Results is on, the hourly trigger (**Install hourly summary trigger**) rebuilds the profiles and the team numbers every hour. After a sitting a learner only sees "Part N done" and the time used: no score and no item feedback, so the Dec 2027 re-test stays valid.
+
+**Reports (admin only, never on the Hub).** **1% Planner ▸ Baseline v2 reports** writes `Dash_BL2_Heatmap` (person × area), `Dash_BL2_Items` (p-value, point-biserial, distractor %, per item), `Dash_BL2_Forms` (starts and means per Part 1 form, and whether equating applied), `Dash_BL2_Raters` (mean and spread per rater, to spot leniency) and `Dash_BL2_Flags` (blind spot, hidden strength, knowing–doing gap, rates high / scores low). **IDP export** now uses the two baseline gaps.
+
 ## 12 · Sharing and safety (do not skip)
 - Share the Sheet only with HR L&D (Editor). **Share ▸ General access: Restricted** (link sharing off). Nobody else, including managers.
 - **Anyone who can edit the Sheet can open its script** (Extensions ▸ Apps Script): they can read the secret keys in Script Properties, change the code, and read every result. Give Editor access only to people you trust completely (today: HR L&D). Never add a Viewer or Editor "just to look"; send an export instead.
@@ -144,36 +176,41 @@ Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learn
 3. Run **1% Planner ▸ Set up / repair tabs** once (adds any new columns; safe to repeat).
 
 ## 14 · Pilot tips (week of 9 Nov 2026)
-- To let pilot users take the baseline early, set `baseline_open_from` to the pilot day, **Refresh cache**; afterwards set it back to `2026-11-16`.
-- The baseline is one attempt per wave. After the pilot, **Void an attempt…** for each pilot baseline so those people can take the real one.
+- To let the pilot group sit the baseline early, open the parts with **Baseline: open or close parts…** on the pilot day and close them again afterwards. (Everyone active can start while a part is open, so open it only for the pilot session, or give the others a heads-up.)
+- Each part is one attempt per wave. After the pilot, **Void an attempt…** for every pilot attempt (each part separately; the `attempt_id` is in column A of Attempts) so those people can sit the real one. A voided Part 2 also clears its self-ratings. To give a pilot person the other form in November, use **Assign a Part 1 form…**.
+- Use the pilot to check the timers (`p1_minutes`, `p2_minutes`, `p3_minutes`) and the reports; change a timer in Config before the real sitting (a sitting in progress keeps its own deadline).
 - Install **1% Planner ▸ Install hourly summary trigger** before people use the team page. **Rebuild summaries** updates it at once.
-- Team-page numbers appear only when nobody can still change them: baseline averages after the baseline window closes (plus the 70-minute timer), each course's checkpoint numbers after its late window closes (forum date + 7 days). Until then the team page says the numbers appear later. This stops anyone working out one person's score by comparing two snapshots.
-- For the re-test (Nov–Dec 2027): set `wave` to `2027-12` and the window to `2027-11-29` / `2027-12-10`. The same items are used; each person's earlier result shows next to the new one.
+- Team-page numbers appear only when nobody can still change them: baseline averages only while **Results** is on (turn it on after the parts are closed), each course's checkpoint numbers after its late window closes (forum date + 7 days). Until then the team page says the numbers appear later. This stops anyone working out one person's score by comparing two snapshots.
+- For the re-test (Nov–Dec 2027): set `wave` to `2027-12`, turn **Results** off, then open the parts. Each person gets the live Part 1 form they did not take in 2026; their earlier parts show as done in the earlier wave.
 
 ## The 1% Planner menu
 | Item | What it does |
 |---|---|
 | Set up / repair tabs | creates missing tabs and columns, plain-text cells, time zone, Config defaults, course dates, episode rows |
-| Import items from CSV… | paste Items / Courses / Cases CSV text; then validates |
-| Validate items / courses | repairs Items / Courses / Cases and lists problems (4 options, answer a–d, objective range, duplicates, counts) |
+| Import items from CSV… | paste Items / Courses / Cases / BaselineItems / Exhibits / BaselineText CSV text; then validates |
+| Validate items / courses | repairs Items / Courses / Cases and the baseline tabs and lists problems (4 options, answer a–d, objective range, duplicates, counts; baseline: 32 items per live Part 1 form, two different SJT keys, rating wording, exhibits exist) |
 | Seed episodes | adds missing Episodes rows from the course list |
-| Refresh cache | the Hub reads Items, Courses, Config and Episodes fresh |
+| Refresh cache | the Hub reads Items, Courses, Config, Episodes and the baseline tabs fresh |
 | Issue PINs for new roster rows | new PINs, shown once |
 | Reset a PIN… | new PIN shown once, lock cleared, signed out everywhere |
 | Clear a lock… | lifts a lock (including the 3-locks-in-7-days lock); the PIN stays the same |
 | Unlock a retake… | code + course + who held the 15-minute chat + note → one extra attempt (also reopens a closed checkpoint) |
 | (Team page, managers) | managers can now record the 15-minute chat themselves: on the Team page a report's course shows **needs chat** (third try, or the late window closed), and **Unlock** writes the same Unlocks row with the manager's code. Only for their own direct reports who are not managers |
-| Void an attempt… | the attempt stops counting anywhere (pilot or technical problems) |
-| Rebuild summaries / Install hourly summary trigger | team-view numbers (groups or counts under 3, managers and test users left out; published only after the baseline window / each course's late window closes) |
-| Baseline heatmap | `Dash_Baseline`: people × courses, self-rating, calibration flags |
+| Void an attempt… | the attempt stops counting anywhere (pilot or technical problems); for a baseline part the person can sit it again |
+| Rebuild summaries / Install hourly summary trigger | team-view numbers (groups or counts under 3, managers and test users left out; baseline numbers only while Results is on, each course's checkpoint numbers after its late window closes); while Results is on the hourly run also rebuilds the baseline profiles |
 | Course gate report | `Dash_Gate`: passed / not yet / not started, first-try pass rate, three most-missed items per course |
-| IDP export | `Dash_IDP`: two largest gaps and suggested capability goals per person |
+| IDP export | `Dash_IDP`: the two baseline gaps and suggested goals per person |
 | Recall due list | `Dash_Recall`: recalls due this week or overdue (Monday huddle) |
 | Panel results | `Dash_Panel`: weighted team scores per stage, mean of judges (Pitch Day: communication ×2; capstone: result and value ×2). Never shown on the Hub |
+| Baseline: open or close parts… | one dialog with Part 1, Part 2, Part 3, Manager rating and Results: shows the current state, saves the Config switches and refreshes the cache |
+| Assign a Part 1 form… | code + form (A/B/C) + reason → an Overrides row used at the person's next Part 1 start (the only way to the backup form) |
+| Build baseline profiles | grades expired sittings, equates Part 1, writes the Profiles tab (also hourly while Results is on) |
+| Baseline v2 reports | `Dash_BL2_Heatmap`, `Dash_BL2_Items`, `Dash_BL2_Forms`, `Dash_BL2_Raters`, `Dash_BL2_Flags` |
 
 ## Troubleshooting
 - **"Missing tab …"** in the Log or the Hub shows a server error: run **Set up / repair tabs**.
 - **A change in Items/Courses/Config does not show**: **Refresh cache**.
+- **"This part has no questions yet"** or **"No Part 3 module is set for you yet"**: BaselineItems is empty or inactive for that part, or the person has neither `role_area` nor `p3_module`.
 - **Someone is locked out**: a first or second lock ends by itself (15 / 30 min). After 3 locks in 7 days the code stays locked: use **Clear a lock…** (PIN known) or **Reset a PIN…** (PIN forgotten).
 - **"busy"** in the Hub: many people saved at the same moment; the Hub retries automatically.
 - **Permission error mentioning `getActiveSpreadsheet`** after deploying: in `appsscript.json` replace `spreadsheets.currentonly` with `https://www.googleapis.com/auth/spreadsheets`, save, run `setupSheet` once to re-authorise, then redeploy (step 13).

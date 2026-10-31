@@ -94,7 +94,7 @@ function charterCard(c, key) {
       h('div', null, h('dt', { text: t('profile.sjt') }), h('dd', null, band)),
       h('div', null, h('dt', { text: t('profile.self_mean') }), h('dd', { text: isNum(c.self_mean) ? t('profile.mean_of4', { v: fmt1(c.self_mean) }) : '–' })),
       h('div', null, h('dt', { text: t('profile.mgr_mean') }), h('dd', { text: isNum(c.mgr_mean) ? t('profile.mean_of4', { v: fmt1(c.mgr_mean) }) : t('profile.mgr_none') }))),
-    h('div', { class: 'pf-index' },
+    h('div', { class: `pf-index${idx === null ? ' is-na' : ''}` },
       h('span', { class: 'pf-bar-name', text: t('profile.index') }),
       h('span', { class: 'pf-track', 'aria-hidden': 'true' }, fill),
       h('span', { class: 'pf-bar-val' }, idx === null ? h('span', { class: 'muted', text: t('profile.index_none') }) : t('profile.index_val', { n: Math.round(idx) }))),
@@ -120,7 +120,7 @@ function p2Card(p2) {
 function p3Card(p3) {
   const title = t('profile.p3_title');
   if (!p3) return notTaken('pf-p3', title);
-  const mod = p3.module ? (has(`profile.module.${p3.module}`) ? t(`profile.module.${p3.module}`) : p3.module) : '';
+  const mod = p3.module ? (has(`profile.module_name.${p3.module}`) ? t(`profile.module_name.${p3.module}`) : p3.module) : '';
   return card('pf-p3', title, mod ? t('profile.p3_sub', { module: mod }) : null,
     h('div', { class: 'pf-kpis' },
       kpi(t('profile.overall'), pctText(p3.total_pct)),
