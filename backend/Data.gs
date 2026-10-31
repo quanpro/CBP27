@@ -9,7 +9,7 @@ var SCHEMA = {
   Config: ['key', 'value', 'note'],
   Roster: ['employee_code', 'display_name', 'role_area', 'is_manager', 'manager_code', 'roles', 'pin_hash', 'pin_salt',
     'must_change_pin', 'failed_logins', 'locked_until', 'active', 'lang',
-    'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate', 'lock_history'],
+    'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate', 'lock_history', 'p3_module'],
   Courses: ['code', 'name_en', 'name_vi', 'self_en', 'self_vi',
     'obj1_en', 'obj1_vi', 'obj2_en', 'obj2_vi', 'obj3_en', 'obj3_vi', 'obj4_en', 'obj4_vi', 'obj5_en', 'obj5_vi', 'obj6_en', 'obj6_vi',
     'cycle', 'blink_url', 'online_from', 'checkpoint_close', 'forum_date', 'field_until', 'open', 'order'],
@@ -21,7 +21,9 @@ var SCHEMA = {
   Teams: ['team_id', 'project_title', 'members', 'sponsor_code', 'active'],
   Attempts: ['attempt_id', 'employee_code', 'assessment', 'course', 'form', 'attempt_no', 'status', 'started_at',
     'last_saved_at', 'submitted_at', 'served_items', 'answers', 'n_items', 'n_correct', 'score_pct', 'by_objective',
-    'by_course', 'passed', 'wave', 'seed', 'self_ratings', 'graded_answers'],
+    'by_course', 'passed', 'wave', 'seed', 'self_ratings', 'graded_answers',
+    'part', 'module', 'section_locks', 'raw_pct', 'scaled_pct', 'by_step', 'by_move', 'by_charter', 'by_level', 'by_gate',
+    'time_used_s', 'section_pct', 'deadline_at'],
   SelfRatings: ['employee_code', 'wave', 'course', 'level', 'submitted_at'],
   Unlocks: ['employee_code', 'course', 'unlocked_by', 'unlocked_at', 'reason'],
   Recall: ['employee_code', 'course', 'due_date', 'day', 'status', 'score_pct', 'done_at', 'attempt_id'],
@@ -32,7 +34,17 @@ var SCHEMA = {
     'comment', 'scored_at'],
   Summary: ['wave_or_course', 'group', 'n', 'metric', 'course', 'value', 'updated_at', 'count'],
   Pulse: ['forum_date', 'nps', 'useful', 'will_use', 'change_next', 'submitted_at'],
-  Log: ['ts', 'action', 'employee_code', 'ok', 'message']
+  Log: ['ts', 'action', 'employee_code', 'ok', 'message'],
+  // Baseline v2 (specs/22 §2)
+  BaselineItems: ['item_id', 'assessment', 'part', 'section', 'module', 'item_type', 'form', 'order', 'case_id', 'exhibit_ids',
+    'stem_en', 'stem_vi', 'a_en', 'a_vi', 'b_en', 'b_vi', 'c_en', 'c_vi', 'd_en', 'd_vi', 'answer', 'answer_most', 'answer_least',
+    'why_en', 'why_vi', 'self_en', 'self_vi', 'mgr_en', 'mgr_vi', 'anchor1_en', 'anchor1_vi', 'anchor4_en', 'anchor4_vi',
+    'allow_nr', 'step', 'move', 'objective', 'gate', 'level', 'charter', 'active'],
+  Exhibits: ['exhibit_id', 'part', 'form', 'title_en', 'title_vi', 'md_en', 'md_vi'],
+  BaselineText: ['key', 'en', 'vi'],
+  Ratings: ['wave', 'ratee_code', 'rater_code', 'rater_role', 'item_id', 'value', 'saved_at'],
+  Overrides: ['employee_code', 'wave', 'part', 'form', 'reason', 'by', 'at'],
+  Profiles: ['employee_code', 'wave', 'built_at', 'json']
 };
 
 /** Config defaults: [key, value, note]. Written once by setupSheet(); never overwritten. */
@@ -40,22 +52,33 @@ function configDefaults_() {
   var b = (typeof SEED !== 'undefined' && SEED.program && SEED.program.baseline) || {};
   return [
     ['wave', b.wave || '2026-11', 'Baseline wave id (re-test: 2027-12)'],
-    ['baseline_open_from', b.open_from || '2026-11-16', 'First day of the baseline window (YYYY-MM-DD)'],
-    ['baseline_open_to', b.open_to || '2026-11-27', 'Last day of the baseline window, open until 23:59:59'],
     ['pass_mark', '0.8', 'Checkpoint pass mark (0.8 = 8/10)'],
     ['retake_hours', '24', 'Hours between checkpoint attempts'],
     ['max_free_attempts', '2', 'Attempts without an Unlocks row'],
     ['team_view_min_n', '3', 'Smallest group shown in team views'],
     ['session_hours', '6', 'Hours a login lasts'],
-    ['baseline_minutes', '60', 'Baseline time limit (minutes)'],
-    ['baseline_grace_minutes', '10', 'Server grace after the baseline limit'],
     ['recall_days', '2,7,30', 'Recall days after max(forum date, pass date)'],
     ['late_days', '7', 'Checkpoint stays open until forum_date + late_days'],
     ['pitch_deadline', '2027-06-21', 'Last day for Pitch Day submissions'],
     ['capstone_deadline', '2027-12-20', 'Last day for capstone submissions'],
     ['lock_failures', '5', 'Wrong PINs before a lock'],
     ['course_open_default', 'TRUE', 'Default for Courses.open when blank'],
-    ['streak_skip_weeks', '2027-02-08', 'Mondays of weeks (comma-separated, e.g. Tết) that neither break nor add to the streak']
+    ['streak_skip_weeks', '2027-02-08', 'Mondays of weeks (comma-separated, e.g. Tết) that neither break nor add to the streak'],
+    // Baseline v2 (specs/22): manual switches, no dates
+    ['p1_open', 'FALSE', 'Baseline Part 1 open for everyone (menu: Baseline: open or close parts…)'],
+    ['p2_open', 'FALSE', 'Baseline Part 2 open for everyone'],
+    ['p3_open', 'FALSE', 'Baseline Part 3 open for everyone'],
+    ['rating_open', 'FALSE', 'Managers and admins can rate their reports (Part 2, 180°)'],
+    ['results_open', 'FALSE', 'Learners see their baseline profile; baseline team averages publish'],
+    ['p1_live', 'B,C', 'Part 1 live forms (served automatically, balanced by role_area)'],
+    ['p1_backup', 'A', 'Part 1 backup form (only through an Overrides row: Assign a Part 1 form…)'],
+    ['p1_minutes', '65', 'Part 1 timer (both sections)'],
+    ['p2_minutes', '35', 'Part 2 timer (SJT then self-rating)'],
+    ['p3_minutes', '48', 'Part 3 timer (self-rating opener, core, module)'],
+    ['grace_minutes', '5', 'Server grace after each part timer'],
+    ['p2_w_sjt', '0.5', 'Charter index weight of the SJT'],
+    ['p2_w_mgr', '0.5', 'Charter index weight of the manager rating'],
+    ['equate_threshold_pts', '5', 'Equate Part 1 forms when live-form means differ by more than this (percentage points)']
   ];
 }
 
@@ -351,15 +374,11 @@ function config_() {
   var pm = toNum(get('pass_mark'), 0.8);
   r.cfg = {
     wave: normWave(get('wave')),
-    baseline_open_from: normDate(get('baseline_open_from')),
-    baseline_open_to: normDate(get('baseline_open_to')),
     pass_mark: pm > 1 ? pm / 100 : pm,
     retake_hours: toNum(get('retake_hours'), 24),
     max_free_attempts: toInt(get('max_free_attempts'), 2),
     team_view_min_n: Math.max(3, toInt(get('team_view_min_n'), 3)),
     session_hours: toNum(get('session_hours'), 6),
-    baseline_minutes: toInt(get('baseline_minutes'), 60),
-    baseline_grace_minutes: toInt(get('baseline_grace_minutes'), 10),
     recall_days: parseDays(get('recall_days')),
     late_days: toInt(get('late_days'), 7),
     pitch_deadline: normDate(get('pitch_deadline')),
@@ -367,9 +386,32 @@ function config_() {
     lock_failures: Math.max(1, toInt(get('lock_failures'), 5)),
     course_open_default: toBool(get('course_open_default')),
     streak_skip_weeks: String(raw.streak_skip_weeks === undefined ? d.streak_skip_weeks : raw.streak_skip_weeks)
-      .split(/[,;\s]+/).map(normDate).filter(function (x) { return x; })
+      .split(/[,;\s]+/).map(normDate).filter(function (x) { return x; }),
+    p1_open: toBool(get('p1_open')),
+    p2_open: toBool(get('p2_open')),
+    p3_open: toBool(get('p3_open')),
+    rating_open: toBool(get('rating_open')),
+    results_open: toBool(get('results_open')),
+    p1_live: formList_(get('p1_live')),
+    p1_backup: formList_(get('p1_backup'))[0] || '',
+    p1_minutes: Math.max(1, toInt(get('p1_minutes'), 65)),
+    p2_minutes: Math.max(1, toInt(get('p2_minutes'), 35)),
+    p3_minutes: Math.max(1, toInt(get('p3_minutes'), 48)),
+    grace_minutes: Math.max(0, toInt(get('grace_minutes'), 5)),
+    p2_w_sjt: toNum(get('p2_w_sjt'), 0.5),
+    p2_w_mgr: toNum(get('p2_w_mgr'), 0.5),
+    equate_threshold_pts: toNum(get('equate_threshold_pts'), 5)
   };
   return r.cfg;
+}
+
+function formList_(v) {
+  var out = [];
+  String(v || '').split(/[,;\s]+/).forEach(function (f) {
+    f = f.trim().toUpperCase();
+    if (BL_FORMS.indexOf(f) >= 0 && out.indexOf(f) < 0) out.push(f);
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------- Courses, Items, Episodes, Cases
@@ -454,7 +496,7 @@ function loadItemGroups_() {
     (groups[k] = groups[k] || []).push(it);
   });
   courses_().forEach(function (c) {
-    [['baseline', 'BL'], ['predict', 'PR'], ['checkpoint', 'A'], ['checkpoint', 'B']].forEach(function (p) {
+    [['predict', 'PR'], ['checkpoint', 'A'], ['checkpoint', 'B']].forEach(function (p) {
       var k = itemGroupKey_(p[0], c.code, p[1]);
       if (!groups[k]) groups[k] = [];
     });
@@ -477,13 +519,6 @@ function itemGroups_(keys) {
 function itemsFor_(assessment, course, form) {
   var k = itemGroupKey_(assessment, normCode(course), form);
   return itemGroups_([k])[k];
-}
-
-function baselineItems_() {
-  var keys = courseOrder_().map(function (c) { return itemGroupKey_('baseline', c, 'BL'); });
-  var g = itemGroups_(keys), out = [];
-  keys.forEach(function (k) { out = out.concat(g[k]); });
-  return out;
 }
 
 function episodes_() {
@@ -516,6 +551,90 @@ function cases_() {
   return list;
 }
 
+// ---------------------------------------------------------------- Baseline v2 items, exhibits, text (specs/22 §2)
+
+/** Cache group of baseline items: Part 1 per form, Part 2 whole, Part 3 core and each module (each well under 90 KB). */
+function blGroupKey_(assessment, form, module) { return 'bl:' + assessment + ':' + (form || '') + ':' + (module || ''); }
+
+function blAllGroupKeys_() {
+  var keys = BL_FORMS.map(function (f) { return blGroupKey_('baseline_p1', f, ''); });
+  keys.push(blGroupKey_('baseline_p2', '', ''), blGroupKey_('baseline_p3', '', ''));
+  BL_MODULES.forEach(function (m) { keys.push(blGroupKey_('baseline_p3', '', m)); });
+  return keys;
+}
+
+function blItemGroupKeyOf_(it) {
+  if (it.assessment === 'baseline_p1') return blGroupKey_('baseline_p1', it.form, '');
+  if (it.assessment === 'baseline_p3') return blGroupKey_('baseline_p3', '', it.section === 'MOD' ? it.module : '');
+  return blGroupKey_(it.assessment, '', '');
+}
+
+function loadBlGroups_() {
+  var groups = {};
+  blAllGroupKeys_().forEach(function (k) { groups[k] = []; });
+  readTable_('BaselineItems').rows.forEach(function (r, i) {
+    var it = normBaselineItem(r, i);
+    if (!it.item_id || !blPart(it.assessment)) return;
+    var k = blItemGroupKeyOf_(it);
+    if (groups[k]) groups[k].push(it);
+  });
+  cachePutAll_(groups);
+  return groups;
+}
+
+/** Baseline items of the given groups (inactive ones included, for grading). */
+function blGroups_(keys) {
+  var got = cacheGetAll_(keys);
+  if (keys.some(function (k) { return !got[k]; })) {
+    var all = loadBlGroups_();
+    keys.forEach(function (k) { got[k] = all[k] || []; });
+  }
+  return got;
+}
+
+function blGroup_(assessment, form, module) {
+  var k = blGroupKey_(assessment, form, module);
+  return blGroups_([k])[k];
+}
+
+/** Every item an attempt can refer to (Part 1: its form; Part 3: core + its module). */
+function blItemsForAttempt_(att) {
+  if (att.assessment === 'baseline_p1') return blGroup_('baseline_p1', att.form, '');
+  if (att.assessment === 'baseline_p2') return blGroup_('baseline_p2', '', '');
+  var g = blGroups_([blGroupKey_('baseline_p3', '', ''), blGroupKey_('baseline_p3', '', att.module)]);
+  return g[blGroupKey_('baseline_p3', '', '')].concat(att.module ? g[blGroupKey_('baseline_p3', '', att.module)] : []);
+}
+
+/** Exhibits {exhibit_id: {part, form, title_en, title_vi, md_en, md_vi}}. Cached 10 min. */
+function blExhibits_() {
+  var map = cacheGet_('bl_exhibits');
+  if (!map) {
+    map = {};
+    readTable_('Exhibits').rows.forEach(function (e) {
+      var id = String(e.exhibit_id || '').trim();
+      if (id) map[id] = { part: String(e.part || '').trim(), form: String(e.form || '').trim().toUpperCase(), title_en: e.title_en || '', title_vi: e.title_vi || '', md_en: e.md_en || '', md_vi: e.md_vi || '' };
+    });
+    cachePutAll_({ bl_exhibits: map });
+  }
+  return map;
+}
+
+/** BaselineText {key: {en, vi}}. Cached 10 min. */
+function blText_() {
+  var map = cacheGet_('bl_text');
+  if (!map) {
+    map = {};
+    readTable_('BaselineText').rows.forEach(function (t) {
+      var k = String(t.key || '').trim();
+      if (k) map[k] = { en: t.en || '', vi: t.vi || '' };
+    });
+    cachePutAll_({ bl_text: map });
+  }
+  return map;
+}
+
+function blTextOf_(key) { var t = blText_()[key]; return t ? { en: t.en, vi: t.vi || t.en } : { en: '', vi: '' }; }
+
 // ---------------------------------------------------------------- Roster
 
 function rosterRows_() { return readTable_('Roster').rows; }
@@ -545,7 +664,8 @@ function userView_(row) {
     must_change_pin: toBool(row.must_change_pin),
     consent_at: row.consent_at || '',
     certificate: normCertificate_(row.certificate),
-    session_ver: toInt(row.session_ver, 0)
+    session_ver: toInt(row.session_ver, 0),
+    p3_module: String(row.p3_module || '').trim().toUpperCase()
   };
 }
 

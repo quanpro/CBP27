@@ -7,7 +7,8 @@ import { GAS_URL } from '../config.js';
 const MODE_KEY = 'hub.mode';
 const API_KEY = 'hub.api';
 const SESSION_KEY = 'hub.session';
-const RETRYABLE = new Set(['me', 'start', 'save', 'submit', 'review', 'team_summary', 'team_status', 'capstone_get', 'panel_list', 'watch']);
+const RETRYABLE = new Set(['me', 'start', 'save', 'submit', 'review', 'team_summary', 'team_status', 'capstone_get', 'panel_list', 'watch',
+  'baseline_next', 'rate_list', 'rate_get', 'rate_save', 'profile']); // all idempotent on the server
 const isLocalHost = ['localhost', '127.0.0.1'].includes(location.hostname);
 
 function ss(op, key, val) {
@@ -95,7 +96,7 @@ async function transport(payload) {
     body: JSON.stringify(payload),
     redirect: 'follow',
     cache: 'no-store',
-    keepalive: payload.action === 'save', // a save started as the page hides still reaches the server (bodies are ~2 KB)
+    keepalive: payload.action === 'save' || payload.action === 'rate_save', // a save started as the page hides still reaches the server (bodies are a few KB)
   });
   if (!res.ok) throw new ApiError('server_error', `HTTP ${res.status}`);
   return res.json();
@@ -169,6 +170,15 @@ export const api = {
   capstoneSubmit: (stage, team_id, fields) => call('capstone_submit', { stage, team_id, fields }),
   panelList: (stage) => call('panel_list', { stage }),
   panelScore: (stage, team_id, scores, comment) => call('panel_score', { stage, team_id, scores, comment }),
+  // ---- Baseline v2 (specs/22 §4) ----
+  /** Start or resume one part (1, 2 or 3): `start {assessment: "baseline_p<n>"}`. */
+  baselineStart: (part) => call('start', { assessment: `baseline_p${Number(part)}` }),
+  /** Part 2: save the SJT answers and lock them; returns the 2B statements. */
+  baselineNext: (attempt_id, answers) => call('baseline_next', { attempt_id, answers }),
+  rateList: () => call('rate_list'),
+  rateGet: (ratee) => call('rate_get', { ratee }),
+  rateSave: (ratee, values) => call('rate_save', { ratee, values }),
+  profile: () => call('profile'),
 };
 
 /** Demo-mode helper used by the footer's "Reset demo" link. */

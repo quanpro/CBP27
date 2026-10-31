@@ -423,14 +423,7 @@ function optionOf(item, letter) {
  * original letters; their order comes from the seed (F9: same seed → same order).
  */
 function serveItem(row, seed) {
-  var opts = [];
-  for (var i = 0; i < OPTION_LETTERS.length; i++) {
-    var l = OPTION_LETTERS[i];
-    if (str(row[l + '_en']).trim() !== '' || str(row[l + '_vi']).trim() !== '') {
-      opts.push({ id: l, en: str(row[l + '_en']), vi: str(row[l + '_vi']) });
-    }
-  }
-  if (seed !== undefined && seed !== null && seed !== '') opts = shuffle(opts, seed);
+  var opts = optionsOf(row, seed);
   return {
     item_id: str(row.item_id),
     course: str(row.course),
@@ -515,22 +508,6 @@ function isPass(nCorrect, nItems, passMark) {
   return nItems > 0 && nCorrect * 1000 >= Math.round(pm * 1000) * nItems;
 }
 
-/** Baseline: % per course over Part B + case items (courseMap from Items.course). */
-function byCourse(servedIds, answers, keyMap, courseMap) {
-  var acc = {}, order = [];
-  var g = grade(servedIds, answers, keyMap, {});
-  for (var i = 0; i < g.results.length; i++) {
-    var c = str(courseMap[g.results[i].item_id]);
-    if (!c) continue;
-    if (!acc[c]) { acc[c] = { n: 0, k: 0 }; order.push(c); }
-    acc[c].n++;
-    if (g.results[i].is_correct) acc[c].k++;
-  }
-  var out = {};
-  for (var j = 0; j < order.length; j++) out[order[j]] = Math.round(100 * acc[order[j]].k / acc[order[j]].n);
-  return out;
-}
-
 /** Objectives with at least one miss, ascending. */
 function weakObjectives(byObj) {
   var out = [];
@@ -541,20 +518,7 @@ function weakObjectives(byObj) {
   return out.map(objectiveOut);
 }
 
-/** Two largest gaps: lowest course score; tie → lower self-rating, then calendar order. */
-function gaps(byCourseMap, selfMap, courseOrder) {
-  selfMap = selfMap || {};
-  courseOrder = courseOrder || [];
-  var codes = Object.keys(byCourseMap || {});
-  var pos = function (c) { var i = courseOrder.indexOf(c); return i < 0 ? 999 : i; };
-  var self = function (c) { return typeof selfMap[c] === 'number' ? selfMap[c] : 99; };
-  codes.sort(function (a, b) {
-    return (byCourseMap[a] - byCourseMap[b]) || (self(a) - self(b)) || (pos(a) - pos(b));
-  });
-  return codes.slice(0, 2);
-}
-
-/** Spec 14 calibration flag (admin view only). */
+/** Spec 14 calibration flag (admin view; also the profile's "rates high, scores low"). */
 function calibrationFlag(selfLevel, pct) {
   if (typeof selfLevel !== 'number' || typeof pct !== 'number') return '';
   if (selfLevel >= 3 && pct < 50) return 'rates high, scores low';
@@ -840,7 +804,7 @@ function validateBank(items, courses, cases) {
   var caseIds = {};
   (cases || []).forEach(function (c) { if (str(c.case_id).trim()) caseIds[str(c.case_id).trim()] = true; });
 
-  var seen = {}, counts = { baseline_b: {}, baseline_c: 0, predict: {}, checkpoint: {}, objectives: {} };
+  var seen = {}, counts = { predict: {}, checkpoint: {}, objectives: {}, old_baseline: 0 };
   (items || []).forEach(function (it, idx) {
     var id = str(it.item_id).trim();
     var where = 'Items row ' + (idx + 2) + (id ? ' (' + id + ')' : '');
@@ -848,10 +812,11 @@ function validateBank(items, courses, cases) {
     if (seen[id]) errors.push(where + ': duplicate item_id');
     seen[id] = true;
     var a = str(it.assessment).trim().toLowerCase();
+    if (a === 'baseline') { counts.old_baseline++; return; } // v1 rows: ignored (Baseline v2 lives in BaselineItems)
     var form = str(it.form).trim().toUpperCase();
     var course = normCode(it.course);
-    if (['baseline', 'predict', 'checkpoint'].indexOf(a) < 0) errors.push(where + ': assessment must be baseline, predict or checkpoint');
-    var wantForm = a === 'baseline' ? ['BL'] : a === 'predict' ? ['PR'] : ['A', 'B'];
+    if (['predict', 'checkpoint'].indexOf(a) < 0) errors.push(where + ': assessment must be predict or checkpoint (the baseline lives in BaselineItems)');
+    var wantForm = a === 'predict' ? ['PR'] : ['A', 'B'];
     if (wantForm.indexOf(form) < 0) errors.push(where + ': form must be ' + wantForm.join(' or ') + ' for ' + a);
     if (!course || !codes[course]) errors.push(where + ': course ' + (course || '(empty)') + ' is not in Courses');
     if (!str(it.stem_en).trim()) errors.push(where + ': stem_en is empty');
@@ -863,18 +828,13 @@ function validateBank(items, courses, cases) {
     var key = str(it.answer).trim().toLowerCase();
     if (OPTION_LETTERS.indexOf(key) < 0) errors.push(where + ': answer must be a, b, c or d');
     var obj = normObjective(it.objective);
-    if (a !== 'baseline' || obj) {
-      var max = nObj[course] || 6;
-      if (!/^\d+$/.test(obj) || +obj < 1 || +obj > max) errors.push(where + ': objective must be 1–' + max);
-    }
+    var max = nObj[course] || 6;
+    if (!/^\d+$/.test(obj) || +obj < 1 || +obj > max) errors.push(where + ': objective must be 1–' + max);
     var cid = str(it.case_id).trim();
     if (cid && !caseIds[cid]) errors.push(where + ': case_id ' + cid + ' is not in Cases');
-    if ((a === 'predict' || a === 'checkpoint') && !str(it.why_en).trim()) warnings.push(where + ': why_en is empty');
+    if (!str(it.why_en).trim()) warnings.push(where + ': why_en is empty');
     if (!toBool(it.active === undefined || str(it.active).trim() === '' ? 'TRUE' : it.active)) return;
-    if (a === 'baseline') {
-      if (cid) counts.baseline_c++;
-      else counts.baseline_b[course] = (counts.baseline_b[course] || 0) + 1;
-    } else if (a === 'predict') counts.predict[course] = (counts.predict[course] || 0) + 1;
+    if (a === 'predict') counts.predict[course] = (counts.predict[course] || 0) + 1;
     else if (a === 'checkpoint') {
       var k = course + ':' + form;
       counts.checkpoint[k] = (counts.checkpoint[k] || 0) + 1;
@@ -882,7 +842,6 @@ function validateBank(items, courses, cases) {
     }
   });
   Object.keys(codes).forEach(function (c) {
-    if ((counts.baseline_b[c] || 0) !== 4) warnings.push(c + ': ' + (counts.baseline_b[c] || 0) + ' baseline Part B items (expected 4)');
     if ((counts.predict[c] || 0) !== 3) warnings.push(c + ': ' + (counts.predict[c] || 0) + ' predict items (expected 3)');
     ['A', 'B'].forEach(function (f) {
       var n = counts.checkpoint[c + ':' + f] || 0;
@@ -892,7 +851,631 @@ function validateBank(items, courses, cases) {
       }
     });
   });
-  if (counts.baseline_c !== 6) warnings.push('Baseline Part C: ' + counts.baseline_c + ' case items (expected 6)');
+  if (counts.old_baseline) warnings.push('Items: ' + counts.old_baseline + ' old baseline row(s) are ignored (Baseline v2 uses the BaselineItems tab)');
+  return { errors: errors, warnings: warnings, counts: counts };
+}
+
+// ---------------------------------------------------------------- Baseline v2 (specs/22)
+
+var BL_ASSESSMENTS = ['baseline_p1', 'baseline_p2', 'baseline_p3'];
+var BL_FORMS = ['A', 'B', 'C'];
+var BL_MODULES = ['DP', 'SP', 'RPM', 'CS'];
+var BL_LEVELS = ['BA', 'WK', 'FO', 'LE'];
+var BL_CHARTERS = ['1', '2', '3', '4', '5', 'QWS'];
+var BL_SECTIONS = { baseline_p1: ['A', 'B'], baseline_p2: ['SJT', 'RATE'], baseline_p3: ['CORE', 'MOD'] };
+var BL_ROLE_MODULE = { demand: 'DP', supply: 'SP', materials: 'RPM', cs: 'CS' };
+/** Course ← P3 module (P1 ← CORE; A1/A2/C1 come from Part 1; A3 has no score). */
+var BL_MODULE_COURSES = { SP: ['P2'], RPM: ['P3', 'P5'], DP: ['P4'], CS: ['P6'] };
+var BL_P1_COURSES = ['A1', 'A2', 'C1'];
+/** Fields an item never leaves the server with, before or after a sitting (specs/22 §3 Privacy). */
+var BL_PRIVATE_FIELDS = ['answer', 'answer_most', 'answer_least', 'why_en', 'why_vi', 'step', 'move', 'gate', 'level', 'charter'];
+
+/** 1 | 2 | 3 for baseline_p1..p3, else 0. */
+function blPart(assessment) { var i = BL_ASSESSMENTS.indexOf(str(assessment).trim().toLowerCase()); return i < 0 ? 0 : i + 1; }
+
+function normCharter(v) {
+  var s = str(v).trim().toUpperCase();
+  if (s === 'QWS') return 'QWS';
+  var n = toInt(s, 0);
+  return n >= 1 && n <= 5 ? String(n) : '';
+}
+
+function letterOrEmpty_(v) { var l = str(v).trim().toLowerCase(); return OPTION_LETTERS.indexOf(l) >= 0 ? l : ''; }
+
+/** One BaselineItems row (header-keyed strings) → the item the backend works with. */
+function normBaselineItem(r, idx) {
+  var assessment = str(r.assessment).trim().toLowerCase();
+  var section = str(r.section).trim().toUpperCase();
+  var type = str(r.item_type).trim().toLowerCase();
+  if (!type) type = section === 'SJT' ? 'sjt' : section === 'RATE' ? 'rating' : 'mcq';
+  var out = {
+    _idx: idx,
+    item_id: str(r.item_id).trim(),
+    assessment: assessment,
+    part: blPart(assessment) || toInt(r.part, 0),
+    section: section,
+    module: str(r.module).trim().toUpperCase(),
+    item_type: type,
+    form: str(r.form).trim().toUpperCase() || (assessment === 'baseline_p1' ? '' : 'ONE'),
+    order: toInt(r.order, 9999),
+    case_id: str(r.case_id).trim(),
+    exhibit_ids: str(r.exhibit_ids).split(/[;,]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; }),
+    answer: letterOrEmpty_(r.answer),
+    answer_most: letterOrEmpty_(r.answer_most),
+    answer_least: letterOrEmpty_(r.answer_least),
+    allow_nr: toBool(r.allow_nr),
+    step: str(r.step).trim(),
+    move: str(r.move).trim().toUpperCase().replace(/\s+/g, ' '),
+    objective: str(r.objective).trim(),
+    gate: str(r.gate).trim(),
+    level: str(r.level).trim().toUpperCase(),
+    charter: normCharter(r.charter),
+    active: str(r.active).trim() === '' ? true : toBool(r.active)
+  };
+  ['stem', 'a', 'b', 'c', 'd', 'why', 'self', 'mgr', 'anchor1', 'anchor4'].forEach(function (k) {
+    out[k + '_en'] = str(r[k + '_en']);
+    out[k + '_vi'] = str(r[k + '_vi']);
+  });
+  return out;
+}
+
+/** Sort key inside a part: section (as listed in BL_SECTIONS), then order, then item_id. */
+function blSortItems(items) {
+  return items.slice().sort(function (a, b) {
+    var sa = (BL_SECTIONS[a.assessment] || []).indexOf(a.section), sb = (BL_SECTIONS[b.assessment] || []).indexOf(b.section);
+    return (sa - sb) || (a.order - b.order) || (a.item_id < b.item_id ? -1 : a.item_id > b.item_id ? 1 : 0);
+  });
+}
+
+/** Non-empty options in letter order, shuffled by seed (same seed → same order, F9). */
+function optionsOf(row, seed) {
+  var opts = [];
+  for (var i = 0; i < OPTION_LETTERS.length; i++) {
+    var l = OPTION_LETTERS[i];
+    if (str(row[l + '_en']).trim() !== '' || str(row[l + '_vi']).trim() !== '') opts.push({ id: l, en: str(row[l + '_en']), vi: str(row[l + '_vi']) });
+  }
+  return seed !== undefined && seed !== null && seed !== '' ? shuffle(opts, seed) : opts;
+}
+
+/**
+ * The only shapes a baseline item leaves the server in (specs/22 §4), built from a whitelist:
+ * BMcq {item_id, type, section, case_id, exhibit_ids, stem_*, options} · BSjt {item_id, type, stem_*, options}
+ * · BRating {item_id, type, text_* (self wording), anchor1_*, anchor4_*, allow_nr}.
+ */
+function serveBaselineItem(it, seed) {
+  if (it.item_type === 'rating') {
+    return {
+      item_id: str(it.item_id), type: 'rating', text_en: str(it.self_en), text_vi: str(it.self_vi),
+      anchor1_en: str(it.anchor1_en), anchor1_vi: str(it.anchor1_vi), anchor4_en: str(it.anchor4_en), anchor4_vi: str(it.anchor4_vi),
+      allow_nr: !!it.allow_nr
+    };
+  }
+  if (it.item_type === 'sjt') return { item_id: str(it.item_id), type: 'sjt', stem_en: str(it.stem_en), stem_vi: str(it.stem_vi), options: optionsOf(it, seed) };
+  return {
+    item_id: str(it.item_id), type: 'mcq', section: str(it.section), case_id: str(it.case_id),
+    exhibit_ids: (it.exhibit_ids || []).slice(), stem_en: str(it.stem_en), stem_vi: str(it.stem_vi), options: optionsOf(it, seed)
+  };
+}
+
+/** A rating statement in manager wording (rate_get). */
+function managerRatingItem(it) {
+  return {
+    item_id: str(it.item_id), text_en: str(it.mgr_en), text_vi: str(it.mgr_vi),
+    anchor1_en: str(it.anchor1_en), anchor1_vi: str(it.anchor1_vi), anchor4_en: str(it.anchor4_en), anchor4_vi: str(it.anchor4_vi)
+  };
+}
+
+function ratingInt_(v) {
+  var n = typeof v === 'number' ? v : (/^\s*[1-4]\s*$/.test(str(v)) ? parseInt(str(v), 10) : NaN);
+  return n === Math.floor(n) && n >= 1 && n <= 4 ? n : null;
+}
+
+/**
+ * One learner answer, cleaned for its item type, or undefined when it is not a valid answer:
+ * mcq 'a'..'d' · sjt {most?, least?} (letters; partial picks are kept while saving) · rating 1..4,
+ * or 'NR' where the statement allows "not my role".
+ */
+function cleanBlValue(item, v) {
+  if (!item || v === null || v === undefined) return undefined;
+  if (item.item_type === 'mcq') { var l = letterOrEmpty_(v); return l || undefined; }
+  if (item.item_type === 'sjt') {
+    if (typeof v !== 'object' || Array.isArray(v)) return undefined;
+    var o = {}, m = letterOrEmpty_(v.most), le = letterOrEmpty_(v.least);
+    if (m) o.most = m;
+    if (le) o.least = le;
+    return o.most || o.least ? o : undefined;
+  }
+  if (item.item_type === 'rating') {
+    if (item.allow_nr && str(v).trim().toUpperCase() === 'NR') return 'NR';
+    var n = ratingInt_(v);
+    return n === null ? undefined : n;
+  }
+  return undefined;
+}
+
+/** {item_id: value} for the given ids only, each cleaned by cleanBlValue. */
+function cleanBlAnswers(answers, ids, byId) {
+  var out = {};
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return out;
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    if (!Object.prototype.hasOwnProperty.call(answers, id)) continue;
+    var v = cleanBlValue(byId[id], answers[id]);
+    if (v !== undefined) out[id] = v;
+  }
+  return out;
+}
+
+/** The first SJT item without both picks, or with most = least; null when every item is complete. */
+function sjtLockProblem(sjtIds, answers) {
+  answers = answers || {};
+  for (var i = 0; i < sjtIds.length; i++) {
+    var a = answers[sjtIds[i]];
+    if (!a || !a.most || !a.least || a.most === a.least) return sjtIds[i];
+  }
+  return null;
+}
+
+/**
+ * Part 1 form (specs/22 §3): an Overrides row wins (any of A/B/C, the only way to the backup);
+ * re-test: the live form not taken last wave; else the live form with fewer non-void starts in the
+ * person's role_area this wave; tie → hash(code + wave). Never the backup without an override.
+ * o: {override, live: [..], counts: {form: n}, previousForm, code, wave} → {form, reason}
+ */
+function chooseP1Form(o) {
+  o = o || {};
+  var ov = str(o.override).trim().toUpperCase();
+  if (BL_FORMS.indexOf(ov) >= 0) return { form: ov, reason: 'override' };
+  var live = [];
+  (o.live || []).forEach(function (f) { f = str(f).trim().toUpperCase(); if (BL_FORMS.indexOf(f) >= 0 && live.indexOf(f) < 0) live.push(f); });
+  if (!live.length) return { form: '', reason: 'no_live_form' };
+  var prev = str(o.previousForm).trim().toUpperCase();
+  var cands = live, retest = false;
+  if (prev && live.indexOf(prev) >= 0 && live.length > 1) {
+    cands = live.filter(function (f) { return f !== prev; });
+    if (cands.length === 1) return { form: cands[0], reason: 'retest_swap' };
+    retest = true;
+  } else if (prev) retest = true;
+  var counts = o.counts || {};
+  var n = function (f) { return toInt(counts[f], 0); };
+  var min = Math.min.apply(null, cands.map(n));
+  var best = cands.filter(function (f) { return n(f) === min; });
+  if (best.length === 1) return { form: best[0], reason: retest ? 'retest_balance' : 'balance' };
+  return { form: best[hashString(normCode(o.code) + str(o.wave)) % best.length], reason: 'hash' };
+}
+
+/** Part 3 module: Roster.p3_module (DP|SP|RPM|CS) wins, else role_area; '' when neither gives one. */
+function p3ModuleFor(p3Module, roleArea) {
+  var m = str(p3Module).trim().toUpperCase();
+  if (BL_MODULES.indexOf(m) >= 0) return m;
+  return BL_ROLE_MODULE[str(roleArea).trim().toLowerCase()] || '';
+}
+
+function stepNumber(step) { var m = /^\s*(\d+)/.exec(str(step)); return m ? parseInt(m[1], 10) : null; }
+
+function isRealMove_(m) { return !!m && !/^[—–\-]+$/.test(m); }
+
+function pctOf(c) { return c && c.n ? Math.round(100 * c.correct / c.n) : null; }
+
+function pctMap(counts) {
+  var out = {};
+  Object.keys(counts || {}).forEach(function (k) { out[k] = pctOf(counts[k]); });
+  return out;
+}
+
+function bump_(map, key, ok) {
+  if (!key) return;
+  var c = map[key] = map[key] || { n: 0, correct: 0 };
+  c.n++;
+  if (ok) c.correct++;
+}
+
+/**
+ * Multiple-choice part (Part 1, Part 3): unanswered = wrong. Counts {n, correct} by section, step,
+ * move, level, gate and linked course (Part 1: A1 ← steps 1–4; A2 ← SHAPE, SIZE, CHECK; C1 ← SO WHAT
+ * or step 6).
+ */
+function scoreBlMcq(servedIds, answers, byId) {
+  answers = answers || {};
+  var r = { n: 0, correct: 0, by_section: {}, by_step: {}, by_move: {}, by_level: {}, by_gate: {}, by_course: {} };
+  servedIds.forEach(function (id) {
+    var it = byId[id];
+    if (!it || it.item_type !== 'mcq') return;
+    var ok = !!it.answer && answers[id] === it.answer;
+    r.n++;
+    if (ok) r.correct++;
+    bump_(r.by_section, it.section, ok);
+    bump_(r.by_step, it.step, ok);
+    if (isRealMove_(it.move)) bump_(r.by_move, it.move, ok);
+    bump_(r.by_level, it.level, ok);
+    bump_(r.by_gate, it.gate, ok);
+    if (it.assessment === 'baseline_p1') {
+      var sn = stepNumber(it.step);
+      if (sn !== null && sn >= 1 && sn <= 4) bump_(r.by_course, 'A1', ok);
+      if (['SHAPE', 'SIZE', 'CHECK'].indexOf(it.move) >= 0) bump_(r.by_course, 'A2', ok);
+      if (it.move === 'SO WHAT' || sn === 6) bump_(r.by_course, 'C1', ok);
+    }
+  });
+  r.pct = r.n ? Math.round(100 * r.correct / r.n) : 0;
+  return r;
+}
+
+/** SJT: +1 most = key, +1 least = key (an item with most = least scores 0). By charter {sjt_points, sjt_max}. */
+function scoreSjt(servedIds, answers, byId) {
+  answers = answers || {};
+  var r = { points: 0, max: 0, by_charter: {} };
+  servedIds.forEach(function (id) {
+    var it = byId[id];
+    if (!it || it.item_type !== 'sjt') return;
+    var a = answers[id] || {}, p = 0;
+    if (!(a.most && a.least && a.most === a.least)) {
+      if (a.most && a.most === it.answer_most) p++;
+      if (a.least && a.least === it.answer_least) p++;
+    }
+    r.points += p;
+    r.max += 2;
+    if (it.charter) {
+      var c = r.by_charter[it.charter] = r.by_charter[it.charter] || { sjt_points: 0, sjt_max: 0 };
+      c.sjt_points += p;
+      c.sjt_max += 2;
+    }
+  });
+  r.pct = r.max ? Math.round(100 * r.points / r.max) : 0;
+  return r;
+}
+
+function mean_(xs) { return xs.length ? xs.reduce(function (s, x) { return s + x; }, 0) / xs.length : null; }
+
+/** Means of 1–4 ratings (NR and NA left out): overall and by charter → {mean, n, by_charter: {c: {mean, n}}}. */
+function ratingMeans(values, items) {
+  var all = [], by = {};
+  (items || []).forEach(function (it) {
+    var v = values ? values[it.item_id] : undefined;
+    var n = typeof v === 'number' ? v : ratingInt_(v);
+    if (n === null || n === undefined || isNaN(n)) return;
+    all.push(n);
+    if (it.charter) (by[it.charter] = by[it.charter] || []).push(n);
+  });
+  var out = { mean: mean_(all), n: all.length, by_charter: {} };
+  Object.keys(by).forEach(function (c) { out.by_charter[c] = { mean: mean_(by[c]), n: by[c].length }; });
+  return out;
+}
+
+/**
+ * Validates rating values for one rater. role 'manager': 1–4 or 'NA'; role 'self': 1–4 or 'NR'
+ * where allow_nr. null or '' clears a value. Unknown item ids are ignored.
+ * → {values: {item_id: 1..4|'NA'|'NR'|''}, bad: item_id|null}
+ */
+function cleanRatingValues(values, items, role) {
+  var out = {}, bad = null;
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return { values: out, bad: null };
+  (items || []).forEach(function (it) {
+    if (bad || !Object.prototype.hasOwnProperty.call(values, it.item_id)) return;
+    var v = values[it.item_id];
+    if (v === null || v === undefined || str(v).trim() === '') { out[it.item_id] = ''; return; }
+    var up = str(v).trim().toUpperCase();
+    if (role === 'manager' && up === 'NA') { out[it.item_id] = 'NA'; return; }
+    if (role === 'self' && up === 'NR' && it.allow_nr) { out[it.item_id] = 'NR'; return; }
+    var n = ratingInt_(v);
+    if (n === null) { bad = it.item_id; return; }
+    out[it.item_id] = n;
+  });
+  return { values: bad ? {} : out, bad: bad };
+}
+
+/** Mean and sample SD (n − 1); sd is null below two values. */
+function meanSd(xs) {
+  var v = (xs || []).filter(function (x) { return typeof x === 'number' && isFinite(x); });
+  var m = mean_(v);
+  if (v.length < 2) return { n: v.length, mean: m, sd: null };
+  var ss = v.reduce(function (s, x) { return s + (x - m) * (x - m); }, 0);
+  return { n: v.length, mean: m, sd: Math.sqrt(ss / (v.length - 1)) };
+}
+
+/** Mean-sigma linear equating onto a reference scale, clamped 0–100 and rounded. */
+function equateLinear(raw, from, to) {
+  if (!from || !to || !from.sd || to.sd === null || to.sd === undefined) return raw;
+  var x = to.mean + to.sd * (raw - from.mean) / from.sd;
+  return Math.max(0, Math.min(100, Math.round(x)));
+}
+
+/**
+ * Part 1 equating plan. scores {form: [raw_pct…]}. Applies when the live forms' means differ by
+ * more than threshold points. Reference = Form A (the spec's scale) when it has ≥ 2 scores with a
+ * spread; otherwise the pooled live-form scores (the backup is rarely sat). A form with fewer than
+ * two scores, or no spread, keeps its raw scores.
+ * → {apply, reference: 'A'|'pooled'|'', ref: {n, mean, sd}|null, stats: {form: {n, mean, sd}}, diff}
+ */
+function equatingPlan(scores, live, threshold, refForm) {
+  refForm = refForm || 'A';
+  var stats = {};
+  Object.keys(scores || {}).forEach(function (f) { stats[f] = meanSd(scores[f]); });
+  var liveWith = (live || []).filter(function (f) { return stats[f] && stats[f].n >= 1; });
+  var means = liveWith.map(function (f) { return stats[f].mean; });
+  var diff = means.length >= 2 ? Math.max.apply(null, means) - Math.min.apply(null, means) : 0;
+  var plan = { apply: false, reference: '', ref: null, stats: stats, diff: Math.round(diff * 10) / 10 };
+  if (means.length < 2 || !(diff > toNum(threshold, 5))) return plan;
+  var good = function (s) { return s && s.n >= 2 && s.sd > 0; };
+  if (good(stats[refForm])) { plan.reference = refForm; plan.ref = stats[refForm]; } else {
+    var pooled = [];
+    (live || []).forEach(function (f) { pooled = pooled.concat(scores[f] || []); });
+    var ps = meanSd(pooled);
+    if (!good(ps)) return plan;
+    plan.reference = 'pooled';
+    plan.ref = ps;
+  }
+  plan.apply = true;
+  return plan;
+}
+
+function scaledFor(plan, form, raw) {
+  if (!plan || !plan.apply || typeof raw !== 'number') return raw;
+  if (plan.reference === form) return raw;
+  var s = plan.stats[form];
+  if (!s || s.n < 2 || !(s.sd > 0)) return raw;
+  return equateLinear(raw, s, plan.ref);
+}
+
+/** Indicative level: the highest of BA < WK < FO < LE where it and every lower level are ≥ cut %. */
+function blLevel(byLevel, cut) {
+  cut = cut === undefined ? 70 : cut;
+  var level = null;
+  for (var i = 0; i < BL_LEVELS.length; i++) {
+    var c = (byLevel || {})[BL_LEVELS[i]];
+    if (!c || !c.n) continue;
+    if (100 * c.correct / c.n >= cut) level = BL_LEVELS[i]; else break;
+  }
+  return level;
+}
+
+/** SJT % per charter as a band: low ≤ 33, high ≥ 83, else mid. */
+function sjtBand(pct) {
+  if (pct === null || pct === undefined) return null;
+  return pct <= 33 ? 'low' : pct >= 83 ? 'high' : 'mid';
+}
+
+var EPS_ = 1e-9;
+
+/**
+ * One charter: index and flags. o = {sjt_points, sjt_max, self_mean, mgr_mean, mgr_n, min_rated, w_sjt, w_mgr}.
+ * The manager mean counts only with ≥ min_rated statements rated. Index = w_sjt × SJT% + w_mgr ×
+ * (mgr − 1) ÷ 3 × 100; a charter without SJT items (QWS) uses the manager part alone; no manager mean → null.
+ */
+function charterSummary(o) {
+  var sjt = o.sjt_max ? Math.round(100 * o.sjt_points / o.sjt_max) : null;
+  var mgr = typeof o.mgr_mean === 'number' && toInt(o.mgr_n, 0) >= toInt(o.min_rated, 2) ? o.mgr_mean : null;
+  var self = typeof o.self_mean === 'number' ? o.self_mean : null;
+  var index = null;
+  if (mgr !== null) {
+    var m = (mgr - 1) / 3 * 100;
+    index = Math.round(sjt === null ? m : toNum(o.w_sjt, 0.5) * sjt + toNum(o.w_mgr, 0.5) * m);
+  }
+  var flags = [];
+  if (self !== null && mgr !== null && self - mgr >= 1 - EPS_) flags.push('blind_spot');
+  if (self !== null && mgr !== null && mgr - self >= 1 - EPS_) flags.push('hidden_strength');
+  if (sjt !== null && sjt >= 67 && mgr !== null && mgr < 2.5) flags.push('knowing_doing');
+  return { sjt_pct: sjt, sjt_band: sjtBand(sjt), self_mean: self, mgr_mean: mgr, index: index, flags: flags };
+}
+
+/**
+ * The two statements with the lowest manager rating; tie → the larger self − manager gap, then
+ * item order. mgr/self {item_id: number}; items in order.
+ */
+function topDevelopment(mgr, self, items, k) {
+  k = k === undefined ? 2 : k;
+  var list = (items || []).filter(function (it) { return typeof (mgr || {})[it.item_id] === 'number'; });
+  var gap = function (it) { var s = (self || {})[it.item_id]; return typeof s === 'number' ? s - mgr[it.item_id] : -99; };
+  list = list.map(function (it, i) { return { it: it, i: i }; });
+  list.sort(function (a, b) { return (mgr[a.it.item_id] - mgr[b.it.item_id]) || (gap(b.it) - gap(a.it)) || (a.i - b.i); });
+  return list.slice(0, k).map(function (x) { return x.it; });
+}
+
+/**
+ * Course self-rating next to the linked score (specs/22 §3). p1Course {A1|A2|C1: {n, correct}},
+ * p3 {core_pct, module, module_pct}. flag = self ≥ 3 and score < 50 ("rates high, scores low").
+ */
+function courseLinks(selfMap, p1Course, p3, order) {
+  var score = {};
+  BL_P1_COURSES.forEach(function (c) { score[c] = p1Course ? pctOf(p1Course[c]) : null; });
+  score.P1 = p3 && typeof p3.core_pct === 'number' ? p3.core_pct : null;
+  Object.keys(BL_MODULE_COURSES).forEach(function (m) {
+    BL_MODULE_COURSES[m].forEach(function (c) { score[c] = p3 && p3.module === m && typeof p3.module_pct === 'number' ? p3.module_pct : null; });
+  });
+  score.A3 = null;
+  var out = {};
+  (order || []).forEach(function (c) {
+    var s = selfMap && typeof selfMap[c] === 'number' ? selfMap[c] : null;
+    var sc = score[c] === undefined ? null : score[c];
+    out[c] = { self: s, score_pct: sc, flag: calibrationFlag(s, sc) === 'rates high, scores low' };
+  });
+  return out;
+}
+
+/**
+ * The two lowest areas for the IDP. areas (in the listed order): [{area, name_en, name_vi, pct, self}]
+ * where self is 0–1 (null = unknown, sorts last). Tie → lower self, then the listed order.
+ */
+function idpGaps(areas, k) {
+  k = k === undefined ? 2 : k;
+  var list = (areas || []).filter(function (a) { return typeof a.pct === 'number'; }).map(function (a, i) { return { a: a, i: i }; });
+  var sv = function (a) { return typeof a.self === 'number' ? a.self : 99; };
+  list.sort(function (x, y) { return (x.a.pct - y.a.pct) || (sv(x.a) - sv(y.a)) || (x.i - y.i); });
+  return list.slice(0, k).map(function (x) { return { area: x.a.area, name_en: x.a.name_en, name_vi: x.a.name_vi, pct: x.a.pct }; });
+}
+
+function round1n_(x) { return typeof x === 'number' ? round1(x) : null; }
+
+/**
+ * Assembles one learner's profile (specs/22 §4 `profile`) from already-scored parts.
+ * inp = { wave, built_at, order, w_sjt, w_mgr, names: {p1_A, p1_B, p3_CORE, p3_DP…, charters: {c: {en, vi}}},
+ *   p1: {form, raw_pct, scaled_pct, by_section, by_step, by_move, by_course} | null,
+ *   p2: {by_charter: {c: {sjt_points, sjt_max}}, points, max, items: [rating items], self: {id: v}, mgr: {id: mean}} | null,
+ *   p3: {module, total_pct, core_pct, module_pct, by_level, by_gate} | null,
+ *   self_courses: {A2: 0..4} }
+ */
+function buildBaselineProfile(inp) {
+  var names = inp.names || {};
+  var nm = function (k, en) { var x = names[k] || {}; return { en: x.en || en, vi: x.vi || x.en || en }; };
+  var selfC = inp.self_courses || {};
+  var selfOf = function (codes) {
+    var v = codes.map(function (c) { return selfC[c]; }).filter(function (x) { return typeof x === 'number'; });
+    return v.length ? mean_(v) / 4 : null;
+  };
+  var out = { wave: inp.wave, built_at: inp.built_at, p1: null, p2: null, p3: null, courses: {}, gaps: [] };
+  var areas = [];
+
+  if (inp.p1) {
+    var p = inp.p1, sec = p.by_section || {};
+    out.p1 = {
+      form: p.form, raw_pct: p.raw_pct, scaled_pct: typeof p.scaled_pct === 'number' ? p.scaled_pct : p.raw_pct,
+      section_A_pct: pctOf(sec.A), section_B_pct: pctOf(sec.B), by_step: pctMap(p.by_step), by_move: pctMap(p.by_move)
+    };
+    var a = nm('p1_A', 'Part 1 · Section A'), b = nm('p1_B', 'Part 1 · Section B');
+    areas.push({ area: 'p1_A', name_en: a.en, name_vi: a.vi, pct: out.p1.section_A_pct, self: selfOf(BL_P1_COURSES) });
+    areas.push({ area: 'p1_B', name_en: b.en, name_vi: b.vi, pct: out.p1.section_B_pct, self: selfOf(BL_P1_COURSES) });
+  }
+
+  if (inp.p2) {
+    var q = inp.p2, items = q.items || [];
+    var sm = ratingMeans(q.self || {}, items), mm = ratingMeans(q.mgr || {}, items);
+    var charters = BL_CHARTERS.filter(function (c) {
+      return (q.by_charter && q.by_charter[c]) || items.some(function (it) { return it.charter === c; });
+    });
+    var byC = {};
+    charters.forEach(function (c) {
+      var sj = (q.by_charter || {})[c] || { sjt_points: 0, sjt_max: 0 };
+      var cs = charterSummary({
+        sjt_points: sj.sjt_points, sjt_max: sj.sjt_max,
+        self_mean: sm.by_charter[c] ? sm.by_charter[c].mean : null,
+        mgr_mean: mm.by_charter[c] ? mm.by_charter[c].mean : null, mgr_n: mm.by_charter[c] ? mm.by_charter[c].n : 0,
+        min_rated: c === 'QWS' ? 3 : 2, w_sjt: inp.w_sjt, w_mgr: inp.w_mgr
+      });
+      var n = nm('charter_' + c, c === 'QWS' ? 'QWS' : 'Charter ' + c);
+      byC[c] = { name_en: n.en, name_vi: n.vi, sjt_band: cs.sjt_band, self_mean: round1n_(cs.self_mean), mgr_mean: round1n_(cs.mgr_mean), index: cs.index, flags: cs.flags };
+      var areaPct = cs.index !== null ? cs.index : cs.sjt_pct;
+      areas.push({ area: 'p2_' + c, name_en: n.en, name_vi: n.vi, pct: areaPct, self: cs.self_mean === null ? null : (cs.self_mean - 1) / 3 });
+    });
+    var dev = topDevelopment(q.mgr || {}, q.self || {}, items).map(function (it) {
+      return { item_id: it.item_id, text_en: str(it.self_en), text_vi: str(it.self_vi) };
+    });
+    out.p2 = {
+      sjt_pct: q.max ? Math.round(100 * q.points / q.max) : null,
+      self_mean: round1n_(sm.mean), mgr_mean: round1n_(mm.mean), by_charter: byC, top_dev: dev
+    };
+  }
+
+  if (inp.p3) {
+    var r = inp.p3;
+    out.p3 = {
+      module: r.module, total_pct: r.total_pct, core_pct: r.core_pct, module_pct: r.module_pct,
+      by_level: pctMap(r.by_level), by_gate: pctMap(r.by_gate), level: blLevel(r.by_level)
+    };
+    var core = nm('p3_CORE', 'Part 3 · Core'), mod = nm('p3_' + r.module, 'Part 3 · ' + r.module);
+    areas.push({ area: 'p3_core', name_en: core.en, name_vi: core.vi, pct: r.core_pct, self: selfOf(['P1']) });
+    areas.push({ area: 'p3_mod', name_en: mod.en, name_vi: mod.vi, pct: r.module_pct, self: selfOf(BL_MODULE_COURSES[r.module] || []) });
+  }
+
+  out.courses = courseLinks(selfC, inp.p1 ? inp.p1.by_course : null, out.p3, inp.order || []);
+  out.gaps = idpGaps(areas);
+  return out;
+}
+
+/** Pearson correlation; null when either side has no spread. */
+function pearson(xs, ys) {
+  var n = Math.min(xs.length, ys.length);
+  if (n < 2) return null;
+  var mx = mean_(xs.slice(0, n)), my = mean_(ys.slice(0, n)), sxy = 0, sxx = 0, syy = 0;
+  for (var i = 0; i < n; i++) { var dx = xs[i] - mx, dy = ys[i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null;
+}
+
+/**
+ * Item statistics for one item over the people who were served it.
+ * rows [{score, max, total, pick}] (total = the person's part score including this item; pick
+ * 'a'..'d' or '' for blank). → {n, p_value (0–1), point_biserial (item vs rest of the part), dist {a,b,c,d,blank} %}
+ */
+function itemAnalysis(rows) {
+  var n = rows.length;
+  var dist = { a: 0, b: 0, c: 0, d: 0, blank: 0 };
+  rows.forEach(function (r) { var k = OPTION_LETTERS.indexOf(r.pick) >= 0 ? r.pick : 'blank'; dist[k]++; });
+  Object.keys(dist).forEach(function (k) { dist[k] = n ? Math.round(100 * dist[k] / n) : 0; });
+  var max = rows.length ? rows[0].max || 1 : 1;
+  var p = n ? mean_(rows.map(function (r) { return r.score / max; })) : null;
+  var pb = pearson(rows.map(function (r) { return r.score; }), rows.map(function (r) { return r.total - r.score; }));
+  return { n: n, p_value: p === null ? null : Math.round(p * 100) / 100, point_biserial: pb === null ? null : Math.round(pb * 100) / 100, dist: dist };
+}
+
+/**
+ * Validates the BaselineItems and Exhibits tabs (row objects keyed by header).
+ * opts {live: ['B','C'], backup: 'A'}. Structural problems are errors; blueprint counts are warnings.
+ */
+function validateBaselineBank(items, exhibits, opts) {
+  opts = opts || {};
+  var errors = [], warnings = [];
+  var exIds = {};
+  (exhibits || []).forEach(function (e, i) {
+    var id = str(e.exhibit_id).trim();
+    if (!id) { errors.push('Exhibits row ' + (i + 2) + ': exhibit_id is empty'); return; }
+    if (exIds[id]) errors.push('Exhibits row ' + (i + 2) + ' (' + id + '): duplicate exhibit_id');
+    exIds[id] = true;
+    if (!str(e.md_en).trim()) errors.push('Exhibits ' + id + ': md_en is empty');
+    else if (!str(e.md_vi).trim()) warnings.push('Exhibits ' + id + ': md_vi is empty');
+  });
+  var seen = {}, counts = {};
+  var count = function (k) { counts[k] = (counts[k] || 0) + 1; };
+  (items || []).forEach(function (raw, idx) {
+    var it = normBaselineItem(raw, idx);
+    var where = 'BaselineItems row ' + (idx + 2) + (it.item_id ? ' (' + it.item_id + ')' : '');
+    if (!it.item_id) { errors.push(where + ': item_id is empty'); return; }
+    if (seen[it.item_id]) errors.push(where + ': duplicate item_id');
+    seen[it.item_id] = true;
+    if (!blPart(it.assessment)) { errors.push(where + ': assessment must be baseline_p1, baseline_p2 or baseline_p3'); return; }
+    var secs = BL_SECTIONS[it.assessment];
+    if (secs.indexOf(it.section) < 0) errors.push(where + ': section must be ' + secs.join(' or '));
+    if (it.assessment === 'baseline_p1' && BL_FORMS.indexOf(it.form) < 0) errors.push(where + ': form must be A, B or C');
+    if (it.assessment !== 'baseline_p1' && it.form !== 'ONE') errors.push(where + ': form must be ONE');
+    if (it.assessment === 'baseline_p3' && it.section === 'MOD' && BL_MODULES.indexOf(it.module) < 0) errors.push(where + ': module must be DP, SP, RPM or CS');
+    var wantType = it.section === 'SJT' ? 'sjt' : it.section === 'RATE' ? 'rating' : 'mcq';
+    if (it.item_type !== wantType) errors.push(where + ': item_type must be ' + wantType + ' in section ' + it.section);
+    if (it.item_type === 'mcq' || it.item_type === 'sjt') {
+      if (!it.stem_en.trim()) errors.push(where + ': stem_en is empty');
+      else if (!it.stem_vi.trim()) warnings.push(where + ': stem_vi is empty');
+      OPTION_LETTERS.forEach(function (l) {
+        if (!it[l + '_en'].trim()) errors.push(where + ': option ' + l + '_en is empty');
+        else if (!it[l + '_vi'].trim()) warnings.push(where + ': option ' + l + '_vi is empty');
+      });
+    }
+    if (it.item_type === 'mcq' && !it.answer) errors.push(where + ': answer must be a, b, c or d');
+    if (it.item_type === 'sjt') {
+      if (!it.answer_most || !it.answer_least) errors.push(where + ': answer_most and answer_least must both be a, b, c or d');
+      else if (it.answer_most === it.answer_least) errors.push(where + ': answer_most and answer_least must differ');
+    }
+    if (it.item_type === 'rating') {
+      if (!it.self_en.trim() || !it.mgr_en.trim()) errors.push(where + ': a rating needs self_en and mgr_en');
+      if (!it.self_vi.trim() || !it.mgr_vi.trim()) warnings.push(where + ': self_vi or mgr_vi is empty');
+    } else if (it.allow_nr) warnings.push(where + ': allow_nr only applies to rating statements');
+    if (it.assessment === 'baseline_p2' && !it.charter) errors.push(where + ': charter must be 1–5 or QWS');
+    it.exhibit_ids.forEach(function (x) { if (!exIds[x]) errors.push(where + ': exhibit ' + x + ' is not in Exhibits'); });
+    if (!it.active) return;
+    if (it.assessment === 'baseline_p1') count('p1:' + it.form + ':' + it.section);
+    else if (it.assessment === 'baseline_p2') count('p2:' + it.section);
+    else count('p3:' + (it.section === 'MOD' ? it.module : 'CORE'));
+  });
+  var live = (opts.live || ['B', 'C']).map(function (f) { return str(f).trim().toUpperCase(); });
+  var backup = str(opts.backup === undefined ? 'A' : opts.backup).trim().toUpperCase();
+  BL_FORMS.forEach(function (f) {
+    var a = counts['p1:' + f + ':A'] || 0, b = counts['p1:' + f + ':B'] || 0;
+    var msg = 'Part 1 form ' + f + ': ' + (a + b) + ' active items (expected 32: 22 in Section A, 10 in Section B; now ' + a + ' + ' + b + ')';
+    if (live.indexOf(f) >= 0 && a + b !== 32) errors.push(msg + ' · this form is live');
+    else if (f === backup && a + b !== 32) warnings.push(msg + ' · backup form');
+    else if (live.indexOf(f) >= 0 && (a !== 22 || b !== 10)) warnings.push(msg);
+  });
+  [['p2:SJT', 15, 'Part 2 SJT'], ['p2:RATE', 23, 'Part 2 rating statements'], ['p3:CORE', 10, 'Part 3 core']].forEach(function (x) {
+    if ((counts[x[0]] || 0) !== x[1]) warnings.push(x[2] + ': ' + (counts[x[0]] || 0) + ' active items (expected ' + x[1] + ')');
+  });
+  BL_MODULES.forEach(function (m) {
+    if ((counts['p3:' + m] || 0) !== 18) warnings.push('Part 3 module ' + m + ': ' + (counts['p3:' + m] || 0) + ' active items (expected 18)');
+  });
   return { errors: errors, warnings: warnings, counts: counts };
 }
 
@@ -913,11 +1496,21 @@ if (typeof module !== 'undefined' && module.exports) {
     lockMinutes: lockMinutes, nextLock: nextLock,
     hashString: hashString, mulberry32: mulberry32, shuffle: shuffle,
     optionOf: optionOf, serveItem: serveItem, cleanAnswers: cleanAnswers, cleanSelfRatings: cleanSelfRatings,
-    byObjective: byObjective, grade: grade, isPass: isPass, byCourse: byCourse, weakObjectives: weakObjectives,
-    gaps: gaps, calibrationFlag: calibrationFlag,
+    byObjective: byObjective, grade: grade, isPass: isPass, weakObjectives: weakObjectives,
+    calibrationFlag: calibrationFlag,
     pickForm: pickForm, canRetake: canRetake, checkpointGate: checkpointGate, unlocksUsed: unlocksUsed,
     revealKey: revealKey, parseDays: parseDays, recallDates: recallDates, recallForm: recallForm,
     recallItems: recallItems, excludedFromSummary: excludedFromSummary, summarise: summarise, streak: streak, panelWeighted: panelWeighted,
-    parseCsv: parseCsv, courseObjectiveCount: courseObjectiveCount, validateBank: validateBank
+    parseCsv: parseCsv, courseObjectiveCount: courseObjectiveCount, validateBank: validateBank,
+    BL_ASSESSMENTS: BL_ASSESSMENTS, BL_FORMS: BL_FORMS, BL_MODULES: BL_MODULES, BL_LEVELS: BL_LEVELS, BL_CHARTERS: BL_CHARTERS,
+    BL_SECTIONS: BL_SECTIONS, BL_PRIVATE_FIELDS: BL_PRIVATE_FIELDS, blPart: blPart, normCharter: normCharter,
+    normBaselineItem: normBaselineItem, blSortItems: blSortItems, optionsOf: optionsOf, serveBaselineItem: serveBaselineItem,
+    managerRatingItem: managerRatingItem, cleanBlValue: cleanBlValue, cleanBlAnswers: cleanBlAnswers, sjtLockProblem: sjtLockProblem,
+    chooseP1Form: chooseP1Form, p3ModuleFor: p3ModuleFor, stepNumber: stepNumber, pctOf: pctOf, pctMap: pctMap,
+    scoreBlMcq: scoreBlMcq, scoreSjt: scoreSjt, ratingMeans: ratingMeans, cleanRatingValues: cleanRatingValues,
+    meanSd: meanSd, equateLinear: equateLinear, equatingPlan: equatingPlan, scaledFor: scaledFor, blLevel: blLevel,
+    sjtBand: sjtBand, charterSummary: charterSummary, topDevelopment: topDevelopment, courseLinks: courseLinks,
+    idpGaps: idpGaps, buildBaselineProfile: buildBaselineProfile, pearson: pearson, itemAnalysis: itemAnalysis,
+    validateBaselineBank: validateBaselineBank
   };
 }

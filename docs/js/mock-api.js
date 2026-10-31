@@ -1,12 +1,12 @@
-// Demo backend for the Hub (specs/20 "Demo mode"). Runs in the browser; state lives in localStorage.
-// Invented questions only: ids MOCK-001…, the right option is in `mockCorrect` and is stripped
-// before any item reaches page code. No real item text, names or codes appear here.
+// Demo backend for the Hub (specs/20 "Demo mode", specs/22 §5 for the baseline). Runs in the browser;
+// state lives in localStorage. Invented questions only: ids MOCK-001… (courses) and MOCK-BL-… (baseline);
+// the keys are in `mockCorrect` / `mockMost` / `mockLeast` (plus step, move, gate, level and charter)
+// and are stripped before any item reaches page code. No real item text, names or codes appear here.
 
 const STORE = 'hub.mock.v1';
 const PIN = '270127';
 const RETAKE_MS = 60 * 1000; // demo: 1 minute instead of 24 h
 const SESSION_MS = 6 * 3600 * 1000;
-const BASELINE_MIN = 60;
 const PASS = 0.8;
 const H = 3600 * 1000;
 const D = 24 * H;
@@ -31,7 +31,6 @@ async function getCatalog() {
   return catalog;
 }
 const ORDER = ['A2', 'A3', 'A1', 'P1', 'C1', 'P2', 'P3', 'P4', 'P5', 'P6'];
-const CASE_COURSES = ['P1', 'P2', 'A1', 'P4', 'C1', 'P3'];
 const OPTS = [
   ['The right answer (demo)', 'Đáp án đúng (demo)'],
   ['A tempting distractor', 'Một phương án dễ gây nhầm'],
@@ -53,7 +52,7 @@ async function getBank() {
     options.push({ id: correct, en: OPTS[0][0], vi: OPTS[0][1] });
     others.forEach((oid, i) => options.push({ id: oid, en: OPTS[i + 1][0], vi: OPTS[i + 1][1] }));
     options.sort((x, y) => x.id.localeCompare(y.id));
-    const label = { predict: ['Predict', 'Dự đoán'], checkpoint: ['Checkpoint', 'Checkpoint'], baseline: ['Baseline', 'Đánh giá đầu vào'] }[assessment];
+    const label = { predict: ['Predict', 'Dự đoán'], checkpoint: ['Checkpoint', 'Checkpoint'] }[assessment];
     items.push({
       item_id: id, assessment, course, form, objective, case_id: caseId || '',
       stem_en: `${label[0]} demo question · ${course}, objective ${objective}. In the live Hub this is a real planning scenario; here, pick “${OPTS[0][0]}” to answer correctly.`,
@@ -67,23 +66,16 @@ async function getBank() {
     const k = c.objectives.length;
     for (let i = 0; i < 3; i += 1) make('predict', c.code, 'PR', (i % k) + 1);
     for (const form of ['A', 'B']) for (let i = 0; i < 10; i += 1) make('checkpoint', c.code, form, (i % k) + 1);
-    for (let i = 0; i < 4; i += 1) make('baseline', c.code, 'BL', ((i + 1) % k) + 1);
   }
-  CASE_COURSES.forEach((code, i) => make('baseline', code, 'BL', 1 + (i % 3), 'CASE1'));
   bank = items;
   return bank;
 }
-const CASE = {
-  case_id: 'CASE1', title_en: 'Mini case (demo)', title_vi: 'Tình huống ngắn (demo)',
-  context_en: 'Demo case. In the live Hub, a short business scenario appears here and stays visible while you answer the six case questions. Numbers in the real case are illustrative.',
-  context_vi: 'Tình huống demo. Trên Hub thật, một tình huống kinh doanh ngắn hiện ở đây và luôn hiển thị trong khi bạn trả lời sáu câu hỏi. Các con số trong tình huống thật chỉ mang tính minh hoạ.',
-};
 
 // ---------- demo calendar ----------
 // The real 2027 calendar (courses.json) moved so that the day the demo was seeded sits in cycle 2:
 // the A2 + A3 forum was 9 days earlier (its late week has closed), A1 has been online for 4 days and
-// P1 … P6 open later on real-looking dates. Recall dates, the baseline window and the capstone
-// deadlines all follow from these dates, so everything the demo shows adds up.
+// P1 … P6 open later on real-looking dates. Recall dates and the capstone deadlines follow from these
+// dates, so everything the demo shows adds up. The baseline has no dates: its parts open by switch.
 const DATE_KEYS = ['prework_from', 'online_from', 'online_to', 'checkpoint_close', 'forum_date', 'field_until'];
 const LATE_DAYS = 7;
 const MAX_FREE = 2;
@@ -105,14 +97,10 @@ function calendar() {
     o.late_until = addDays(o.forum_date, LATE_DAYS);
     courses[c.code] = o;
   }
-  const blFrom = addDays(courses.A2.online_from, -35); // the program baseline ran before cycle 1
   const pitchDay = courses.C1.forum_date;
   const capstoneDay = cat.program.capstone_day; // the War Room and graduation stay on their real December dates
   const cal = {
     courses,
-    baseline: { wave: blFrom.slice(0, 7), open_from: blFrom, open_to: addDays(blFrom, 11) },
-    // DEMO-M and DEMO-N joined late: a make-up window is open now, so testers can take the baseline.
-    makeup: { wave: day(state.t0 - 3 * D).slice(0, 7), open_from: day(state.t0 - 3 * D), open_to: day(state.t0 + 10 * D) },
     pitch_deadline: addDays(pitchDay, -1), capstone_deadline: addDays(capstoneDay, -1),
   };
   calCache = { t0: state.t0, cal };
@@ -120,10 +108,10 @@ function calendar() {
 }
 
 // ---------- state ----------
-const VERSION = 2;
+const VERSION = 3; // 3: baseline v2 (three parts, manager rating, profile); older demo state is replaced
 function blankUser(code, first_name, role_area, extra = {}) {
   return { code, first_name, role_area, is_manager: false, manager: 'DEMO-M', roles: ['learner'], pin: PIN, must_change_pin: false,
-    consent_at: iso(now() - 30 * D), lang: 'en', certificate: '', fails: 0, locked_until: null, locks: [], sv: 1, baseline: 'program', ...extra };
+    consent_at: iso(now() - 30 * D), lang: 'en', certificate: '', fails: 0, locked_until: null, locks: [], sv: 1, ...extra };
 }
 async function seedState() {
   const items = await getBank();
@@ -132,10 +120,13 @@ async function seedState() {
     version: VERSION, t0,
     users: {
       'DEMO-L': blankUser('DEMO-L', 'Linh', 'demand'),
-      'DEMO-M': blankUser('DEMO-M', 'Minh', 'supply', { is_manager: true, manager: '', roles: ['learner', 'manager', 'panel'], baseline: 'makeup' }),
-      'DEMO-N': blankUser('DEMO-N', 'An', 'cs', { must_change_pin: true, consent_at: null, baseline: 'makeup' }),
+      'DEMO-M': blankUser('DEMO-M', 'Minh', 'supply', { is_manager: true, manager: '', roles: ['learner', 'manager', 'panel'] }),
+      'DEMO-N': blankUser('DEMO-N', 'An', 'cs', { must_change_pin: true, consent_at: null }),
     },
     attempts: [], watched: {}, recall: [], unlocks: [], activity: {}, capstone: {}, panel: {}, seq: 0,
+    bl: { wave: BL_WAVE, p1_open: true, p2_open: true, p3_open: true, rating_open: true, results_open: true },
+    ratings: {}, // `${rater}|${ratee}` → { values: {item_id: 1..4|"NA"}, saved_at } (manager form)
+    selfRatings: {}, // code → { item_id: 1..4|"NR" } (Part 2B, written at submit)
   };
   state = s; // calendar() reads state.t0
   const cal = calendar();
@@ -168,15 +159,12 @@ async function seedState() {
     Object.assign(r, { status: 'done', score_pct: a.score_pct, attempt_id: a.attempt_id });
   };
 
-  // DEMO-L · Linh, a planner in cycle 2. Took the baseline inside its window, passed A2 before the
-  // forum and did the day-2 recall; A3: two tries not yet passed, so a third needs a chat with Minh
-  // (her manager); A1 is online now (Predict done, three episodes ticked).
+  // DEMO-L · Linh, a planner in cycle 2. Has done all three baseline parts (results are open, so her
+  // profile shows) and Minh has rated her. Passed A2 before the forum and did the day-2 recall;
+  // A3: two tries not yet passed, so a third needs a chat with Minh (her manager); A1 is online now
+  // (Predict done, three episodes ticked).
   const L = 'DEMO-L';
-  const blMs = at(addDays(cal.baseline.open_from, 2), '14:05');
-  push({ attempt_id: 'MA-SEED-BL', code: L, assessment: 'baseline', course: '', form: 'BL', attempt_no: 1, status: 'submitted',
-    started_at: iso(blMs - 52 * 60000), submitted_at: iso(blMs), served: [], seed: 1, answers: {},
-    self: { A2: 2, A3: 1, A1: 2, P1: 1, C1: 2, P2: 1, P3: 1, P4: 2, P5: 1, P6: 3 },
-    n_items: 46, n_correct: 22, score_pct: 48, by_course: { A2: 70, A3: 55, A1: 50, P1: 40, C1: 60, P2: 35, P3: 30, P4: 45, P5: 25, P6: 50 }, wave: cal.baseline.wave });
+  seedBaselineL(s, T);
   pr(L, 'A2', at(addDays(cal.courses.A2.online_from, 1), '20:10'));
   pr(L, 'A3', at(addDays(cal.courses.A3.online_from, 2), '20:40'));
   cp(L, 'A3', 'B', 1, 7, T(-16, '10:15'));
@@ -237,14 +225,7 @@ function userFromToken(token) {
   return u;
 }
 const mine = (code, pred) => state.attempts.filter((a) => a.code === code && pred(a));
-const baselineWindow = (u) => (u && u.baseline === 'makeup' ? calendar().makeup : calendar().baseline);
 const courseOpen = (code) => { const c = calendar().courses[code]; return !!c && day(now()) >= c.online_from; };
-
-function expireBaseline(code) {
-  for (const a of mine(code, (x) => x.assessment === 'baseline' && x.status === 'open')) {
-    if (now() > Date.parse(a.started_at) + (BASELINE_MIN + 10) * 60000) gradeAttempt(a, a.answers, a.self, true);
-  }
-}
 
 /** Mirrors backend checkpointState_: attempts, unlock accounting (F13), retake wait. */
 function cpState(code, course) {
@@ -313,22 +294,6 @@ function streakOf(code) {
 }
 function touch(code) { (state.activity[code] = state.activity[code] || []).push(iso(now())); }
 
-function baselineView(u) {
-  const code = u.code;
-  expireBaseline(code);
-  const w = baselineWindow(u);
-  const today = day(now());
-  const a = mine(code, (x) => x.assessment === 'baseline' && x.wave === w.wave).sort((x, y) => Date.parse(y.started_at) - Date.parse(x.started_at))[0];
-  const out = { ...w, window: today < w.open_from ? 'before' : today > w.open_to ? 'after' : 'open', status: 'not_started' };
-  if (a && a.status === 'open') Object.assign(out, { status: 'in_progress', attempt_id: a.attempt_id, started_at: a.started_at, deadline_at: iso(Date.parse(a.started_at) + BASELINE_MIN * 60000) });
-  if (a && (a.status === 'submitted' || a.status === 'expired')) Object.assign(out, { status: 'submitted', attempt_id: a.attempt_id, started_at: a.started_at, submitted_at: a.submitted_at, result: baselineResult(a) });
-  return out;
-}
-function baselineResult(a) {
-  const codes = ORDER.slice().sort((x, y) => (a.by_course[x] - a.by_course[y]) || ((a.self[x] || 0) - (a.self[y] || 0)) || (ORDER.indexOf(x) - ORDER.indexOf(y)));
-  return { score_pct: a.score_pct, by_course: a.by_course, self: a.self, gaps: codes.slice(0, 2) };
-}
-
 // ---------- grading ----------
 function reviewRows(a, items, reveal) {
   return a.served.map((id) => {
@@ -340,22 +305,19 @@ function reviewRows(a, items, reveal) {
       correct: reveal ? clone(correct) : null, why_en: reveal ? it.why_en : '', why_vi: reveal ? it.why_vi : '', is_correct: yourId === it.mockCorrect };
   });
 }
-function gradeAttempt(a, answers, self, expired = false) {
+function gradeAttempt(a, answers, expired = false) {
   const items = bank;
   a.answers = answers || {};
-  if (self) a.self = self;
   let n = 0;
-  const byObj = {}; const byCourse = {}; const byCourseN = {};
+  const byObj = {};
   for (const id of a.served) {
     const it = items.find((x) => x.item_id === id);
     const right = a.answers[id] === it.mockCorrect;
     if (right) n += 1;
     const o = (byObj[it.objective] = byObj[it.objective] || { n: 0, correct: 0 }); o.n += 1; if (right) o.correct += 1;
-    byCourse[it.course] = (byCourse[it.course] || 0) + (right ? 1 : 0); byCourseN[it.course] = (byCourseN[it.course] || 0) + 1;
   }
   a.n_items = a.served.length; a.n_correct = n; a.score_pct = Math.round((100 * n) / Math.max(1, a.served.length));
   a.by_objective = byObj;
-  if (a.assessment === 'baseline') { a.by_course = {}; ORDER.forEach((c) => { a.by_course[c] = byCourseN[c] ? Math.round((100 * byCourse[c]) / byCourseN[c]) : 0; }); }
   if (a.assessment === 'checkpoint') a.passed = a.score_pct >= PASS * 100;
   a.status = expired ? 'expired' : 'submitted';
   a.submitted_at = iso(now());
@@ -373,8 +335,6 @@ function gradeAttempt(a, answers, self, expired = false) {
 }
 async function resultOf(a) {
   const items = await getBank();
-  const cat = await getCatalog();
-  if (a.assessment === 'baseline') return { assessment: 'baseline', ...baselineResult(a) };
   if (a.assessment === 'predict') return { assessment: 'predict', course: a.course, n_items: a.n_items, n_correct: a.n_correct, score_pct: a.score_pct, review: reviewRows(a, items, true) };
   if (a.assessment === 'recall') return { assessment: 'recall', course: a.course, day: a.day, n_items: a.n_items, n_correct: a.n_correct, score_pct: a.score_pct, review: reviewRows(a, items, true) };
   const c = calendar().courses[a.course];
@@ -399,6 +359,514 @@ function serve(a, items) {
     s.options = shuffle(s.options, a.seed + i);
     return s;
   });
+}
+
+// ---------- Baseline v2 (specs/22): three parts, manager rating, profile ----------
+// Invented content only (MOCK-BL-… ids, generic planning wording). Demo timers: P1 10, P2 6, P3 8 min.
+const BL_WAVE = '2026-11';
+const BL_KINDS = ['baseline_p1', 'baseline_p2', 'baseline_p3'];
+const BL_MIN = { 1: 10, 2: 6, 3: 8 };
+const BL_GRACE_MIN = 5;
+const P1_LIVE = ['B', 'C'];
+const W_SJT = 0.5; const W_MGR = 0.5;
+const MODULE_OF = { demand: 'DP', supply: 'SP', materials: 'RPM', cs: 'CS' };
+const BL_MOVES = ['ASK', 'SHAPE', 'SIZE', 'CHECK', 'SO WHAT'];
+const BL_LEVELS = ['BA', 'WK', 'FO', 'LE'];
+const BL_GATES = ['Data ready', 'Demand review', 'Supply review', 'Decision'];
+const BL_TXT = {
+  p1_sec_A: ['Section A · Case questions', 'Mục A · Câu hỏi tình huống'],
+  p1_sec_B: ['Section B · Logic questions', 'Mục B · Câu hỏi tư duy logic'],
+  p1_sec_B_intro: ['Short questions on reasoning with numbers. No exhibits needed. (demo)', 'Các câu hỏi ngắn về suy luận với con số. Không cần bảng số liệu. (demo)'],
+  p1_case_C1: ['Case 1 · The slow mover (demo)', 'Tình huống 1 · Mã hàng bán chậm (demo)'],
+  p1_case_C2: ['Case 2 · The busy line (demo)', 'Tình huống 2 · Dây chuyền quá tải (demo)'],
+  p2_sec_SJT: ['2A · What would you do?', '2A · Bạn sẽ làm gì?'],
+  p2_sec_SJT_intro: ['For each scenario, pick the most effective and the least effective response. (demo)', 'Với mỗi tình huống, chọn cách phản hồi hiệu quả nhất và kém hiệu quả nhất. (demo)'],
+  p2_sec_RATE: ['2B · How often do you do this?', '2B · Bạn làm điều này thường xuyên đến đâu?'],
+  p2_sec_RATE_intro: ['Rate how often you show each behaviour today, from 1 (rarely) to 4 (almost always). (demo)', 'Chấm mức độ thường xuyên bạn thể hiện mỗi hành vi hiện nay, từ 1 (hiếm khi) đến 4 (gần như luôn luôn). (demo)'],
+  p3_intro: ['Core planning questions first, then your role module. The KPI glossary is always one tap away. (demo)', 'Các câu hỏi hoạch định cốt lõi trước, sau đó là phần theo vai trò của bạn. Bảng thuật ngữ KPI luôn sẵn một chạm. (demo)'],
+  p3_sec_CORE: ['Core · S&OP basics', 'Cốt lõi · Nền tảng S&OP'],
+  p3_sec_DP: ['Module · Demand planning', 'Phần vai trò · Demand planning'],
+  p3_sec_SP: ['Module · Supply planning', 'Phần vai trò · Supply planning'],
+  p3_sec_RPM: ['Module · Materials planning', 'Phần vai trò · Materials planning'],
+  p3_sec_CS: ['Module · Customer service', 'Phần vai trò · Customer service'],
+};
+const BL_CHARTERS = {
+  1: ['Owns outcomes (demo)', 'Làm chủ kết quả (demo)'],
+  2: ['Works across teams (demo)', 'Phối hợp liên phòng ban (demo)'],
+  3: ['Decides with data (demo)', 'Quyết định bằng dữ liệu (demo)'],
+  4: ['Grows people (demo)', 'Phát triển con người (demo)'],
+  5: ['Keeps it simple (demo)', 'Giữ mọi việc đơn giản (demo)'],
+  QWS: ['Ways of working (demo)', 'Cách làm việc (demo)'],
+};
+const BL_EXHIBITS = {
+  'MOCK-BL-EX1': {
+    title_en: 'Exhibit 1 · Forecast and sales, six SKUs, last 4 weeks (demo)',
+    title_vi: 'Bảng 1 · Forecast và doanh số, sáu SKU, 4 tuần gần nhất (demo)',
+    md_en: '| SKU | Forecast (cases) | Sales (cases) | Stock cover (weeks) |\n|---|---|---|---|\n| SKU-01 | 1,200 | 1,050 | 3.1 |\n| SKU-02 | 800 | 910 | 1.4 |\n| SKU-03 | 450 | 210 | 9.8 |\n| SKU-04 | 2,000 | 1,960 | 2.2 |\n| SKU-05 | 300 | 330 | 1.9 |\n| SKU-06 | 650 | 400 | 6.5 |\n\nAll numbers are invented for the demo.',
+    md_vi: '| SKU | Forecast (thùng) | Doanh số (thùng) | Số tuần tồn kho |\n|---|---|---|---|\n| SKU-01 | 1.200 | 1.050 | 3,1 |\n| SKU-02 | 800 | 910 | 1,4 |\n| SKU-03 | 450 | 210 | 9,8 |\n| SKU-04 | 2.000 | 1.960 | 2,2 |\n| SKU-05 | 300 | 330 | 1,9 |\n| SKU-06 | 650 | 400 | 6,5 |\n\nMọi con số đều là số giả định cho bản demo.',
+  },
+  'MOCK-BL-EX2': {
+    title_en: 'Exhibit 2 · Line plan, next week (demo)',
+    title_vi: 'Bảng 2 · Kế hoạch dây chuyền, tuần tới (demo)',
+    md_en: '- Weekly capacity: 4,800 cases\n- Planned output: 4,350 cases\n- Changeovers planned: 6\n- Frozen zone: 2 weeks\n- Target fill rate: 95%\n\n**Note:** a changeover costs about *3 hours* of output.',
+    md_vi: '- Công suất tuần: 4.800 thùng\n- Sản lượng kế hoạch: 4.350 thùng\n- Số lần chuyển đổi: 6\n- Vùng đóng băng: 2 tuần\n- Fill rate mục tiêu: 95%\n\n**Lưu ý:** mỗi lần chuyển đổi tốn khoảng *3 giờ* sản lượng.',
+  },
+};
+const BL_GLOSSARY = [
+  ['Fill rate: cases shipped ÷ cases ordered (demo definition).', 'Fill rate: số thùng đã giao ÷ số thùng được đặt (định nghĩa demo).'],
+  ['Forecast accuracy: 1 − |sales − forecast| ÷ sales (demo definition).', 'Forecast accuracy: 1 − |doanh số − forecast| ÷ doanh số (định nghĩa demo).'],
+  ['Stock cover: stock ÷ average weekly demand, in weeks (demo definition).', 'Số tuần tồn kho: tồn kho ÷ nhu cầu trung bình mỗi tuần (định nghĩa demo).'],
+];
+const SJT_OPTS = [
+  ['The most effective response (demo)', 'Cách phản hồi hiệu quả nhất (demo)'],
+  ['A reasonable response (demo)', 'Một cách phản hồi khá ổn (demo)'],
+  ['A weak response (demo)', 'Một cách phản hồi còn yếu (demo)'],
+  ['The least effective response (demo)', 'Cách phản hồi kém hiệu quả nhất (demo)'],
+];
+const SJT_STEMS = [
+  ['Demo scenario 1. A colleague in sales asks for your plan numbers one day before the monthly review.', 'Tình huống demo 1. Một đồng nghiệp bên sales xin số liệu kế hoạch của bạn một ngày trước buổi họp tháng.'],
+  ['Demo scenario 2. You notice a mistake in last week\'s plan that nobody else has spotted.', 'Tình huống demo 2. Bạn phát hiện một lỗi trong kế hoạch tuần trước mà chưa ai nhận ra.'],
+  ['Demo scenario 3. Two teams give you different numbers for the same SKU.', 'Tình huống demo 3. Hai bộ phận đưa cho bạn hai con số khác nhau cho cùng một SKU.'],
+  ['Demo scenario 4. A new team member keeps asking you the same question.', 'Tình huống demo 4. Một thành viên mới cứ hỏi bạn cùng một câu hỏi.'],
+];
+const BL_RATINGS = [
+  { charter: '1', self: ['I say what I will deliver and by when, and flag early if it slips. (demo)', 'Tôi nói rõ mình sẽ làm gì và khi nào xong, và báo sớm nếu bị trễ. (demo)'],
+    mgr: ['Says what they will deliver and by when, and flags early if it slips. (demo)', 'Nói rõ sẽ làm gì và khi nào xong, và báo sớm nếu bị trễ. (demo)'],
+    a1: ['Commitments are vague; delays come as a surprise.', 'Cam kết mơ hồ; chậm trễ thường bất ngờ.'], a4: ['Clear commitments; early warning every time.', 'Cam kết rõ ràng; luôn báo trước khi có rủi ro.'] },
+  { charter: '1', self: ['I follow an issue through to the fix, not just the report. (demo)', 'Tôi theo một vấn đề đến khi được khắc phục, không chỉ dừng ở báo cáo. (demo)'],
+    mgr: ['Follows an issue through to the fix, not just the report. (demo)', 'Theo một vấn đề đến khi được khắc phục, không chỉ dừng ở báo cáo. (demo)'],
+    a1: ['Reports the issue and moves on.', 'Báo cáo vấn đề rồi chuyển sang việc khác.'], a4: ['Owns it until it is fixed and checked.', 'Theo đến khi vấn đề được xử lý và kiểm tra lại.'] },
+  { charter: '2', nr: true, self: ['I bring sales and supply colleagues together before a decision. (demo)', 'Tôi kết nối đồng nghiệp sales và supply trước khi ra quyết định. (demo)'],
+    mgr: ['Brings sales and supply colleagues together before a decision. (demo)', 'Kết nối đồng nghiệp sales và supply trước khi ra quyết định. (demo)'],
+    a1: ['Decides alone, then informs others.', 'Tự quyết rồi mới thông báo.'], a4: ['Gets the right people in the room first.', 'Mời đúng người cùng bàn trước.'] },
+  { charter: '2', self: ['I share my numbers and assumptions openly with other teams. (demo)', 'Tôi chia sẻ số liệu và giả định của mình một cách cởi mở với các bộ phận khác. (demo)'],
+    mgr: ['Shares their numbers and assumptions openly with other teams. (demo)', 'Chia sẻ số liệu và giả định một cách cởi mở với các bộ phận khác. (demo)'],
+    a1: ['Keeps numbers to themselves.', 'Giữ số liệu cho riêng mình.'], a4: ['Numbers and assumptions are always visible.', 'Số liệu và giả định luôn minh bạch.'] },
+  { charter: '3', self: ['I check the data before I act on it. (demo)', 'Tôi kiểm tra dữ liệu trước khi hành động. (demo)'],
+    mgr: ['Checks the data before acting on it. (demo)', 'Kiểm tra dữ liệu trước khi hành động. (demo)'],
+    a1: ['Acts on the first number seen.', 'Hành động theo con số đầu tiên nhìn thấy.'], a4: ['Always checks source and size first.', 'Luôn kiểm tra nguồn và độ lớn trước.'] },
+  { charter: '3', self: ['I lead with the answer, then the evidence. (demo)', 'Tôi nói kết luận trước, rồi mới đến bằng chứng. (demo)'],
+    mgr: ['Leads with the answer, then the evidence. (demo)', 'Nói kết luận trước, rồi mới đến bằng chứng. (demo)'],
+    a1: ['Walks through every detail first.', 'Kể hết chi tiết trước.'], a4: ['One clear answer, backed by the right numbers.', 'Một kết luận rõ ràng, có đúng số liệu chứng minh.'] },
+];
+const RATE_POINTS = [[1, 'Rarely', 'Hiếm khi'], [2, 'Sometimes', 'Đôi khi'], [3, 'Often', 'Thường xuyên'], [4, 'Almost always', 'Gần như luôn luôn']];
+const RATE_NR = { en: 'Not part of my role', vi: 'Không thuộc vai trò của tôi' };
+const RATE_NA = { en: 'N/A – not observed', vi: 'Không áp dụng – chưa quan sát' };
+const RATER_GUIDE = {
+  en: '**Before you rate** (demo guide)\n\nRate what you have *seen* this person do over the last six months, not what you expect from them.\n\n1. Read each statement and its two anchors.\n2. Pick 1–4 for how often you see the behaviour.\n3. Choose **N/A – not observed** when you have not had the chance to see it.\n\nYour ratings are saved as you go and stay editable while rating is open. The learner sees averages by charter only, never a single rating.',
+  vi: '**Trước khi chấm** (hướng dẫn demo)\n\nHãy chấm những gì bạn đã *thấy* người này làm trong sáu tháng qua, không phải điều bạn kỳ vọng.\n\n1. Đọc từng nhận định và hai mô tả mốc của nó.\n2. Chọn 1–4 theo mức độ bạn thấy hành vi đó.\n3. Chọn **Không áp dụng – chưa quan sát** khi bạn chưa có dịp thấy hành vi đó.\n\nĐiểm được lưu liên tục và bạn vẫn sửa được trong thời gian mở chấm. Người được chấm chỉ thấy điểm trung bình theo nhóm hành vi, không bao giờ thấy từng điểm riêng.',
+};
+const BL_GAP_NAMES = {
+  p1_A: ['Part 1 · Case questions (Section A)', 'Phần 1 · Câu hỏi tình huống (Mục A)'],
+  p1_B: ['Part 1 · Logic questions (Section B)', 'Phần 1 · Câu hỏi logic (Mục B)'],
+  p3_core: ['Part 3 · Core planning', 'Phần 3 · Hoạch định cốt lõi'],
+  p3_mod: ['Part 3 · Your role module', 'Phần 3 · Phần theo vai trò'],
+};
+
+let blBankCache = null;
+function blBank() {
+  if (blBankCache) return blBankCache;
+  const items = [];
+  const mcq = (o) => {
+    const correct = 'abcd'[hash(o.item_id) % 4];
+    const others = 'abcd'.split('').filter((x) => x !== correct);
+    const options = [{ id: correct, en: OPTS[0][0], vi: OPTS[0][1] }].concat(others.map((oid, i) => ({ id: oid, en: OPTS[i + 1][0], vi: OPTS[i + 1][1] })));
+    options.sort((x, y) => x.id.localeCompare(y.id));
+    items.push({ type: 'mcq', module: '', case_id: '', exhibit_ids: [], ...o, options, mockCorrect: correct });
+  };
+  const stem = (en, vi) => ({
+    stem_en: `${en} In the live Hub this is a real planning question; here, pick “${OPTS[0][0]}”.`,
+    stem_vi: `${vi} Trên Hub thật đây là một câu hỏi hoạch định thực tế; ở đây, hãy chọn “${OPTS[0][1]}”.`,
+  });
+  ['A', 'B', 'C'].forEach((form) => {
+    for (let i = 1; i <= 6; i += 1) {
+      const caseId = i <= 3 ? 'C1' : 'C2';
+      const ex = caseId === 'C1' ? ['MOCK-BL-EX1'] : (i === 6 ? ['MOCK-BL-EX2', 'MOCK-BL-EX1'] : ['MOCK-BL-EX2']);
+      mcq({ item_id: `MOCK-BL-P1${form}-A${i}`, part: 1, section: 'A', form, order: i, case_id: caseId, exhibit_ids: ex, step: String(((i - 1) % 7) + 1), move: BL_MOVES[(i - 1) % 5],
+        ...stem(`Demo case question ${i} · form ${form}. Use the exhibit.`, `Câu hỏi tình huống demo ${i} · đề ${form}. Dùng bảng số liệu.`) });
+    }
+    for (let i = 1; i <= 6; i += 1) {
+      mcq({ item_id: `MOCK-BL-P1${form}-B${i}`, part: 1, section: 'B', form, order: 6 + i, step: String(((i + 3) % 7) + 1), move: BL_MOVES[(i + 1) % 5],
+        ...stem(`Demo logic question ${i} · form ${form}.`, `Câu hỏi logic demo ${i} · đề ${form}.`) });
+    }
+  });
+  SJT_STEMS.forEach(([en, vi], k) => {
+    const id = `MOCK-BL-P2-S${k + 1}`;
+    const ids = shuffle('abcd'.split(''), hash(id));
+    const options = SJT_OPTS.map((o, j) => ({ id: ids[j], en: o[0], vi: o[1] })).sort((x, y) => x.id.localeCompare(y.id));
+    items.push({ item_id: id, part: 2, section: 'SJT', type: 'sjt', form: 'ONE', order: k + 1, charter: String(k + 1), options, mockMost: ids[0], mockLeast: ids[3],
+      stem_en: `${en} In the live Hub this is a real workplace scenario.`, stem_vi: `${vi} Trên Hub thật đây là một tình huống công việc thực tế.` });
+  });
+  BL_RATINGS.forEach((r, k) => items.push({ item_id: `MOCK-BL-P2-R${k + 1}`, part: 2, section: 'RATE', type: 'rating', form: 'ONE', order: k + 1, charter: r.charter, allow_nr: !!r.nr,
+    self_en: r.self[0], self_vi: r.self[1], mgr_en: r.mgr[0], mgr_vi: r.mgr[1], anchor1_en: r.a1[0], anchor1_vi: r.a1[1], anchor4_en: r.a4[0], anchor4_vi: r.a4[1] }));
+  for (let i = 1; i <= 3; i += 1) {
+    mcq({ item_id: `MOCK-BL-P3-CORE${i}`, part: 3, section: 'CORE', form: 'ONE', order: i, exhibit_ids: i === 3 ? ['MOCK-BL-EX1'] : [], level: BL_LEVELS[i - 1], gate: BL_GATES[i - 1],
+      ...stem(`Demo core question ${i}.`, `Câu hỏi cốt lõi demo ${i}.`) });
+  }
+  ['DP', 'SP', 'RPM', 'CS'].forEach((m) => {
+    for (let i = 1; i <= 4; i += 1) {
+      mcq({ item_id: `MOCK-BL-P3-${m}${i}`, part: 3, section: 'MOD', module: m, form: 'ONE', order: i, level: BL_LEVELS[i - 1], gate: BL_GATES[i % 4],
+        ...stem(`Demo ${m} module question ${i}.`, `Câu hỏi demo phần ${m} số ${i}.`) });
+    }
+  });
+  blBankCache = items;
+  return items;
+}
+const blItem = (id) => blBank().find((i) => i.item_id === id);
+const blSecOrder = { A: 0, B: 1, SJT: 0, RATE: 1, CORE: 0, MOD: 1 };
+function blServedIds(part, form, module) {
+  return blBank().filter((i) => i.part === part && (part !== 1 || i.form === form) && (part !== 3 || i.section === 'CORE' || i.module === module))
+    .sort((x, y) => (blSecOrder[x.section] - blSecOrder[y.section]) || (x.order - y.order)).map((i) => i.item_id);
+}
+const blAtts = (code, part) => mine(code, (a) => a.assessment === `baseline_p${part}` && a.wave === state.bl.wave && a.status !== 'void');
+const blDone = (a) => a && (a.status === 'submitted' || a.status === 'expired');
+const blModule = (u) => u.p3_module || MODULE_OF[u.role_area] || 'DP';
+const isRater = (u) => u.roles.includes('manager') || u.roles.includes('admin');
+const blRateItems = () => blBank().filter((i) => i.type === 'rating');
+
+/** Part 1 form: the live form with fewer starts in the same role_area this wave; tie → hash(code + wave). */
+function blForm(u) {
+  const starts = (f) => state.attempts.filter((a) => a.assessment === 'baseline_p1' && a.wave === state.bl.wave && a.status !== 'void' && a.form === f
+    && (state.users[a.code] || {}).role_area === u.role_area).length;
+  const [x, y] = P1_LIVE;
+  const sx = starts(x); const sy = starts(y);
+  if (sx !== sy) return sx < sy ? x : y;
+  return P1_LIVE[hash(u.code + state.bl.wave) % 2];
+}
+function blExpire(code) {
+  for (const a of mine(code, (x) => BL_KINDS.includes(x.assessment) && x.status === 'open')) {
+    if (now() > Date.parse(a.deadline_at) + BL_GRACE_MIN * 60000) blGrade(a, true);
+  }
+}
+
+function blServe(it, seed) {
+  if (it.type === 'rating') {
+    return { item_id: it.item_id, type: 'rating', text_en: it.self_en, text_vi: it.self_vi, anchor1_en: it.anchor1_en, anchor1_vi: it.anchor1_vi,
+      anchor4_en: it.anchor4_en, anchor4_vi: it.anchor4_vi, allow_nr: !!it.allow_nr };
+  }
+  const options = shuffle(it.options.map((o) => ({ id: o.id, en: o.en, vi: o.vi })), seed + hash(it.item_id));
+  if (it.type === 'sjt') return { item_id: it.item_id, type: 'sjt', stem_en: it.stem_en, stem_vi: it.stem_vi, options };
+  return { item_id: it.item_id, type: 'mcq', section: it.section, case_id: it.case_id, exhibit_ids: it.exhibit_ids.slice(), stem_en: it.stem_en, stem_vi: it.stem_vi, options };
+}
+function blSection(a, id, title, intro, list, locked = false) {
+  return { id, title_en: title[0], title_vi: title[1], intro_en: intro ? intro[0] : '', intro_vi: intro ? intro[1] : '', locked, items: list.map((it) => blServe(it, a.seed)) };
+}
+const blRateSection = (a, items) => blSection(a, 'RATE', BL_TXT.p2_sec_RATE, BL_TXT.p2_sec_RATE_intro, items);
+function blStartOut(a, resumed, cat) {
+  const items = a.served.map(blItem);
+  const out = { attempt_id: a.attempt_id, assessment: a.assessment, part: a.part, form: a.form, module: a.module, started_at: a.started_at, deadline_at: a.deadline_at,
+    time_limit_min: BL_MIN[a.part], resumed, answers: clone(a.answers || {}) };
+  if (a.part === 1) {
+    out.sections = [
+      blSection(a, 'A', BL_TXT.p1_sec_A, null, items.filter((i) => i.section === 'A')),
+      blSection(a, 'B', BL_TXT.p1_sec_B, BL_TXT.p1_sec_B_intro, items.filter((i) => i.section === 'B')),
+    ];
+    out.cases = { C1: { title_en: BL_TXT.p1_case_C1[0], title_vi: BL_TXT.p1_case_C1[1] }, C2: { title_en: BL_TXT.p1_case_C2[0], title_vi: BL_TXT.p1_case_C2[1] } };
+  } else if (a.part === 2) {
+    const locked = (a.locked || []).includes('SJT');
+    out.sections = [
+      blSection(a, 'SJT', BL_TXT.p2_sec_SJT, BL_TXT.p2_sec_SJT_intro, items.filter((i) => i.type === 'sjt'), locked),
+      blRateSection(a, locked ? items.filter((i) => i.type === 'rating') : []),
+    ];
+    out.rating_scale = { points: RATE_POINTS.map(([v, en, vi]) => ({ v, en, vi })), nr: clone(RATE_NR) };
+  } else {
+    out.sections = [
+      blSection(a, 'CORE', BL_TXT.p3_sec_CORE, BL_TXT.p3_intro, items.filter((i) => i.section === 'CORE')),
+      blSection(a, 'MOD', BL_TXT[`p3_sec_${a.module}`] || BL_TXT.p3_sec_DP, null, items.filter((i) => i.section === 'MOD')),
+    ];
+    out.glossary = { en: BL_GLOSSARY.map((g) => g[0]), vi: BL_GLOSSARY.map((g) => g[1]) };
+    out.self_ratings = clone(a.self || {});
+    out.self = cat.courses.slice().sort((x, y) => x.order - y.order).map((c) => ({ course: c.code, en: c.self_en, vi: c.self_vi }));
+    out.scale = cat.scale.map((s) => ({ level: s.level, en: `${s.level} · ${s.en}${s.abbr ? ` (${s.abbr})` : ''}`, vi: `${s.level} · ${s.vi}${s.abbr ? ` (${s.abbr})` : ''}`, desc_en: s.desc_en, desc_vi: s.desc_vi }));
+  }
+  if (a.part !== 2) {
+    const ids = new Set(items.flatMap((i) => i.exhibit_ids || []));
+    out.exhibits = Object.fromEntries([...ids].filter((id) => BL_EXHIBITS[id]).map((id) => [id, clone(BL_EXHIBITS[id])]));
+  }
+  return out;
+}
+
+const okOpt = (v) => typeof v === 'string' && /^[abcd]$/.test(v);
+function blClean(a, answers) {
+  const ids = new Set(a.served);
+  const out = {};
+  for (const [k, v] of Object.entries(answers && typeof answers === 'object' ? answers : {})) {
+    if (!ids.has(k)) continue;
+    const it = blItem(k);
+    if (it.type === 'mcq' && okOpt(v)) out[k] = v;
+    else if (it.type === 'sjt' && v && typeof v === 'object') {
+      const x = {};
+      if (okOpt(v.most)) x.most = v.most;
+      if (okOpt(v.least)) x.least = v.least;
+      if (x.most || x.least) out[k] = x;
+    } else if (it.type === 'rating') {
+      if (v === 'NR' && it.allow_nr) out[k] = 'NR';
+      else if ([1, 2, 3, 4].includes(Number(v)) && v !== '' && v !== null) out[k] = Number(v);
+    }
+  }
+  if ((a.locked || []).includes('SJT')) { // 2A is frozen once locked
+    a.served.filter((id) => blItem(id).type === 'sjt').forEach((id) => { if (a.answers[id]) out[id] = clone(a.answers[id]); else delete out[id]; });
+  }
+  return out;
+}
+function blCleanSelf(v) {
+  const out = {};
+  for (const c of ORDER) { const x = v && v[c]; if (x !== undefined && x !== null && x !== '' && Number.isInteger(Number(x)) && Number(x) >= 0 && Number(x) <= 4) out[c] = Number(x); }
+  return out;
+}
+const blPastGrace = (a) => now() > Date.parse(a.deadline_at) + BL_GRACE_MIN * 60000;
+
+async function blStart(u, part) {
+  const cat = await getCatalog();
+  blExpire(u.code);
+  const list = blAtts(u.code, part);
+  const open = list.find((a) => a.status === 'open');
+  if (open) return ok(blStartOut(open, true, cat));
+  if (list.some(blDone)) return fail('already_submitted');
+  if (!state.bl[`p${part}_open`]) return fail('not_open');
+  const form = part === 1 ? blForm(u) : 'ONE';
+  const module = part === 3 ? blModule(u) : '';
+  state.seq += 1;
+  const t0 = now();
+  const a = { attempt_id: `MA-BL${part}-${t0.toString(36)}-${state.seq}`, code: u.code, assessment: `baseline_p${part}`, part, form, module, wave: state.bl.wave,
+    status: 'open', started_at: iso(t0), deadline_at: iso(t0 + BL_MIN[part] * 60000), last_saved_at: null, submitted_at: null,
+    served: blServedIds(part, form, module), seed: hash(`${u.code}${t0}`), answers: {}, self: {}, locked: [] };
+  state.attempts.push(a);
+  save();
+  return ok(blStartOut(a, false, cat));
+}
+function blSave(a, p) {
+  if (a.status !== 'open') return fail('already_submitted');
+  if (blPastGrace(a)) { blGrade(a, true); save(); return fail('already_submitted'); }
+  a.answers = blClean(a, p.answers);
+  if (a.part === 3 && p.self_ratings) a.self = blCleanSelf(p.self_ratings);
+  a.last_saved_at = iso(now());
+  save();
+  return ok({ saved_at: a.last_saved_at });
+}
+function blNext(a, p) {
+  if (a.part !== 2) return fail('bad_request', 'Only Part 2 has a lock step');
+  if (a.status !== 'open') return fail('already_submitted');
+  if (blPastGrace(a)) { blGrade(a, true); save(); return fail('already_submitted'); }
+  const rate = a.served.map(blItem).filter((i) => i.type === 'rating');
+  if (!(a.locked || []).includes('SJT')) {
+    a.answers = blClean(a, p.answers);
+    a.last_saved_at = iso(now());
+    for (const id of a.served.filter((x) => blItem(x).type === 'sjt')) {
+      const v = a.answers[id];
+      if (!v || !v.most || !v.least || v.most === v.least) { save(); return fail('bad_request', 'Pick a most and a different least effective response for every scenario', { field: id }); }
+    }
+    a.locked = ['SJT'];
+    save();
+  }
+  return ok({ locked: ['SJT'], section: blRateSection(a, rate) });
+}
+function blSubmit(a, p) {
+  if (a.status === 'open') {
+    if (blPastGrace(a)) blGrade(a, true); // too late: the saved answers count
+    else {
+      a.answers = blClean(a, p.answers);
+      if (a.part === 3 && p.self_ratings) a.self = blCleanSelf(p.self_ratings);
+      // Once the timer has run out (inside the grace window) the saved answers are graded as they are.
+      const timeUp = now() >= Date.parse(a.deadline_at);
+      if (!timeUp && a.part === 2) {
+        if (!(a.locked || []).includes('SJT')) return fail('bad_request', 'Lock Part 2A first', { field: 'SJT' });
+        const missing = a.served.map(blItem).find((i) => i.type === 'rating' && a.answers[i.item_id] === undefined);
+        if (missing) return fail('bad_request', 'Rate every statement', { field: missing.item_id });
+      }
+      if (!timeUp && a.part === 3 && ORDER.some((c) => a.self[c] === undefined)) return fail('bad_request', 'All 10 self-ratings are required', { field: 'self_ratings' });
+      blGrade(a, timeUp);
+    }
+    save();
+  }
+  return ok({ assessment: a.assessment, part: a.part, submitted_at: a.submitted_at, time_used_s: a.time_used_s });
+}
+
+function blGrade(a, expired = false) {
+  const items = a.served.map(blItem);
+  const tally = (m, k, right) => { if (!k) return; const o = (m[k] = m[k] || { n: 0, correct: 0 }); o.n += 1; if (right) o.correct += 1; };
+  const pct = (c, n) => (n ? Math.round((100 * c) / n) : 0);
+  const right = (it) => a.answers[it.item_id] === it.mockCorrect;
+  if (a.part === 1) {
+    a.by_step = {}; a.by_move = {};
+    const sec = { A: [0, 0], B: [0, 0] };
+    items.forEach((it) => { const r = right(it); tally(a.by_step, it.step, r); tally(a.by_move, it.move, r); sec[it.section][1] += 1; if (r) sec[it.section][0] += 1; });
+    a.raw_pct = pct(sec.A[0] + sec.B[0], items.length);
+    a.scaled_pct = a.raw_pct; // the demo has one wave: no equating
+    a.section_A_pct = pct(...sec.A); a.section_B_pct = pct(...sec.B);
+  } else if (a.part === 2) {
+    a.by_charter = {};
+    let pts = 0; let n = 0;
+    items.filter((i) => i.type === 'sjt').forEach((it) => {
+      const v = a.answers[it.item_id] || {};
+      const p = (v.most === it.mockMost ? 1 : 0) + (v.least === it.mockLeast ? 1 : 0);
+      pts += p; n += 1;
+      const c = (a.by_charter[it.charter] = a.by_charter[it.charter] || { sjt_points: 0, sjt_max: 0, self_mean: null });
+      c.sjt_points += p; c.sjt_max += 2;
+    });
+    a.sjt_pct = pct(pts, 2 * n);
+    const self = {};
+    items.filter((i) => i.type === 'rating').forEach((it) => { if (a.answers[it.item_id] !== undefined) self[it.item_id] = a.answers[it.item_id]; });
+    state.selfRatings[a.code] = self;
+    Object.keys(a.by_charter).forEach((c) => {
+      const vals = items.filter((i) => i.type === 'rating' && i.charter === c).map((i) => self[i.item_id]).filter((v) => typeof v === 'number');
+      a.by_charter[c].self_mean = vals.length ? Math.round((100 * vals.reduce((x, y) => x + y, 0)) / vals.length) / 100 : null;
+    });
+  } else {
+    a.by_level = {}; a.by_gate = {};
+    const core = [0, 0]; const mod = [0, 0];
+    items.forEach((it) => { const r = right(it); tally(a.by_level, it.level, r); tally(a.by_gate, it.gate, r); const b = it.section === 'CORE' ? core : mod; b[1] += 1; if (r) b[0] += 1; });
+    a.total_pct = pct(core[0] + mod[0], items.length); a.core_pct = pct(...core); a.module_pct = pct(...mod);
+  }
+  const end = Math.min(now(), Date.parse(a.deadline_at) + (expired ? BL_GRACE_MIN * 60000 : 0));
+  a.status = expired ? 'expired' : 'submitted';
+  a.submitted_at = iso(end);
+  a.time_used_s = Math.max(0, Math.round((Math.min(end, Date.parse(a.deadline_at)) - Date.parse(a.started_at)) / 1000));
+  touch(a.code);
+}
+
+function blRateStatus(rater, ratee) {
+  const r = state.ratings[`${rater}|${ratee}`];
+  const k = r ? Object.keys(r.values || {}).length : 0;
+  return { status: !k ? 'not_started' : (k >= blRateItems().length ? 'complete' : 'in_progress'), saved_at: r ? r.saved_at : null };
+}
+const blReports = (u) => Object.values(state.users).filter((x) => x.manager === u.code && !x.is_manager && x.code !== u.code);
+function blMe(u) {
+  blExpire(u.code);
+  const counts = { 1: 12, 2: 4 + BL_RATINGS.length, 3: 7 };
+  const parts = {};
+  for (const n of [1, 2, 3]) {
+    const list = blAtts(u.code, n);
+    const a = list.find((x) => x.status === 'open') || list.find(blDone);
+    const ps = { open: !!state.bl[`p${n}_open`], status: 'not_started', minutes: BL_MIN[n], n_items: counts[n] };
+    if (a) {
+      Object.assign(ps, { status: a.status === 'open' ? 'in_progress' : 'submitted', attempt_id: a.attempt_id, started_at: a.started_at, deadline_at: a.deadline_at });
+      if (blDone(a)) ps.submitted_at = a.submitted_at;
+      if (n === 1) ps.form = a.form;
+    }
+    parts[`p${n}`] = ps;
+  }
+  const anyDone = Object.values(parts).some((p) => p.status === 'submitted');
+  const reps = blReports(u);
+  return {
+    wave: state.bl.wave, parts, results_open: !!state.bl.results_open, profile_ready: !!state.bl.results_open && anyDone,
+    rating: isRater(u) ? { open: !!state.bl.rating_open, to_rate: reps.length, done: reps.filter((x) => blRateStatus(u.code, x.code).status === 'complete').length } : null,
+  };
+}
+function blTeamStatus(code) {
+  blExpire(code);
+  return Object.fromEntries([1, 2, 3].map((n) => {
+    const list = blAtts(code, n);
+    return [`p${n}`, list.some(blDone) ? 'done' : list.some((a) => a.status === 'open') ? 'in_progress' : 'not_done'];
+  }));
+}
+
+function blProfile(u) {
+  blExpire(u.code);
+  const done = (n) => blAtts(u.code, n).find(blDone) || null;
+  const a1 = done(1); const a2 = done(2); const a3 = done(3);
+  const pctOf = (o) => (o && o.n ? Math.round((100 * o.correct) / o.n) : null);
+  const mapPct = (m) => Object.fromEntries(Object.entries(m || {}).map(([k, v]) => [k, pctOf(v)]));
+  const mean = (arr) => (arr.length ? Math.round((100 * arr.reduce((x, y) => x + y, 0)) / arr.length) / 100 : null);
+  const itemPct = (a, pred) => {
+    if (!a) return null;
+    const list = a.served.map(blItem).filter(pred);
+    return list.length ? Math.round((100 * list.filter((it) => a.answers[it.item_id] === it.mockCorrect).length) / list.length) : null;
+  };
+  const p1 = a1 ? { form: a1.form, raw_pct: a1.raw_pct, scaled_pct: a1.scaled_pct, section_A_pct: a1.section_A_pct, section_B_pct: a1.section_B_pct,
+    by_step: mapPct(a1.by_step), by_move: mapPct(a1.by_move) } : null;
+  let p2 = null;
+  const areas = [];
+  if (p1) areas.push({ area: 'p1_A', pct: p1.section_A_pct }, { area: 'p1_B', pct: p1.section_B_pct });
+  if (a2) {
+    const self = state.selfRatings[u.code] || {};
+    const rec = Object.entries(state.ratings).find(([k]) => k.endsWith(`|${u.code}`));
+    const mgr = rec ? rec[1].values || {} : {};
+    const rate = blRateItems();
+    const num = (v) => (typeof v === 'number' ? v : null);
+    const by = {};
+    Object.keys(BL_CHARTERS).forEach((c) => {
+      const s = a2.by_charter[c];
+      const inC = rate.filter((i) => i.charter === c);
+      if (!s && !inC.length) return;
+      const sjt = s && s.sjt_max ? Math.round((100 * s.sjt_points) / s.sjt_max) : null;
+      const selfVals = inC.map((i) => num(self[i.item_id])).filter((v) => v !== null);
+      const mgrVals = inC.map((i) => num(mgr[i.item_id])).filter((v) => v !== null);
+      const selfMean = mean(selfVals);
+      const mgrMean = mgrVals.length >= (c === 'QWS' ? 3 : 2) ? mean(mgrVals) : null;
+      const index = mgrMean !== null && sjt !== null ? Math.round(W_SJT * sjt + (W_MGR * (mgrMean - 1) * 100) / 3) : null;
+      const flags = [];
+      if (selfMean !== null && mgrMean !== null && selfMean - mgrMean >= 1) flags.push('blind_spot');
+      if (selfMean !== null && mgrMean !== null && mgrMean - selfMean >= 1) flags.push('hidden_strength');
+      if (sjt !== null && sjt >= 67 && mgrMean !== null && mgrMean < 2.5) flags.push('knowing_doing');
+      by[c] = { name_en: BL_CHARTERS[c][0], name_vi: BL_CHARTERS[c][1], sjt_band: sjt === null ? null : (sjt <= 33 ? 'low' : sjt >= 83 ? 'high' : 'mid'),
+        self_mean: selfMean, mgr_mean: mgrMean, index, flags };
+      areas.push({ area: `p2_${c}`, pct: index !== null ? index : sjt, self: selfMean, name: [BL_CHARTERS[c][0], BL_CHARTERS[c][1]].map((x, k) => `${k ? 'Phần 2' : 'Part 2'} · ${x}`) });
+    });
+    const topDev = rate.filter((i) => num(mgr[i.item_id]) !== null)
+      .map((i) => ({ i, m: mgr[i.item_id], gap: (num(self[i.item_id]) || 0) - mgr[i.item_id] }))
+      .sort((x, y) => (x.m - y.m) || (y.gap - x.gap)).slice(0, 2)
+      .map(({ i }) => ({ item_id: i.item_id, text_en: i.self_en, text_vi: i.self_vi }));
+    p2 = { sjt_pct: a2.sjt_pct, self_mean: mean(Object.values(self).filter((v) => typeof v === 'number')), mgr_mean: mean(Object.values(mgr).filter((v) => typeof v === 'number')), by_charter: by, top_dev: topDev };
+  }
+  let p3 = null;
+  if (a3) {
+    const byLevel = mapPct(a3.by_level);
+    let level = null;
+    for (const L of BL_LEVELS) { if (byLevel[L] !== undefined && byLevel[L] !== null && byLevel[L] >= 70) level = L; else break; }
+    p3 = { module: a3.module, total_pct: a3.total_pct, core_pct: a3.core_pct, module_pct: a3.module_pct, by_level: byLevel, by_gate: mapPct(a3.by_gate), level };
+    areas.push({ area: 'p3_core', pct: a3.core_pct }, { area: 'p3_mod', pct: a3.module_pct });
+  }
+  const selfC = a3 ? a3.self || {} : {};
+  const modPct = (m) => (p3 && p3.module === m ? p3.module_pct : null);
+  const link = {
+    A2: itemPct(a1, (it) => ['SHAPE', 'SIZE', 'CHECK'].includes(it.move)),
+    A3: null,
+    A1: itemPct(a1, (it) => ['1', '2', '3', '4'].includes(it.step)),
+    P1: p3 ? p3.core_pct : null,
+    C1: itemPct(a1, (it) => it.move === 'SO WHAT' || it.step === '6'),
+    P2: modPct('SP'), P3: modPct('RPM'), P4: modPct('DP'), P5: modPct('RPM'), P6: modPct('CS'),
+  };
+  const courses = Object.fromEntries(ORDER.map((c) => {
+    const s = selfC[c] !== undefined ? selfC[c] : null;
+    const sc = link[c];
+    return [c, { self: s, score_pct: sc, flag: s !== null && s >= 3 && sc !== null && sc < 50 }];
+  }));
+  const gaps = areas.filter((x) => x.pct !== null && x.pct !== undefined)
+    .map((x, i) => ({ ...x, i, s: x.self !== undefined && x.self !== null ? x.self : 9 }))
+    .sort((x, y) => (x.pct - y.pct) || (x.s - y.s) || (x.i - y.i)).slice(0, 2)
+    .map((x) => { const nm = x.name || BL_GAP_NAMES[x.area]; return { area: x.area, name_en: nm[0], name_vi: nm[1], pct: x.pct }; });
+  return { wave: state.bl.wave, built_at: iso(now() - 40 * 60000), p1, p2, p3, courses, gaps };
+}
+
+/** DEMO-L has done all three parts (form B, module DP) and Minh has rated her. */
+function seedBaselineL(s, T) {
+  const code = 'DEMO-L';
+  const wrong = (it) => 'abcd'.split('').find((x) => x !== it.mockCorrect);
+  const mk = (part, form, module, dayOff, hhmm, minutes, answer, self) => {
+    const startMs = T(dayOff, hhmm);
+    const a = { attempt_id: `MA-SEED-BL${part}`, code, assessment: `baseline_p${part}`, part, form, module, wave: BL_WAVE, status: 'open', started_at: iso(startMs),
+      deadline_at: iso(startMs + BL_MIN[part] * 60000), last_saved_at: null, submitted_at: null, served: blServedIds(part, form, module), seed: 11 + part,
+      answers: {}, self: self || {}, locked: part === 2 ? ['SJT'] : [] };
+    a.served.forEach((id, i) => { const v = answer(blItem(id), i); if (v !== undefined) a.answers[id] = v; });
+    s.attempts.push(a);
+    blGrade(a);
+    a.submitted_at = iso(startMs + minutes * 60000); a.last_saved_at = a.submitted_at; a.time_used_s = minutes * 60;
+  };
+  mk(1, 'B', '', -6, '14:05', 9, (it, i) => (it.section === 'A' ? (i % 3 !== 2 ? it.mockCorrect : wrong(it)) : (i % 2 ? it.mockCorrect : wrong(it))));
+  const sjt = { 1: [1, 1], 2: [1, 0], 3: [0, 0], 4: [1, 1] };
+  const selfR = { R1: 4, R2: 3, R3: 'NR', R4: 3, R5: 1, R6: 3 };
+  mk(2, 'ONE', '', -5, '09:40', 5, (it) => {
+    if (it.type === 'sjt') {
+      const [m, l] = sjt[it.charter];
+      const other = (k) => 'abcd'.split('').find((x) => x !== it.mockMost && x !== it.mockLeast && x !== k);
+      return { most: m ? it.mockMost : other(''), least: l ? it.mockLeast : other(m ? it.mockMost : other('')) };
+    }
+    return selfR[it.item_id.split('-').pop()];
+  });
+  mk(3, 'ONE', 'DP', -4, '15:30', 7, (it) => (it.section === 'CORE' ? (it.order < 3 ? it.mockCorrect : wrong(it)) : (it.order === 1 ? it.mockCorrect : wrong(it))),
+    { A2: 3, A3: 2, A1: 2, P1: 3, C1: 1, P2: 1, P3: 1, P4: 3, P5: 1, P6: 2 });
+  s.ratings['DEMO-M|DEMO-L'] = { values: { 'MOCK-BL-P2-R1': 2, 'MOCK-BL-P2-R2': 2, 'MOCK-BL-P2-R3': 3, 'MOCK-BL-P2-R4': 'NA', 'MOCK-BL-P2-R5': 4, 'MOCK-BL-P2-R6': 4 }, saved_at: iso(T(-2, '17:20')) };
 }
 
 // ---------- actions ----------
@@ -440,7 +908,7 @@ const ACTIONS = {
     const sub = team ? state.capstone[team.team_id] || {} : {};
     const passed = courses.filter((c) => c.checkpoint.status === 'passed').length;
     const out = ok({
-      profile: profileOf(u), baseline: baselineView(u), courses,
+      profile: profileOf(u), baseline: blMe(u), courses,
       capstone: { team_id: team ? team.team_id : null, project_title: team ? team.project_title : null, pitch_submitted_at: sub.pitch ? sub.pitch.submitted_at : null,
         capstone_submitted_at: sub.capstone ? sub.capstone.submitted_at : null, pitch_deadline: calendar().pitch_deadline, capstone_deadline: calendar().capstone_deadline },
       streak: streakOf(u.code),
@@ -462,22 +930,15 @@ const ACTIONS = {
     const items = await getBank();
     const cat = await getCatalog();
     const kind = p.assessment;
-    if (!['baseline', 'predict', 'checkpoint', 'recall'].includes(kind)) return fail('bad_request');
-    if (kind !== 'baseline' && !cat.courses.some((c) => c.code === p.course)) return fail('not_found');
+    if (BL_KINDS.includes(kind)) return blStart(u, Number(kind.slice(-1)));
+    if (!['predict', 'checkpoint', 'recall'].includes(kind)) return fail('bad_request'); // v1 "baseline" is gone (specs/22)
+    if (!cat.courses.some((c) => c.code === p.course)) return fail('not_found');
     if ((kind === 'predict' || kind === 'checkpoint') && !courseOpen(p.course)) return fail('not_open', null, { opens_at: calendar().courses[p.course].online_from });
-    if (kind === 'baseline') expireBaseline(u.code);
-    const openA = mine(u.code, (a) => a.status === 'open' && a.assessment === kind && (kind === 'baseline' || a.course === p.course) && (kind !== 'recall' || a.day === Number(p.day)))[0];
+    const openA = mine(u.code, (a) => a.status === 'open' && a.assessment === kind && a.course === p.course && (kind !== 'recall' || a.day === Number(p.day)))[0];
     let a = openA;
     if (!a) {
       let served; let form = 'PR'; let attemptNo = 1;
-      if (kind === 'baseline') {
-        const w = baselineWindow(u);
-        if (mine(u.code, (x) => x.assessment === 'baseline' && x.wave === w.wave && x.status !== 'open').length) return fail('already_submitted');
-        if (day(now()) < w.open_from || day(now()) > w.open_to) return fail('not_open', null, day(now()) < w.open_from ? { opens_at: w.open_from } : {});
-        const partB = ORDER.flatMap((code, ci) => shuffle(items.filter((i) => i.assessment === 'baseline' && i.course === code && !i.case_id), hash(u.code) + ci));
-        const partC = items.filter((i) => i.assessment === 'baseline' && i.case_id);
-        served = partB.concat(partC).map((i) => i.item_id); form = 'BL';
-      } else if (kind === 'predict') {
+      if (kind === 'predict') {
         served = items.filter((i) => i.assessment === 'predict' && i.course === p.course).map((i) => i.item_id);
         attemptNo = mine(u.code, (x) => x.assessment === 'predict' && x.course === p.course).length + 1;
       } else if (kind === 'checkpoint') {
@@ -502,29 +963,22 @@ const ACTIONS = {
         served = pool.slice(offset, offset + 3).map((i) => i.item_id); form = other;
       }
       state.seq += 1;
-      a = { attempt_id: `MA-${Date.now().toString(36)}-${state.seq}`, code: u.code, assessment: kind, course: kind === 'baseline' ? '' : p.course, form, attempt_no: attemptNo,
-        status: 'open', started_at: iso(now()), last_saved_at: null, submitted_at: null, served, seed: hash(`${u.code}${now()}`), answers: {}, self: {},
-        wave: kind === 'baseline' ? baselineWindow(u).wave : '', day: kind === 'recall' ? Number(p.day) : null };
+      a = { attempt_id: `MA-${Date.now().toString(36)}-${state.seq}`, code: u.code, assessment: kind, course: p.course, form, attempt_no: attemptNo,
+        status: 'open', started_at: iso(now()), last_saved_at: null, submitted_at: null, served, seed: hash(`${u.code}${now()}`), answers: {},
+        day: kind === 'recall' ? Number(p.day) : null };
       state.attempts.push(a);
       save();
     }
     const out = { attempt_id: a.attempt_id, assessment: a.assessment, course: a.course, form: a.form, attempt_no: a.attempt_no, started_at: a.started_at, resumed: !!openA,
       answers: clone(a.answers || {}), items: serve(a, items) };
-    if (kind === 'baseline') {
-      Object.assign(out, {
-        deadline_at: iso(Date.parse(a.started_at) + BASELINE_MIN * 60000), time_limit_min: BASELINE_MIN, self_ratings: clone(a.self || {}),
-        self: cat.courses.slice().sort((x, y) => x.order - y.order).map((c) => ({ course: c.code, en: c.self_en, vi: c.self_vi })),
-        scale: cat.scale.map((s) => ({ level: s.level, en: `${s.level} · ${s.en}${s.abbr ? ` (${s.abbr})` : ''}`, vi: `${s.level} · ${s.vi}${s.abbr ? ` (${s.abbr})` : ''}`, desc_en: s.desc_en, desc_vi: s.desc_vi })),
-        case: clone(CASE), parts: { A: 10, B: 40, C: 6 },
-      });
-    }
     return ok(out);
   },
   async save(p, u) {
     const a = state.attempts.find((x) => x.attempt_id === p.attempt_id && x.code === u.code);
     if (!a) return fail('not_found');
+    if (BL_KINDS.includes(a.assessment)) return blSave(a, p);
     if (a.status !== 'open') return fail('already_submitted');
-    a.answers = p.answers || {}; if (p.self_ratings) a.self = p.self_ratings; a.last_saved_at = iso(now());
+    a.answers = p.answers || {}; a.last_saved_at = iso(now());
     save();
     return ok({ saved_at: a.last_saved_at });
   },
@@ -532,33 +986,31 @@ const ACTIONS = {
     await getBank();
     const a = state.attempts.find((x) => x.attempt_id === p.attempt_id && x.code === u.code);
     if (!a) return fail('not_found');
+    if (BL_KINDS.includes(a.assessment)) return blSubmit(a, p);
     if (a.status === 'open') {
-      if (a.assessment === 'baseline') {
-        const self = p.self_ratings || a.self || {};
-        if (ORDER.some((c) => self[c] === undefined || self[c] === null || self[c] === '')) return fail('bad_request', 'All 10 self-ratings are required');
-      }
-      gradeAttempt(a, p.answers || a.answers, p.self_ratings);
+      gradeAttempt(a, p.answers || a.answers);
       save();
     }
     return ok(await resultOf(a));
   },
   async review(p, u) {
     const a = state.attempts.find((x) => x.attempt_id === p.attempt_id && x.code === u.code);
-    if (!a || a.status === 'open') return fail('not_found');
+    if (!a || a.status === 'open' || BL_KINDS.includes(a.assessment)) return fail('not_found'); // no item review for the baseline
     return ok(await resultOf(a));
   },
   async team_summary() {
     const cal = calendar();
     const t = now();
     const courses = (vals) => Object.fromEntries(ORDER.map((c, i) => [c, vals(c, i)]));
-    const base = (seed, n, group) => ({ group, n, courses: courses((c, i) => ({ self: Math.round((1 + ((seed + i * 7) % 20) / 10) * 10) / 10, pct: 30 + ((seed * 3 + i * 11) % 45) })) });
+    // specs/22: baseline groups are { group, n, p1_pct, p2_sjt_pct, p2_mgr_mean, p3_core_pct }, published with results_open.
+    const base = (seed, n, group) => ({ group, n, p1_pct: 38 + ((seed * 7) % 30), p2_sjt_pct: 45 + ((seed * 11) % 35), p2_mgr_mean: Math.round((2.1 + ((seed * 3) % 12) / 10) * 10) / 10, p3_core_pct: 35 + ((seed * 5) % 40) });
     // F21: a course's checkpoint rates appear only after its late window has closed.
     const published = (c) => t > dayEndMs(cal.courses[c].late_until);
     const cps = (group, n) => ({ group, n, courses: courses((c, i) => (published(c)
       ? { first_try_pass: 55 + ((i * 13 + n) % 40), passed_by_forum: 80 + ((i * 7 + n) % 21), n_first_try: n, n_by_forum: n }
       : { first_try_pass: null, passed_by_forum: null, n_first_try: 0, n_by_forum: 0 })) });
-    const blPublished = day(t) > cal.baseline.open_to;
-    return ok({ updated_at: iso(t - 2 * H), min_n: 3, wave: cal.baseline.wave, baseline_published: blPublished, baseline_publish_after: cal.baseline.open_to,
+    const blPublished = !!state.bl.results_open;
+    return ok({ updated_at: iso(t - 2 * H), min_n: 3, wave: state.bl.wave, baseline_published: blPublished,
       baseline: blPublished ? [base(5, 18, 'all'), base(9, 6, 'demand'), base(3, 5, 'supply'), base(12, 4, 'cs')] : [],
       checkpoints: [cps('all', 18), cps('demand', 6), cps('supply', 5), cps('cs', 4)] });
   },
@@ -566,11 +1018,52 @@ const ACTIONS = {
     if (!u.is_manager) return fail('forbidden');
     const me = state.users['DEMO-L'];
     const st = (code) => { const s2 = cpState(me.code, code); return s2.passedA ? 'passed' : s2.needsChat ? 'needs_chat' : s2.done.length ? 'not_yet' : 'not_started'; };
-    const fake = (code, name, passed) => ({ code, first_name: name, baseline: 'done', courses: Object.fromEntries(ORDER.map((c) => [c, passed.includes(c) ? 'passed' : 'not_started'])) });
+    const fake = (code, name, passed, bl) => ({ code, first_name: name, baseline: bl, courses: Object.fromEntries(ORDER.map((c) => [c, passed.includes(c) ? 'passed' : 'not_started'])) });
     return ok({ reports: [
-      { code: me.code, first_name: me.first_name, baseline: mine(me.code, (a) => a.assessment === 'baseline' && a.status !== 'open').length ? 'done' : 'not_done', courses: Object.fromEntries(ORDER.map((c) => [c, st(c)])) },
-      fake('DEMO-P1', 'Peer 1', ['A2', 'A3']), fake('DEMO-P2', 'Peer 2', ['A2', 'A3', 'A1']),
+      { code: me.code, first_name: me.first_name, baseline: blTeamStatus(me.code), courses: Object.fromEntries(ORDER.map((c) => [c, st(c)])) },
+      fake('DEMO-P1', 'Peer 1', ['A2', 'A3'], { p1: 'done', p2: 'done', p3: 'in_progress' }), fake('DEMO-P2', 'Peer 2', ['A2', 'A3', 'A1'], { p1: 'done', p2: 'not_done', p3: 'not_done' }),
     ] });
+  },
+  async baseline_next(p, u) {
+    const a = state.attempts.find((x) => x.attempt_id === p.attempt_id && x.code === u.code);
+    if (!a || !BL_KINDS.includes(a.assessment)) return fail('not_found');
+    return blNext(a, p);
+  },
+  async rate_list(p, u) {
+    if (!isRater(u)) return fail('forbidden');
+    return ok({ open: !!state.bl.rating_open, wave: state.bl.wave, reports: blReports(u).map((x) => ({ code: x.code, first_name: x.first_name, role_area: x.role_area, ...blRateStatus(u.code, x.code) })) });
+  },
+  async rate_get(p, u) {
+    if (!isRater(u)) return fail('forbidden');
+    const r = blReports(u).find((x) => x.code === String(p.ratee || '').trim().toUpperCase());
+    if (!r) return fail('forbidden');
+    const rec = state.ratings[`${u.code}|${r.code}`] || { values: {}, saved_at: null };
+    return ok({ open: !!state.bl.rating_open, ratee: { code: r.code, first_name: r.first_name }, guide_en: RATER_GUIDE.en, guide_vi: RATER_GUIDE.vi,
+      scale: { points: RATE_POINTS.map(([v, en, vi]) => ({ v, en, vi })), na: clone(RATE_NA) },
+      items: blRateItems().map((i) => ({ item_id: i.item_id, text_en: i.mgr_en, text_vi: i.mgr_vi, anchor1_en: i.anchor1_en, anchor1_vi: i.anchor1_vi, anchor4_en: i.anchor4_en, anchor4_vi: i.anchor4_vi })),
+      values: clone(rec.values), saved_at: rec.saved_at });
+  },
+  async rate_save(p, u) {
+    if (!isRater(u)) return fail('forbidden');
+    const r = blReports(u).find((x) => x.code === String(p.ratee || '').trim().toUpperCase());
+    if (!r) return fail('forbidden');
+    if (!state.bl.rating_open) return fail('not_open');
+    const ids = new Set(blRateItems().map((i) => i.item_id));
+    const values = {};
+    for (const [k, v] of Object.entries(p.values && typeof p.values === 'object' ? p.values : {})) {
+      if (!ids.has(k)) return fail('bad_request', 'Unknown statement', { field: k });
+      if (v === 'NA') values[k] = 'NA';
+      else if ([1, 2, 3, 4].includes(Number(v)) && v !== '' && v !== null) values[k] = Number(v);
+      else return fail('bad_request', 'Ratings are 1–4 or NA', { field: k });
+    }
+    const rec = { values, saved_at: iso(now()) };
+    state.ratings[`${u.code}|${r.code}`] = rec;
+    save();
+    return ok({ saved_at: rec.saved_at, complete: Object.keys(values).length >= ids.size });
+  },
+  async profile(p, u) {
+    if (!state.bl.results_open) return fail('not_open');
+    return ok(blProfile(u));
   },
   // A manager records the 15-minute coaching chat; one Unlocks row = one more checkpoint attempt.
   async unlock_retake(p, u) {
