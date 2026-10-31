@@ -13,7 +13,12 @@ export const ACCOUNTS = {
   lockout:    { mock: 'DEMO-L', real: 'T004' }, // five wrong PINs
   checkpoint: { mock: 'DEMO-L', real: 'T002' }, // not yet → retake wait → other form → pass → recall (course P4)
   resume:     { mock: 'DEMO-L', real: 'T003' }, // reload (P5), VI mid-quiz (A1), predict (P1), no reveal after close (P6)
-  baseline:   { mock: 'DEMO-M', real: 'T006' }, // DEMO-L already took the demo baseline
+  baseline:   { mock: 'DEMO-M', real: 'T006' }, // sits Parts 1, 2 and 3 (DEMO-L has done them in the demo)
+  timeup:     { mock: 'DEMO-M', real: 'T005' }, // Part 1 and Part 2 run out of time with gaps
+  blPhone:    { mock: 'DEMO-M', real: 'T010' }, // Part 1 on a phone (exhibits fold), left in progress
+  blClosed:   { mock: 'DEMO-M', real: 'T001' }, // closed part (no attempt is started)
+  noModule:   { mock: null, real: 'T050' },     // admin with no role area: Part 3 has no module
+  profile:    { mock: 'DEMO-L', real: 'T007' }, // all three parts done and rated by their manager
   manager:    { mock: 'DEMO-M', real: 'T010' }, // team page + manager gate table, most a11y scans
   panel:      { mock: 'DEMO-M', real: 'T020' }, // judge
   capstone:   { mock: 'DEMO-L', real: 'T001' }, // member of TEAM-DEMO / TEAM1
