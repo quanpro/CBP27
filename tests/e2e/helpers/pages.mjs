@@ -9,6 +9,8 @@ export const PAGES = [
   { name: 'team', path: 'team.html', as: 'manager', ready: '#gates-title' },
   { name: 'capstone', path: 'capstone.html', as: 'capstone', ready: '#cap-title' },
   { name: 'panel', path: 'panel.html', as: 'panel', ready: '.pn-team' },
+  { name: 'rate', path: 'rate.html', as: 'manager', ready: '.rt h1' },
+  { name: 'profile', path: 'profile.html', as: 'profile', ready: '.pf h1' },
   { name: 'about', path: 'about.html', as: 'manager', ready: '#privacy-h' },
 ];
 

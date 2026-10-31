@@ -68,21 +68,27 @@ export class Hub {
     if (this.isMock) {
       await ctx.exposeBinding('__hubRecord', (_src, json) => { this.records.push(JSON.parse(json)); });
       await ctx.route('**/js/mock-api.js', async (route) => {
-        const resp = await route.fetch({ headers: { ...route.request().headers(), connection: 'close' } }); // no pooled-socket reuse races
-        const src = await resp.text();
+        let resp; let src;
+        try {
+          resp = await route.fetch({ headers: { ...route.request().headers(), connection: 'close' } }); // no pooled-socket reuse races
+          src = await resp.text();
+        } catch (e) { await route.abort().catch(() => {}); return; } // the page navigated away mid-request
         if (!src.includes(HANDLE_DECL)) throw new Error('mock-api.js: handle() declaration not found; update tests/e2e/helpers/hub.mjs');
-        await route.fulfill({ response: resp, body: src.replace(HANDLE_DECL, 'async function __hubOriginalHandle(payload) {') + HANDLE_WRAP });
+        await route.fulfill({ response: resp, body: src.replace(HANDLE_DECL, 'async function __hubOriginalHandle(payload) {') + HANDLE_WRAP }).catch(() => {});
       });
     } else {
       await ctx.route(PAGE_API, async (route) => {
         const req = route.request();
         if (req.method() !== 'POST') return route.continue();
-        const resp = await route.fetch({ headers: { ...req.headers(), connection: 'close' } });
-        const body = await resp.text();
+        let resp; let body;
+        try {
+          resp = await route.fetch({ headers: { ...req.headers(), connection: 'close' } });
+          body = await resp.text();
+        } catch (e) { await route.abort().catch(() => {}); return undefined; } // the page navigated away mid-request
         let action = '?';
         try { action = JSON.parse(req.postData() || '{}').action; } catch (e) { /* recorded as "?" */ }
         try { this.records.push({ action, data: JSON.parse(body) }); } catch (e) { this.records.push({ action, data: null, raw: body }); }
-        return route.fulfill({ response: resp, body });
+        return route.fulfill({ response: resp, body }).catch(() => {});
       });
     }
     this.page.on('pageerror', (e) => this.errors.push(String(e && e.stack ? e.stack.split('\n')[0] : e)));

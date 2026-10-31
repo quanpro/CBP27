@@ -82,7 +82,14 @@ export function dataStrings(records) {
   const out = new Set();
   const walk = (v, key) => {
     if (Array.isArray(v)) { v.forEach((x) => walk(x, key)); return; }
-    if (v && typeof v === 'object') { for (const [k, x] of Object.entries(v)) { if (/_(en|vi)$/.test(k) || k === 'en' || k === 'vi') continue; walk(x, k); } return; }
+    if (v && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) {
+        if (/^by_/.test(key)) out.add(k); // map keys from the Sheet shown as labels (move, S&OP gate …)
+        if (/_(en|vi)$/.test(k) || k === 'en' || k === 'vi') continue;
+        walk(x, k);
+      }
+      return;
+    }
     if (typeof v === 'string' && v.trim() && !['server_now', 'token'].includes(key)) {
       out.add(v.trim());
       v.split(/\s*[\n·]\s*/).forEach((p) => p.trim() && out.add(p.trim()));

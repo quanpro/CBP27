@@ -12,13 +12,14 @@ const STATUSES = ['passed', 'not_yet', 'needs_chat', 'not_started'];
 const N_LABEL = (n) => TEAM_N.replace('{n}', String(n));
 const GROUP_LABEL = { all: 'Whole team', demand: 'Demand planning', supply: 'Supply planning', materials: 'Materials planning', cs: 'Customer service' };
 
-/** Real only: give the team view something to average — baselines for T001, T002, T005 (T006 takes its own in baseline.spec). */
+/** Real only: Part 1 of the baseline for T001, T002, T003 (T005, T006, T007 sit theirs elsewhere). */
 async function seedBaselines() {
-  for (const code of ['T001', 'T002', 'T005']) {
+  for (const code of ['T001', 'T002', 'T003']) {
     const token = await dev.token(code);
-    const s = await dev.call('start', { token, assessment: 'baseline' });
+    const s = await dev.call('start', { token, assessment: 'baseline_p1' });
     if (!s.ok) { if (s.error.code === 'already_submitted') continue; throw new Error(`baseline start ${code}: ${s.error.code}`); }
-    const r = await dev.call('submit', { token, attempt_id: s.attempt_id, answers: dev.answersFor(s.items, 20), self_ratings: dev.selfRatings(2) });
+    const answers = Object.fromEntries(s.sections.flatMap((x) => x.items).map((it, i) => [it.item_id, i % 2 ? dev.baselineKey(it.item_id) : it.options[0].id]));
+    const r = await dev.call('submit', { token, attempt_id: s.attempt_id, answers });
     if (!r.ok) throw new Error(`baseline submit ${code}: ${r.error.code}`);
   }
 }
@@ -95,10 +96,12 @@ test.describe('Step 6 · team picture', () => {
     }
   });
 
-  test('baseline averages are not published while the window is open, and are after it closes (F21)', async ({ page, hub }) => {
-    test.skip(hub.isMock, 'the demo mock always reports a published wave');
+  test('baseline averages are published only with results_open; then a group of 2 stays hidden (F21, specs/22)', async ({ page, hub }) => {
+    test.skip(hub.isMock, 'the demo mock reports fixed groups');
+    test.setTimeout(90_000);
     await page.setViewportSize({ width: 1280, height: 900 });
     await seedBaselines();
+    await hub.build('summary');
     const code = hub.account('manager');
     expect(await hub.signIn(code)).toBe('dash');
     await hub.goto('team.html');
@@ -107,44 +110,20 @@ test.describe('Step 6 · team picture', () => {
     let ts = hub.last('team_summary');
     expect(ts.baseline_published).toBe(false);
     expect(ts.baseline).toEqual([]);
-    expect(ts.checkpoints).toEqual([]); // no course has passed its late window yet
-    const me = hub.last('me');
-    expect(ts.baseline_publish_after).toBe(me.baseline.open_to);
-    await expect(page.getByText('No team picture yet')).toBeVisible();
-    // past the window (+ timer + grace) the wave is published; groups shown are never under min_n
-    const hours = Math.ceil((Date.parse(`${me.baseline.open_to}T23:59:59+07:00`) - Date.parse(me.server_now)) / 3600000) + 2;
-    await hub.moveServerClock(hours);
+    await expect(page.getByText(enText('team.heat.empty_title'))).toBeVisible();
+    // results open, summary rebuilt: only the whole team (n ≥ 3); demand, supply, materials have 2 each
+    await hub.setSwitch('results_open', 'TRUE');
+    await hub.build('summary');
     await page.reload();
-    await hub.reauthIfAsked(code);
-    await expect(page.locator('#app .skeleton')).toHaveCount(0);
+    await expect(page.locator('table.heat')).toBeVisible();
     ts = hub.last('team_summary');
     expect(ts.baseline_published).toBe(true);
-    for (const g of ts.baseline) expect(g.n).toBeGreaterThanOrEqual(ts.min_n);
-    expect(ts.baseline.map((g) => g.group).filter((g) => g === 'demand' || g === 'supply')).toEqual([]);
-  });
-
-  test('after publication, a group of 2 stays hidden while the whole team (n ≥ 3) is shown', async ({ page, hub }) => {
-    test.skip(hub.isMock, 'the demo mock returns fixed groups');
-    // The Hub reads averages from the Summary tab, which only buildSummary() fills (admin menu or the
-    // hourly trigger). The dev server has no way to run it yet, so the published rows stay empty here;
-    // backend/tests/api.test.js covers the suppression itself.
-    test.fixme(true, 'TODO: needs a dev-server hook (e.g. POST /__dev/build-summary) that runs buildSummary()');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await seedBaselines();
-    const code = hub.account('manager');
-    expect(await hub.signIn(code)).toBe('dash');
-    await hub.goto('team.html');
-    const me = hub.last('me');
-    const hours = Math.ceil((Date.parse(`${me.baseline.open_to}T23:59:59+07:00`) - Date.parse(me.server_now)) / 3600000) + 2;
-    await hub.moveServerClock(hours);
-    await fetch(`http://127.0.0.1:${dev.PORT}/__dev/build-summary`, { method: 'POST' });
-    await page.reload();
-    await hub.reauthIfAsked(code);
-    await expect(page.locator('table.heat')).toBeVisible();
-    const ts = hub.last('team_summary');
-    expect(ts.baseline.map((g) => g.group)).toEqual(['all']); // demand (2) and supply (2) hidden
+    expect(ts.baseline.map((g) => g.group)).toEqual(['all']);
+    expect(ts.baseline[0].n).toBeGreaterThanOrEqual(ts.min_n);
+    expect(Object.keys(ts.baseline[0]).sort()).toEqual(['group', 'n', 'p1_pct', 'p2_mgr_mean', 'p2_sjt_pct', 'p3_core_pct']);
     await expect(page.locator('table.heat tbody tr')).toHaveCount(1);
     await expect(page.locator('table.heat tbody')).not.toContainText('Demand planning');
+    expect(await page.locator('table.heat').innerText()).not.toMatch(/Fixture|T0\d\d/); // no names, no codes
   });
 });
 
@@ -161,11 +140,17 @@ test.describe('Step 6 · manager gate status', () => {
     expect(st.reports.length).toBeGreaterThan(0);
     for (const r of st.reports) {
       expect(Object.keys(r).sort()).toEqual(['baseline', 'code', 'courses', 'first_name']);
-      expect(['done', 'not_done']).toContain(r.baseline);
+      expect(Object.keys(r.baseline).sort()).toEqual(['p1', 'p2', 'p3']);
+      for (const v of Object.values(r.baseline)) expect(['done', 'in_progress', 'not_done']).toContain(v);
       for (const v of Object.values(r.courses)) expect(STATUSES).toContain(v);
     }
-    const cells = (await gates.locator('.status-table tbody td .chip').allTextContents()).map((c) => c.trim());
-    const allowed = [...STATUSES, 'unlocked', 'bl_done', 'bl_not'].map((k) => enText(`team.gs.${k}`)).filter(Boolean);
+    // course columns (the first td holds the three baseline parts: "P1 · Done" …)
+    const cells = (await gates.locator('.status-table tbody td:not(:first-of-type) .chip').allTextContents()).map((c) => c.trim());
+    const blCells = (await gates.locator('.status-table tbody td:first-of-type .chip').allTextContents()).map((c) => c.trim());
+    const blLabels = ['bl_done', 'bl_progress', 'bl_not'].map((k) => enText(`team.gs.${k}`));
+    expect(blCells.length).toBe(3 * st.reports.length);
+    for (const c of blCells) expect(blLabels.some((l) => /^P[123] · /.test(c) && c.endsWith(l)), c).toBe(true);
+    const allowed = [...STATUSES, 'unlocked'].map((k) => enText(`team.gs.${k}`)).filter(Boolean);
     expect(cells.filter((c) => !allowed.includes(c))).toEqual([]);
     expect(cells).toContain(enText('team.gs.passed'));
     expect(cells.some((c) => c === enText('team.gs.not_yet') || c === enText('team.gs.needs_chat'))).toBe(true);
