@@ -1,14 +1,16 @@
-// team.html · Team overview: baseline heatmap (group averages, n ≥ min_n, managers excluded),
+// team.html · Team overview: baseline averages by role group (specs/22: Part 1 %, Part 2 SJT % and
+// manager mean, Part 3 core %; n ≥ min_n, managers excluded, only once results are published),
 // checkpoint pass rates, and — for managers — passed / not yet / needs a chat for their own reports
 // (no scores). A manager records the 15-minute chat here (unlock_retake), which reopens the checkpoint.
 import { h, render, icon, chip, emptyState, errorState, errorMessage, modal, toast, mountShell } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
-import { loadCatalog, journey, fmtShortDate, fmtLongDate, fmtDateTime, todayVN } from '../courses.js';
+import { loadCatalog, journey, fmtShortDate, fmtDateTime, todayVN } from '../courses.js';
 
 const GROUPS = ['all', 'demand', 'supply', 'materials', 'cs'];
 const PCT_CUTS = [40, 55, 70, 85];
-const SELF_CUTS = [0.8, 1.6, 2.4, 3.2];
+const MEAN_CUTS = [1.75, 2.25, 2.75, 3.25]; // manager mean, 1–4
+const METRICS = [['p1_pct', 'pct'], ['p2_sjt_pct', 'pct'], ['p2_mgr_mean', 'mean'], ['p3_core_pct', 'pct']];
 
 const S = {
   app: null, profile: null, catalog: null,
@@ -16,7 +18,7 @@ const S = {
   status: null, statusErr: null, statusLoading: false,
   live: null, // courses with the Sheet's dates (for "next gate"), managers only
   unlocked: new Map(), // `${code}|${course}` → unlocked_at, recorded in this visit
-  mode: 'pct', cpGroup: 'all', first: true,
+  cpGroup: 'all', first: true,
 };
 
 const loc = () => (getLang() === 'vi' ? 'vi-VN' : 'en-GB');
@@ -76,65 +78,46 @@ function segToggle(id, value, options, onPick, label) {
     options.map(([v, text]) => h('button', { type: 'button', id: `${id}-${v}`, 'aria-pressed': String(value === v), onclick: () => onPick(v) }, text)));
 }
 
-// ---------- heatmap ----------
+// ---------- baseline averages ----------
 function heatSection() {
   const sum = S.summary;
   const head = h('div', { class: 'section-head' },
     h('div', { class: 'stack sm' }, h('h2', { id: 'heat-title', text: t('team.heat.title') }),
-      h('p', { text: sum && sum.wave ? t('team.heat.sub', { wave: waveLabel(sum.wave) }) : t('team.heat.sub_plain') })),
-    segToggle('mode', S.mode, [['pct', t('team.heat.mode_pct')], ['self', t('team.heat.mode_self')]], (v) => { S.mode = v; draw(); }, t('team.heat.mode_aria')));
+      h('p', { text: sum && sum.wave ? t('team.heat.sub', { wave: waveLabel(sum.wave) }) : t('team.heat.sub_plain') })));
   let body;
   if (S.sumLoading && !sum) body = h('div', { class: 'card pad' }, cardSkeleton(5));
   else if (S.sumErr && !sum) body = errorState(S.sumErr, () => loadSummary());
   else {
-    const rows = ((sum && sum.baseline) || []).filter((r) => r && r.courses).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
+    const rows = ((sum && sum.baseline_published !== false && sum.baseline) || []).filter((r) => r && r.group).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
     if (!rows.length) {
-      body = h('div', { class: 'card' }, emptyState({ iconName: 'grid', title: t('team.heat.empty_title'), body: t('team.heat.empty_body', { n: (sum && sum.min_n) || 3, date: fmtLongDate((sum && sum.baseline_publish_after) || '2026-11-27') }) }));
+      body = h('div', { class: 'card' }, emptyState({ iconName: 'grid', title: t('team.heat.empty_title'), body: t('team.heat.empty_body', { n: (sum && sum.min_n) || 3 }) }));
     } else body = heatCard(sum, rows);
   }
   return h('section', { 'aria-labelledby': 'heat-title' }, head, body);
 }
 
 function heatCard(sum, rows) {
-  const list = courses();
-  const codes = list.length ? list.map((c) => c.code) : Object.keys(rows[0].courses);
-  const byCode = new Map(list.map((c) => [c.code, c]));
-  const self = S.mode === 'self';
-  const cell = (v) => {
+  const cell = (v, kind) => {
     if (!isNum(v)) return h('td', { class: 'na' }, h('span', { 'aria-hidden': 'true', text: '—' }), h('span', { class: 'sr-only', text: t('team.no_data') }));
-    const b = bucket(v, self ? SELF_CUTS : PCT_CUTS);
-    return h('td', { class: `h${b}` }, self ? fmtNum(v, 1) : `${Math.round(v)}`);
+    const b = bucket(v, kind === 'mean' ? MEAN_CUTS : PCT_CUTS);
+    return h('td', { class: `h${b}` }, kind === 'mean' ? fmtNum(v, 1) : `${Math.round(v)}%`);
   };
-  const table = h('table', { class: 'heat' },
-    h('caption', { class: 'sr-only', text: t(self ? 'team.heat.caption_self' : 'team.heat.caption_pct') }),
+  const table = h('table', { class: 'heat heat-bl2' },
+    h('caption', { class: 'sr-only', text: t('team.heat.caption') }),
     h('thead', null, h('tr', null, h('th', { scope: 'col', class: 'heat-corner' }, h('span', { class: 'sr-only', text: t('team.heat.col_group') })),
-      codes.map((code) => h('th', { scope: 'col' }, h('abbr', { title: byCode.has(code) ? pick(byCode.get(code), 'name') : code, text: code }))))),
+      METRICS.map(([k]) => h('th', { scope: 'col' }, h('span', { class: 'heat-col', text: t(`team.heat.col.${k}`) }), h('span', { class: 'th-sub', text: t(`team.heat.unit.${k}`) }))))),
     h('tbody', null, rows.map((r) => h('tr', { class: r.group === 'all' ? 'is-all' : null },
       h('th', { scope: 'row' }, h('span', { class: 'g-name', text: groupLabel(r.group) }), h('span', { class: 'g-n', text: t('team.n', { n: r.n }) })),
-      codes.map((code) => { const x = r.courses[code] || {}; return cell(self ? x.self : x.pct); })))));
-
-  const all = rows.find((r) => r.group === 'all') || rows[0];
-  const ranked = codes.map((code) => ({ code, v: (all.courses[code] || {})[self ? 'self' : 'pct'] })).filter((x) => isNum(x.v)).sort((a, b) => a.v - b.v);
-  const low = ranked.slice(0, 2); const high = ranked.slice(-2).reverse();
-  const val = (x) => (self ? fmtNum(x.v, 1) : `${Math.round(x.v)}%`);
-  const insight = ranked.length >= 4 ? h('div', { class: 'insights' },
-    h('div', { class: 'insight' }, h('span', { class: 'ins-k' }, icon('target', 'sm'), t('team.heat.room')),
-      h('span', { class: 'row tight' }, low.map((x) => chip(`${x.code} · ${val(x)}`, 'warn')))),
-    h('div', { class: 'insight' }, h('span', { class: 'ins-k' }, icon('trend-up', 'sm'), t('team.heat.strong')),
-      h('span', { class: 'row tight' }, high.map((x) => chip(`${x.code} · ${val(x)}`, 'pass'))))) : null;
-
-  const ranges = self ? ['0–0.7', '0.8–1.5', '1.6–2.3', '2.4–3.1', '3.2–4'] : ['< 40', '40–54', '55–69', '70–84', '≥ 85'];
-  const legend = h('div', { class: 'legend', role: 'list', 'aria-label': t('team.heat.legend') },
-    h('span', { class: 'strong', text: `${t(self ? 'team.heat.legend_self' : 'team.heat.legend_pct')}:` }),
-    ranges.map((r, i) => h('span', { class: 'lg-item', role: 'listitem' }, h('i', { class: `h${i}` }), self ? r.replace(/\./g, getLang() === 'vi' ? ',' : '.') : r)),
-    h('span', { class: 'lg-item', role: 'listitem' }, h('i', { class: 'lg-na' }), `— ${t('team.no_data')}`));
-
+      METRICS.map(([k, kind]) => cell(r[k], kind))))));
+  const pctRanges = ['< 40', '40–54', '55–69', '70–84', '≥ 85'];
+  const meanRanges = ['< 1.75', '1.75–2.24', '2.25–2.74', '2.75–3.24', '≥ 3.25'].map((x) => (getLang() === 'vi' ? x.replace(/\./g, ',') : x));
+  const legend = (label, ranges) => h('div', { class: 'legend', role: 'list', 'aria-label': label },
+    h('span', { class: 'strong', text: `${label}:` }),
+    ranges.map((r, i) => h('span', { class: 'lg-item', role: 'listitem' }, h('i', { class: `h${i}` }), r)));
   return h('div', { class: 'card pad stack heat-card' },
-    insight,
     h('div', { class: 'heat-wrap', tabindex: '0', role: 'region', 'aria-labelledby': 'heat-title' }, table),
-    legend,
-    list.length ? h('details', { class: 'key-details' }, h('summary', { text: t('team.heat.key') }),
-      h('dl', { class: 'course-key' }, list.map((c) => [h('dt', { text: c.code }), h('dd', { text: pick(c, 'name') })]))) : null,
+    legend(t('team.heat.legend_pct'), pctRanges),
+    legend(t('team.heat.legend_mean'), meanRanges),
     h('p', { class: 'xs muted note-line' }, icon('info', 'sm'), ' ',
       t('team.heat.note', { n: (sum && sum.min_n) || 3 }), sum && sum.updated_at ? ` ${t('team.updated', { time: fmtDateTime(sum.updated_at) })}` : ''));
 }
@@ -267,6 +250,20 @@ function openChatDialog(r, code, course) {
   note.focus();
 }
 
+// Baseline v2: done / in progress / not done for each of the three parts (never a score).
+const BL_ST = { done: ['pass', 'check', 'team.gs.bl_done'], in_progress: ['warn', 'edit', 'team.gs.bl_progress'], not_done: ['locked', 'circle', 'team.gs.bl_not'] };
+function blParts(r) {
+  const b = r.baseline;
+  if (b && typeof b === 'object') return ['p1', 'p2', 'p3'].map((k) => (BL_ST[b[k]] ? b[k] : 'not_done'));
+  const one = b === 'done' ? 'done' : 'not_done'; // an older backend sends one value for the whole baseline
+  return [one, one, one];
+}
+const blAll = (r) => blParts(r).every((x) => x === 'done');
+function blChips(r, withLabel) {
+  return h('span', { class: 'gs-bl row tight' }, withLabel ? h('span', { class: 'small muted', text: `${t('team.gs.col_baseline')}:` }) : null,
+    blParts(r).map((st, i) => { const d = BL_ST[st]; const c = chip(t('team.gs.bl_part', { n: i + 1 }), d[0], d[1]); c.setAttribute('title', t(d[2])); c.append(h('span', { class: 'sr-only', text: ` · ${t(d[2])}` })); return c; }));
+}
+
 function gateTable(reports) {
   const list = courses();
   const codes = list.length ? list.map((c) => c.code) : Object.keys(reports[0].courses || {});
@@ -283,11 +280,10 @@ function gateTable(reports) {
       h('p', { class: 'small' }, h('b', { text: t('team.gs.next_gate', { codes: set.map((c) => c.code).join(' + '), date: fmtShortDate(next.checkpoint_close) }) }), ' ',
         set.map((c, i) => t('team.gs.next_count', { code: c.code, n: done[i], total: reports.length })).join(' · ')));
   }
-  const blDone = reports.filter((r) => r.baseline === 'done').length;
+  const blDone = reports.filter((r) => blAll(r)).length;
   // Phones: one card per report, statuses grouped (passed / not yet / not started) with course codes.
   const cards = h('ul', { class: 'gs-cards' }, reports.map((r) => h('li', { class: 'gs-card' },
-    h('div', { class: 'row between' }, h('h3', { text: r.first_name || r.code }),
-      r.baseline === 'done' ? chip(`${t('team.gs.col_baseline')}: ${t('team.gs.bl_done')}`, 'pass', 'check') : chip(`${t('team.gs.col_baseline')}: ${t('team.gs.bl_not')}`, 'locked', 'circle')),
+    h('div', { class: 'stack sm' }, h('h3', { text: r.first_name || r.code }), blChips(r, true)),
     ['needs_chat', 'unlocked', 'not_yet', 'passed', 'not_started'].map((st) => {
       const list = codes.filter((code) => cellState(r, code) === st);
       if (!list.length) return null;
@@ -306,7 +302,7 @@ function gateTable(reports) {
           codes.map((code) => h('th', { scope: 'col' }, h('abbr', { title: byCode.has(code) ? pick(byCode.get(code), 'name') : code, text: code }))))),
         h('tbody', null, reports.map((r) => h('tr', null,
           h('th', { scope: 'row', class: 'sticky-col', text: r.first_name || r.code }),
-          h('td', null, r.baseline === 'done' ? chip(t('team.gs.bl_done'), 'pass', 'check') : chip(t('team.gs.bl_not'), 'locked', 'circle')),
+          h('td', null, blChips(r)),
           codes.map((code) => h('td', null, cellChip(cellState(r, code))))))),
         h('tfoot', null, h('tr', null,
           h('th', { scope: 'row', class: 'sticky-col', text: t('team.gs.total') }),

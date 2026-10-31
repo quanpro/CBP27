@@ -553,12 +553,12 @@ function cases_() {
 
 // ---------------------------------------------------------------- Baseline v2 items, exhibits, text (specs/22 §2)
 
-/** Cache group of baseline items: Part 1 per form, Part 2 whole, Part 3 core and each module (each well under 90 KB). */
+/** Cache group of baseline items: Part 1 per form, Part 2 per section, Part 3 core and each module (each well under 90 KB). */
 function blGroupKey_(assessment, form, module) { return 'bl:' + assessment + ':' + (form || '') + ':' + (module || ''); }
 
 function blAllGroupKeys_() {
   var keys = BL_FORMS.map(function (f) { return blGroupKey_('baseline_p1', f, ''); });
-  keys.push(blGroupKey_('baseline_p2', '', ''), blGroupKey_('baseline_p3', '', ''));
+  keys.push(blGroupKey_('baseline_p2', '', 'SJT'), blGroupKey_('baseline_p2', '', 'RATE'), blGroupKey_('baseline_p3', '', ''));
   BL_MODULES.forEach(function (m) { keys.push(blGroupKey_('baseline_p3', '', m)); });
   return keys;
 }
@@ -566,7 +566,7 @@ function blAllGroupKeys_() {
 function blItemGroupKeyOf_(it) {
   if (it.assessment === 'baseline_p1') return blGroupKey_('baseline_p1', it.form, '');
   if (it.assessment === 'baseline_p3') return blGroupKey_('baseline_p3', '', it.section === 'MOD' ? it.module : '');
-  return blGroupKey_(it.assessment, '', '');
+  return blGroupKey_('baseline_p2', '', it.section === 'RATE' ? 'RATE' : 'SJT');
 }
 
 function loadBlGroups_() {
@@ -593,6 +593,10 @@ function blGroups_(keys) {
 }
 
 function blGroup_(assessment, form, module) {
+  if (assessment === 'baseline_p2' && !module) {
+    var g = blGroups_([blGroupKey_('baseline_p2', '', 'SJT'), blGroupKey_('baseline_p2', '', 'RATE')]);
+    return g[blGroupKey_('baseline_p2', '', 'SJT')].concat(g[blGroupKey_('baseline_p2', '', 'RATE')]);
+  }
   var k = blGroupKey_(assessment, form, module);
   return blGroups_([k])[k];
 }

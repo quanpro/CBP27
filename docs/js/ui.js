@@ -343,6 +343,10 @@ function headerEl({ page, focus, session, exitHref }) {
       h('span', { class: 'avatar', 'aria-hidden': 'true', text: initial }), h('span', { class: 'name', text: profile.first_name || profile.code }), icon('chevron-down', 'sm chev'));
     const menu = h('div', { class: 'menu', id: menuId, role: 'menu', hidden: true },
       h('div', { class: 'menu-head' }, h('b', { class: 'ink', text: profile.first_name || profile.code }), h('div', { class: 'small muted', text: profile.role_area ? `${profile.code} · ${t(`role.${profile.role_area}`)}` : profile.code })),
+      // Baseline v2: the profile and (managers, admins) the manager rating live here, so the tab bar
+      // keeps five items and the brand never truncates at 360 px.
+      h('a', { href: 'profile.html', role: 'menuitem', 'aria-current': page === 'profile' ? 'page' : null }, icon('trend-up'), t('menu.profile')),
+      (profile.roles || []).some((r) => r === 'manager' || r === 'admin') ? h('a', { href: 'rate.html', role: 'menuitem', 'aria-current': page === 'rate' ? 'page' : null }, icon('users'), t('menu.rate')) : null,
       h('button', { type: 'button', role: 'menuitem', onclick: () => { closeMenu(); openChangePinDialog(); } }, icon('key'), t('menu.change_pin')),
       h('button', { type: 'button', role: 'menuitem', class: 'menu-theme', 'aria-label': t('theme.aria', { mode: t(`theme.${themeNow}`) }),
         onclick: () => { cycleTheme(); rebuildShell(); const b = document.querySelector('.user-btn'); if (b) b.focus(); } },

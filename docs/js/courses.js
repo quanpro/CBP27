@@ -131,9 +131,15 @@ export function courseStatus(c, now = serverNow()) {
  */
 export function nextStep(me, courses, now = serverNow()) {
   const today = todayVN(now);
+  // Baseline v2 (specs/22): a part in progress first, then the first open part not yet taken.
   const b = me && me.baseline;
-  if (b && b.window === 'open' && b.status !== 'submitted') {
-    return { kind: 'baseline', title: t(b.status === 'in_progress' ? 'next.baseline_continue' : 'next.baseline'), body: t('next.baseline_body', { date: fmtShortDate(b.open_to) }), cta: { label: t(b.status === 'in_progress' ? 'cta.continue' : 'cta.start_baseline'), href: 'baseline.html' } };
+  const parts = b && b.parts ? [1, 2, 3].map((n) => ({ n, ...(b.parts[`p${n}`] || {}) })) : [];
+  const blPart = parts.find((p) => p.status === 'in_progress') || parts.find((p) => p.open && p.status === 'not_started');
+  if (blPart) {
+    const going = blPart.status === 'in_progress';
+    return { kind: 'baseline', minutes: blPart.minutes, title: t(going ? 'next.baseline_continue' : 'next.baseline', { n: blPart.n, name: t(`baseline.part${blPart.n}.name`) }),
+      body: t(going ? 'next.baseline_body_going' : 'next.baseline_body', { min: blPart.minutes || '' }),
+      cta: { label: t(going ? 'cta.continue' : 'cta.start_part', { n: blPart.n }), href: `baseline.html?part=${blPart.n}` } };
   }
   const inProg = courses.find((c) => c.open && c.checkpoint && c.checkpoint.status === 'in_progress');
   if (inProg) return { kind: 'checkpoint', course: inProg, ...fromStatus(inProg, now) };

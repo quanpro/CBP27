@@ -66,17 +66,6 @@ test('grade: 8/10 passes, 7/10 fails, unanswered = wrong', () => {
   eq(L.cleanAnswers({ FX_A2_A_01: 'B', FX_A2_A_02: 'z', other: 'a' }, formIds), { FX_A2_A_01: 'b' });
 });
 
-test('byCourse and gaps tie-breaks', () => {
-  const ids = ['FX_BL_A2_01', 'FX_BL_A2_02', 'FX_BL_A3_01', 'FX_BL_A3_02', 'FX_BL_CASE_01'];
-  const k = { FX_BL_A2_01: 'a', FX_BL_A2_02: 'a', FX_BL_A3_01: 'a', FX_BL_A3_02: 'a', FX_BL_CASE_01: 'a' };
-  const cm = { FX_BL_A2_01: 'A2', FX_BL_A2_02: 'A2', FX_BL_A3_01: 'A3', FX_BL_A3_02: 'A3', FX_BL_CASE_01: 'A2' };
-  eq(L.byCourse(ids, { FX_BL_A2_01: 'a', FX_BL_CASE_01: 'a', FX_BL_A3_01: 'a' }, k, cm), { A2: 67, A3: 50 }, 'case item counts for its course');
-  const order = ['A2', 'A3', 'A1', 'P1', 'C1'];
-  eq(L.gaps({ A2: 50, A3: 25, A1: 75, P1: 25 }, { A3: 2, P1: 1 }, order), ['P1', 'A3'], 'tie → lower self first');
-  eq(L.gaps({ A2: 50, A3: 25, A1: 25 }, { A3: 2, A1: 2 }, order), ['A3', 'A1'], 'tie on self → calendar order');
-  eq(L.gaps({ C1: 0, P1: 0, A2: 0 }, {}, order), ['A2', 'P1']);
-});
-
 test('calibration flags', () => {
   eq(L.calibrationFlag(3, 49), 'rates high, scores low');
   eq(L.calibrationFlag(1, 80), 'rates low, scores high');
@@ -333,6 +322,235 @@ test('CSV parsing and bank validation', () => {
   ok(v.errors.some((e) => /case_id NOPE/.test(e)));
   ok(v.warnings.some((e) => /expected 10/.test(e)));
   eq(L.validateBank([fxItem('FX_A2_A_09', 'a')], courses, []).errors, []);
+  const old = L.validateBank([fxItem('FX_A2_A_09', 'a'), fxItem('FX_BL_OLD_01', 'z', { assessment: 'baseline', form: 'BL' })], courses, []);
+  eq(old.errors, [], 'old v1 baseline rows in Items are ignored, not validated');
+  ok(old.warnings.some((w) => /1 old baseline row/.test(w)));
+});
+
+// ------------------------------------------------------------ Baseline v2 (specs/22), invented items
+const BL = require('./fixtures.js');
+const BL_ITEMS = BL.buildBaselineItems().map((r, i) => L.normBaselineItem(r, i));
+const BL_BYID = Object.fromEntries(BL_ITEMS.map((i) => [i.item_id, i]));
+const blOf = (pred) => L.blSortItems(BL_ITEMS.filter(pred));
+
+test('baseline items: normalised, sorted, served through a whitelist (no keys, step, move, gate, level, charter)', () => {
+  const p1b = blOf((i) => i.assessment === 'baseline_p1' && i.form === 'B');
+  eq(p1b.length, 32); eq(p1b.slice(0, 22).every((i) => i.section === 'A'), true); eq(p1b[22].item_id, 'MOCK-BL-1B-B01');
+  const it = BL_BYID['MOCK-BL-1B-A03'];
+  eq(it.exhibit_ids, ['MOCK-EX-B-C1-T1', 'MOCK-EX-B-C1-T2']); eq(it.part, 1); eq(it.order, 3);
+  const s = L.serveBaselineItem(it, 'seed-1');
+  eq(Object.keys(s).sort(), ['case_id', 'exhibit_ids', 'item_id', 'options', 'section', 'stem_en', 'stem_vi', 'type']);
+  eq(s.type, 'mcq'); eq(s.options.map((o) => o.id).sort(), ['a', 'b', 'c', 'd']);
+  eq(L.serveBaselineItem(it, 'seed-1').options, s.options, 'same seed → same order');
+  const sj = L.serveBaselineItem(BL_BYID['MOCK-BL-2S01'], 'x');
+  eq(Object.keys(sj).sort(), ['item_id', 'options', 'stem_en', 'stem_vi', 'type']); eq(sj.type, 'sjt');
+  const r3 = L.serveBaselineItem(BL_BYID['MOCK-BL-2R03']);
+  eq(Object.keys(r3).sort(), ['allow_nr', 'anchor1_en', 'anchor1_vi', 'anchor4_en', 'anchor4_vi', 'item_id', 'text_en', 'text_vi', 'type']);
+  eq([r3.type, r3.allow_nr, r3.text_en], ['rating', true, 'I do mock behaviour 3.'], 'self wording');
+  eq(L.serveBaselineItem(BL_BYID['MOCK-BL-2R04']).allow_nr, false);
+  eq(L.managerRatingItem(BL_BYID['MOCK-BL-2R03']).text_en, 'He/she does mock behaviour 3.', 'manager wording');
+  for (const x of BL_ITEMS) {
+    const json = JSON.stringify([L.serveBaselineItem(x, 's'), L.managerRatingItem(x)]);
+    for (const k of L.BL_PRIVATE_FIELDS) ok(!json.includes('"' + k + '"'), x.item_id + ' never carries ' + k);
+    ok(!json.includes('Mock reason'), 'no why text');
+  }
+  eq(L.normCharter('3.0'), '3'); eq(L.normCharter('qws'), 'QWS'); eq(L.normCharter('7'), '');
+  eq(L.blPart('baseline_p2'), 2); eq(L.blPart('baseline'), 0);
+});
+
+test('baseline answers: per-type cleaning, SJT lock rule (both picks, most ≠ least)', () => {
+  const ids = ['MOCK-BL-1B-A01', 'MOCK-BL-2S01', 'MOCK-BL-2R01', 'MOCK-BL-2R03'];
+  const c = L.cleanBlAnswers({
+    'MOCK-BL-1B-A01': 'C', 'MOCK-BL-2S01': { most: 'B', least: 'z' }, 'MOCK-BL-2R01': 'NR', 'MOCK-BL-2R03': 'nr', other: 'a'
+  }, ids, BL_BYID);
+  eq(c, { 'MOCK-BL-1B-A01': 'c', 'MOCK-BL-2S01': { most: 'b' }, 'MOCK-BL-2R03': 'NR' }, 'NR only where allow_nr; partial SJT kept while saving');
+  eq(L.cleanBlAnswers({ 'MOCK-BL-2R01': '4', 'MOCK-BL-2R03': 0 }, ids, BL_BYID), { 'MOCK-BL-2R01': 4 });
+  eq(L.cleanBlValue(BL_BYID['MOCK-BL-2R01'], 2.5), undefined);
+  eq(L.cleanBlValue(BL_BYID['MOCK-BL-2S01'], 'b'), undefined, 'an SJT answer is an object');
+  const sjt = ['MOCK-BL-2S01', 'MOCK-BL-2S02'];
+  eq(L.sjtLockProblem(sjt, { 'MOCK-BL-2S01': { most: 'a', least: 'b' } }), 'MOCK-BL-2S02');
+  eq(L.sjtLockProblem(sjt, { 'MOCK-BL-2S01': { most: 'a', least: 'a' }, 'MOCK-BL-2S02': { most: 'a', least: 'b' } }), 'MOCK-BL-2S01', 'most = least rejected');
+  eq(L.sjtLockProblem(sjt, { 'MOCK-BL-2S01': { most: 'a', least: 'c' }, 'MOCK-BL-2S02': { most: 'd', least: 'b' } }), null);
+});
+
+test('Part 1 form choice: override wins, balance by role, hash tie, re-test swap, backup never automatic', () => {
+  eq(L.chooseP1Form({ override: 'a', live: ['B', 'C'], counts: { B: 0, C: 0 }, code: 'T1', wave: '2026-11' }), { form: 'A', reason: 'override' });
+  eq(L.chooseP1Form({ override: 'Z', live: ['B', 'C'], counts: { B: 3, C: 2 }, code: 'T1', wave: '2026-11' }).form, 'C', 'invalid override ignored');
+  eq(L.chooseP1Form({ live: ['B', 'C'], counts: { B: 1, C: 2 }, code: 'T1', wave: '2026-11' }), { form: 'B', reason: 'balance' });
+  // 20 people arriving one by one within one role stay balanced; the backup is never chosen
+  const counts = { B: 0, C: 0 };
+  for (let i = 0; i < 20; i++) {
+    const f = L.chooseP1Form({ live: ['B', 'C'], counts, code: 'P' + i, wave: '2026-11' }).form;
+    ok(f === 'B' || f === 'C', 'never the backup');
+    counts[f]++;
+    ok(Math.abs(counts.B - counts.C) <= 1, 'balanced after ' + (i + 1));
+  }
+  const ties = new Set();
+  for (let i = 0; i < 20; i++) ties.add(L.chooseP1Form({ live: ['B', 'C'], counts: { B: 0, C: 0 }, code: 'X' + i, wave: '2026-11' }).form);
+  eq(ties.size, 2, 'the hash spreads ties over both live forms');
+  eq(L.chooseP1Form({ live: ['B', 'C'], counts: {}, code: 'Q', wave: 'w' }), L.chooseP1Form({ live: ['B', 'C'], counts: {}, code: 'Q', wave: 'w' }), 'deterministic');
+  eq(L.chooseP1Form({ live: ['B', 'C'], counts: { B: 0, C: 9 }, previousForm: 'B', code: 'T1', wave: '2027-12' }), { form: 'C', reason: 'retest_swap' });
+  eq(L.chooseP1Form({ live: ['B', 'C'], counts: { B: 4, C: 1 }, previousForm: 'A', code: 'T1', wave: '2027-12' }), { form: 'C', reason: 'retest_balance' }, 'took the backup → fewer starts');
+  eq(L.chooseP1Form({ live: [], counts: {} }).form, '');
+});
+
+test('Part 3 module routing: p3_module wins, else role_area', () => {
+  eq(L.p3ModuleFor('', 'demand'), 'DP'); eq(L.p3ModuleFor('', 'supply'), 'SP'); eq(L.p3ModuleFor('', 'materials'), 'RPM'); eq(L.p3ModuleFor('', 'CS'), 'CS');
+  eq(L.p3ModuleFor('rpm', 'demand'), 'RPM'); eq(L.p3ModuleFor('XX', 'supply'), 'SP'); eq(L.p3ModuleFor('', ''), '');
+});
+
+test('scoring: Part 1 by section/step/move/course, SJT points with most = least scoring 0, Part 3 level', () => {
+  const served = blOf((i) => i.assessment === 'baseline_p1' && i.form === 'A').map((i) => i.item_id);
+  const all = Object.fromEntries(served.map((id) => [id, BL_BYID[id].answer]));
+  const r = L.scoreBlMcq(served, all, BL_BYID);
+  eq([r.n, r.correct, r.pct], [32, 32, 100]);
+  eq(r.by_section, { A: { n: 22, correct: 22 }, B: { n: 10, correct: 10 } });
+  eq(Object.keys(r.by_move).sort(), ['ASK', 'CHECK', 'SHAPE', 'SIZE', 'SO WHAT'], 'the — move of Section B is not a move');
+  eq(r.by_step['Logical reasoning'], { n: 10, correct: 10 });
+  const a1 = served.filter((id) => [1, 2, 3, 4].includes(L.stepNumber(BL_BYID[id].step))).length;
+  eq(r.by_course.A1.n, a1);
+  const c1 = served.filter((id) => BL_BYID[id].move === 'SO WHAT' || L.stepNumber(BL_BYID[id].step) === 6).length;
+  eq(r.by_course.C1.n, c1, 'C1: SO WHAT or step 6, each item counted once');
+  const half = Object.fromEntries(served.slice(0, 16).map((id) => [id, BL_BYID[id].answer]));
+  eq(L.scoreBlMcq(served, half, BL_BYID).pct, 50, 'unanswered = wrong');
+
+  const sjt = blOf((i) => i.item_type === 'sjt').map((i) => i.item_id);
+  const keyed = Object.fromEntries(sjt.map((id) => [id, { most: BL_BYID[id].answer_most, least: BL_BYID[id].answer_least }]));
+  const sj = L.scoreSjt(sjt, keyed, BL_BYID);
+  eq([sj.points, sj.max, sj.pct], [30, 30, 100]); eq(sj.by_charter['1'], { sjt_points: 6, sjt_max: 6 });
+  const one = Object.assign({}, keyed, { 'MOCK-BL-2S01': { most: BL_BYID['MOCK-BL-2S01'].answer_most, least: BL_BYID['MOCK-BL-2S01'].answer_most } });
+  eq(L.scoreSjt(sjt, one, BL_BYID).points, 28, 'most = least scores 0 for that item');
+  const mostOnly = Object.assign({}, keyed, { 'MOCK-BL-2S02': { most: BL_BYID['MOCK-BL-2S02'].answer_most } });
+  eq(L.scoreSjt(sjt, mostOnly, BL_BYID).points, 29);
+
+  eq(L.blLevel({ BA: { n: 3, correct: 3 }, WK: { n: 6, correct: 5 }, FO: { n: 6, correct: 4 }, LE: { n: 3, correct: 3 } }), 'WK', 'FO 67 % < 70 stops the climb');
+  eq(L.blLevel({ BA: { n: 3, correct: 2 }, WK: { n: 6, correct: 6 } }), null, 'BA below 70 → no level');
+  eq(L.blLevel({ BA: { n: 10, correct: 7 }, WK: { n: 10, correct: 7 }, FO: { n: 10, correct: 7 }, LE: { n: 10, correct: 7 } }), 'LE', '70 % counts');
+});
+
+test('rating validation and means (NR, NA left out)', () => {
+  const rate = blOf((i) => i.item_type === 'rating');
+  eq(L.cleanRatingValues({ 'MOCK-BL-2R01': 4, 'MOCK-BL-2R02': 'na', 'MOCK-BL-2R03': '', 'MOCK-BL-ZZ': 1 }, rate, 'manager'),
+    { values: { 'MOCK-BL-2R01': 4, 'MOCK-BL-2R02': 'NA', 'MOCK-BL-2R03': '' }, bad: null });
+  eq(L.cleanRatingValues({ 'MOCK-BL-2R01': 5 }, rate, 'manager').bad, 'MOCK-BL-2R01');
+  eq(L.cleanRatingValues({ 'MOCK-BL-2R01': 'NR' }, rate, 'manager').bad, 'MOCK-BL-2R01', 'NR is self only');
+  eq(L.cleanRatingValues({ 'MOCK-BL-2R03': 'NR' }, rate, 'self').values, { 'MOCK-BL-2R03': 'NR' });
+  eq(L.cleanRatingValues({ 'MOCK-BL-2R04': 'NR' }, rate, 'self').bad, 'MOCK-BL-2R04', 'NR only where allow_nr');
+  eq(L.cleanRatingValues({ 'MOCK-BL-2R01': 'NA' }, rate, 'self').bad, 'MOCK-BL-2R01', 'NA is manager only');
+  const m = L.ratingMeans({ 'MOCK-BL-2R01': 4, 'MOCK-BL-2R02': 2, 'MOCK-BL-2R03': 'NR', 'MOCK-BL-2R05': 'NA', 'MOCK-BL-2R06': 3 }, rate);
+  eq([m.mean, m.n], [3, 3]); eq(m.by_charter['1'], { mean: 3, n: 2 }); eq(m.by_charter['2'], { mean: 3, n: 1 });
+});
+
+test('equating: mean-sigma onto Form A, pooled fallback, threshold', () => {
+  eq(L.meanSd([50, 60, 70]), { n: 3, mean: 60, sd: 10 }); eq(L.meanSd([5]).sd, null);
+  eq(L.equateLinear(70, { mean: 60, sd: 10 }, { mean: 50, sd: 20 }), 70, '50 + 20 × (70 − 60) / 10');
+  eq(L.equateLinear(99, { mean: 50, sd: 5 }, { mean: 50, sd: 20 }), 100, 'clamped to 100');
+  const near = L.equatingPlan({ B: [50, 60, 70], C: [54, 64, 74] }, ['B', 'C'], 5);
+  eq([near.apply, near.diff], [false, 4], 'within 5 points: raw = scaled');
+  eq(L.scaledFor(near, 'B', 61), 61);
+  const far = L.equatingPlan({ A: [40, 50, 60], B: [50, 60, 70], C: [60, 70, 80] }, ['B', 'C'], 5);
+  eq([far.apply, far.reference, far.diff], [true, 'A', 10]);
+  eq([L.scaledFor(far, 'B', 60), L.scaledFor(far, 'C', 70), L.scaledFor(far, 'A', 55)], [50, 50, 55], 'each form onto Form A');
+  const pooled = L.equatingPlan({ B: [50, 60, 70], C: [60, 70, 80] }, ['B', 'C'], 5);
+  eq(pooled.reference, 'pooled', 'Form A unsat → the pooled live scale');
+  const ps = L.meanSd([50, 60, 70, 60, 70, 80]);
+  eq(L.scaledFor(pooled, 'B', 60), Math.round(ps.mean + ps.sd * 0));
+  eq(L.scaledFor(L.equatingPlan({ B: [50], C: [80, 90] }, ['B', 'C'], 5), 'B', 50), 50, 'a form with one score keeps raw');
+});
+
+test('charter index, flags, bands, top development behaviours', () => {
+  eq([L.sjtBand(33), L.sjtBand(50), L.sjtBand(67), L.sjtBand(83), L.sjtBand(null)], ['low', 'mid', 'mid', 'high', null]);
+  const base = { sjt_points: 4, sjt_max: 6, min_rated: 2, w_sjt: 0.5, w_mgr: 0.5 };
+  let c = L.charterSummary(Object.assign({}, base, { self_mean: 3.5, mgr_mean: 2.5, mgr_n: 3 }));
+  eq([c.sjt_pct, c.index], [67, Math.round(0.5 * 67 + 0.5 * 50)]); eq(c.flags, ['blind_spot']);
+  c = L.charterSummary(Object.assign({}, base, { self_mean: 4 / 3 + 1, mgr_mean: 4 / 3 + 2, mgr_n: 2 }));
+  eq(c.flags, ['hidden_strength'], 'exactly 1.0 apart (float safe)');
+  c = L.charterSummary(Object.assign({}, base, { sjt_points: 5, self_mean: 2.2, mgr_mean: 2.0, mgr_n: 2 }));
+  eq(c.flags, ['knowing_doing'], 'SJT 83 % and manager < 2.5');
+  c = L.charterSummary(Object.assign({}, base, { self_mean: 3, mgr_mean: 1, mgr_n: 1 }));
+  eq([c.mgr_mean, c.index, c.flags], [null, null, []], 'one statement rated is not enough');
+  c = L.charterSummary({ sjt_points: 0, sjt_max: 0, self_mean: 3, mgr_mean: 3, mgr_n: 3, min_rated: 3, w_sjt: 0.5, w_mgr: 0.5 });
+  eq([c.sjt_band, c.index], [null, 67], 'QWS (no SJT items): the manager part alone');
+  const rate = blOf((i) => i.item_type === 'rating');
+  const dev = L.topDevelopment({ 'MOCK-BL-2R01': 2, 'MOCK-BL-2R02': 1, 'MOCK-BL-2R03': 2, 'MOCK-BL-2R04': 3 }, { 'MOCK-BL-2R01': 2, 'MOCK-BL-2R03': 4 }, rate);
+  eq(dev.map((i) => i.item_id), ['MOCK-BL-2R02', 'MOCK-BL-2R03'], 'lowest manager, tie → larger self − manager gap');
+  eq(L.topDevelopment({}, {}, rate), []);
+});
+
+test('course links, rates-high-scores-low flag, IDP gaps', () => {
+  const order = ['A2', 'A3', 'A1', 'P1', 'C1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+  const links = L.courseLinks({ A2: 3, A1: 1, P1: 4, P4: 3, P3: 4 }, { A1: { n: 4, correct: 1 }, A2: { n: 10, correct: 4 }, C1: { n: 5, correct: 5 } },
+    { core_pct: 40, module: 'DP', module_pct: 70 }, order);
+  eq(Object.keys(links), order);
+  eq(links.A2, { self: 3, score_pct: 40, flag: true }); eq(links.A1, { self: 1, score_pct: 25, flag: false });
+  eq(links.P1, { self: 4, score_pct: 40, flag: true }, 'P1 ← P3 core'); eq(links.P4.score_pct, 70, 'P4 ← DP');
+  eq(links.P3, { self: 4, score_pct: null, flag: false }, 'module not taken → null'); eq(links.A3.score_pct, null, 'A3 has no score');
+  eq(L.courseLinks({}, null, null, order).C1, { self: null, score_pct: null, flag: false });
+  const g = L.idpGaps([
+    { area: 'p1_A', name_en: 'A', name_vi: 'A', pct: 50, self: 0.5 }, { area: 'p1_B', name_en: 'B', name_vi: 'B', pct: 40, self: 0.75 },
+    { area: 'p2_1', name_en: 'C1', name_vi: 'C1', pct: 40, self: 0.25 }, { area: 'p3_core', name_en: 'Core', name_vi: 'Core', pct: null, self: 0 },
+    { area: 'p3_mod', name_en: 'Mod', name_vi: 'Mod', pct: 50, self: null }]);
+  eq(g.map((x) => x.area), ['p2_1', 'p1_B'], 'tie → lower self first');
+  eq(Object.keys(g[0]).sort(), ['area', 'name_en', 'name_vi', 'pct']);
+  eq(L.idpGaps([{ area: 'x', pct: 10, self: null }, { area: 'y', pct: 10, self: null }, { area: 'z', pct: 10, self: null }]).map((a) => a.area), ['x', 'y'], 'then the listed order');
+});
+
+test('buildBaselineProfile assembles the profile shape', () => {
+  const rate = blOf((i) => i.item_type === 'rating');
+  const self = Object.fromEntries(rate.map((i) => [i.item_id, 3]));
+  self['MOCK-BL-2R03'] = 'NR';
+  const mgr = Object.fromEntries(rate.map((i) => [i.item_id, i.charter === '2' ? 1 : 3]));
+  const p = L.buildBaselineProfile({
+    wave: '2026-11', built_at: 'x', order: ['A2', 'A3', 'A1', 'P1', 'C1', 'P2', 'P3', 'P4', 'P5', 'P6'], w_sjt: 0.5, w_mgr: 0.5,
+    names: { p1_A: { en: 'Sec A', vi: 'Phần A' }, charter_2: { en: 'Charter two', vi: 'Hai' } },
+    p1: { form: 'B', raw_pct: 60, scaled_pct: 58, by_section: { A: { n: 22, correct: 11 }, B: { n: 10, correct: 8 } }, by_step: { s: { n: 2, correct: 1 } }, by_move: { ASK: { n: 4, correct: 4 } }, by_course: {} },
+    p2: { by_charter: { '1': { sjt_points: 6, sjt_max: 6 }, '2': { sjt_points: 2, sjt_max: 6 } }, points: 8, max: 12, items: rate, self, mgr },
+    p3: { module: 'SP', total_pct: 50, core_pct: 60, module_pct: 44, by_level: { BA: { n: 5, correct: 5 }, WK: { n: 5, correct: 2 } }, by_gate: { G1: { n: 2, correct: 1 } } },
+    self_courses: { P2: 4 }
+  });
+  eq(Object.keys(p).sort(), ['built_at', 'courses', 'gaps', 'p1', 'p2', 'p3', 'wave']);
+  eq(p.p1, { form: 'B', raw_pct: 60, scaled_pct: 58, section_A_pct: 50, section_B_pct: 80, by_step: { s: 50 }, by_move: { ASK: 100 } });
+  eq(Object.keys(p.p2).sort(), ['by_charter', 'mgr_mean', 'self_mean', 'sjt_pct', 'top_dev']);
+  eq(Object.keys(p.p2.by_charter), ['1', '2', '3', '4', '5', 'QWS']);
+  eq(p.p2.by_charter['2'], { name_en: 'Charter two', name_vi: 'Hai', sjt_band: 'low', self_mean: 3, mgr_mean: 1, index: Math.round(0.5 * 33 + 0), flags: ['blind_spot'] });
+  eq(p.p2.by_charter['1'].flags, [], 'SJT 100 %, self 3 (NR left out), manager 3');
+  eq(p.p2.top_dev.map((x) => x.item_id), ['MOCK-BL-2R05', 'MOCK-BL-2R06']);
+  eq(p.p2.top_dev[0].text_en, 'I do mock behaviour 5.');
+  eq(p.p3.level, 'BA'); eq(p.p3.by_level, { BA: 100, WK: 40 });
+  eq(p.courses.P2, { self: 4, score_pct: 44, flag: true });
+  eq(p.gaps.length, 2); eq(p.gaps[0].area, 'p2_2');
+  const none = L.buildBaselineProfile({ wave: 'w', built_at: 'x', order: ['A2'], p1: null, p2: null, p3: null, self_courses: {} });
+  eq([none.p1, none.p2, none.p3, none.gaps], [null, null, null, []]);
+});
+
+test('item analysis: p-value, point-biserial, distractor %', () => {
+  const rows = [
+    { score: 1, max: 1, total: 9, pick: 'a' }, { score: 1, max: 1, total: 8, pick: 'a' },
+    { score: 0, max: 1, total: 3, pick: 'b' }, { score: 0, max: 1, total: 2, pick: '' }];
+  const a = L.itemAnalysis(rows);
+  eq([a.n, a.p_value], [4, 0.5]); ok(a.point_biserial > 0.9, 'discriminates'); eq(a.dist, { a: 50, b: 25, c: 0, d: 0, blank: 25 });
+  eq(L.itemAnalysis([{ score: 1, max: 1, total: 1, pick: 'a' }]).point_biserial, null);
+  eq(L.pearson([1, 2, 3], [2, 4, 6]), 1);
+});
+
+test('validateBaselineBank: the invented bank is clean; broken rows are caught', () => {
+  const raw = BL.buildBaselineItems(), ex = BL.buildExhibits();
+  eq(L.validateBaselineBank(raw, ex, { live: ['B', 'C'], backup: 'A' }), { errors: [], warnings: [], counts: L.validateBaselineBank(raw, ex, {}).counts });
+  const bad = raw.map((r) => Object.assign({}, r));
+  const at = (id) => bad.find((r) => r.item_id === id);
+  at('MOCK-BL-2S01').answer_least = at('MOCK-BL-2S01').answer_most;
+  at('MOCK-BL-2S02').answer_most = '';
+  at('MOCK-BL-1B-A01').answer = 'e';
+  at('MOCK-BL-2R01').mgr_en = '';
+  at('MOCK-BL-1C-A02').exhibit_ids = 'MOCK-EX-NOPE';
+  at('MOCK-BL-1B-B10').active = 'FALSE';
+  bad.push(Object.assign({}, at('MOCK-BL-3DP01')));
+  const v = L.validateBaselineBank(bad, ex, { live: ['B', 'C'], backup: 'A' });
+  for (const re of [/2S01.*must differ/, /2S02.*answer_most and answer_least/, /1B-A01.*answer must be/, /2R01.*self_en and mgr_en/, /1C-A02.*MOCK-EX-NOPE/, /form B: 31 active items.*live/, /3DP01.*duplicate/]) {
+    ok(v.errors.some((e) => re.test(e)), 'caught ' + re);
+  }
+  const w = L.validateBaselineBank(raw.filter((r) => r.item_id !== 'MOCK-BL-1A-B01'), ex, { live: ['B', 'C'], backup: 'A' });
+  eq(w.errors, []); ok(w.warnings.some((x) => /form A: 31 .*backup/.test(x)), 'the backup form is a warning');
 });
 
 // ------------------------------------------------------------ run

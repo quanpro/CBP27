@@ -4,13 +4,13 @@
  * The client posts JSON as text/plain (no CORS preflight); nothing here ever returns HTML.
  */
 
-var BACKEND_VERSION = '1.0.0';
+var BACKEND_VERSION = '2.0.0';
 var MAX_BODY_BYTES_ = 200000;
 
 /** Actions that get one Log row (never with PINs, answers or tokens). */
 var LOGGED_ACTIONS_ = {
   login: true, change_pin: true, consent: true, logout: true, start: true, submit: true,
-  capstone_submit: true, panel_score: true, unlock_retake: true
+  capstone_submit: true, panel_score: true, unlock_retake: true, baseline_next: true, rate_save: true
 };
 
 function routes_() {
@@ -26,6 +26,11 @@ function routes_() {
     save: apiSave_,
     submit: apiSubmit_,
     review: apiReview_,
+    baseline_next: apiBaselineNext_,
+    rate_list: apiRateList_,
+    rate_get: apiRateGet_,
+    rate_save: apiRateSave_,
+    profile: apiProfile_,
     team_summary: apiTeamSummary_,
     team_status: apiTeamStatus_,
     unlock_retake: apiUnlockRetake_,

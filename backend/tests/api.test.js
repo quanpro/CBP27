@@ -227,8 +227,8 @@ section('me: journey shape, calendar order, nobody else\'s data', () => {
   eq(me.courses[2].episodes[0].ep, 0, 'A1 has a trailer (ep 0)');
   eq(Object.keys(a2.checkpoint).sort(), ['attempts', 'best_pct', 'gate_closed', 'last_attempt_id', 'needs_unlock', 'next_retake_at', 'open_attempt_id', 'passed_at', 'status']);
   eq(Object.keys(a2.predict).sort(), ['attempts', 'done', 'last_pct']);
-  eq(Object.keys(me.baseline).sort(), ['open_from', 'open_to', 'status', 'wave', 'window']);
-  eq(me.baseline.window, 'after');
+  eq(Object.keys(me.baseline).sort(), ['parts', 'profile_ready', 'rating', 'results_open', 'wave']);
+  eq(Object.keys(me.baseline.parts), ['p1', 'p2', 'p3']);
   eq(Object.keys(me.streak).sort(), ['active_this_week', 'active_weeks_total', 'current_weeks', 'multiplier', 'recent', 'weeks_total_program']);
   eq([me.streak.weeks_total_program, me.streak.recent.length], [52, 12]);
   eq(me.certificates, { level: '', checkpoints_passed: 0, checkpoints_total: 10, pitch_submitted: false, capstone_submitted: false });
@@ -239,115 +239,484 @@ section('me: journey shape, calendar order, nobody else\'s data', () => {
   eq(h.ok({ action: 'me', token: h.login('T009') }).capstone.team_id, null);
 });
 
-// ============================================================ baseline
-section('baseline: window, parts, resume, Part A required, one per wave, expiry from last save', () => {
-  const h = harness('2026-11-15T20:00:00+07:00');
-  let tok = h.login('T001');
-  eq(h.err({ action: 'start', token: tok, assessment: 'baseline' }, 'not_open').opens_at, '2026-11-16T00:00:00+07:00');
-  h.clock.set(T('2026-11-16T09:00:00+07:00'));
-  tok = h.login('T001');
-  const s = h.ok({ action: 'start', token: tok, assessment: 'baseline' });
-  eq(forbiddenKeys(s), [], 'start has no answer/why/correct anywhere');
-  eq(s.items.length, 46); eq(s.parts, { A: 10, B: 40, C: 6 });
-  eq(s.self.map((x) => x.course), fx.COURSES); eq(Object.keys(s.self[0]).sort(), ['course', 'en', 'vi']);
-  eq(s.scale.length, 5); eq(Object.keys(s.scale[0]).sort(), ['desc_en', 'desc_vi', 'en', 'level', 'vi']);
-  eq(s.scale[2].en, '2 · Working knowledge (WK)'); eq(s.scale[0].en, '0 · Not yet');
-  eq(s.case, fx.CASES[0]);
-  eq(s.deadline_at, '2026-11-16T10:00:00+07:00'); eq(s.time_limit_min, 60);
-  eq(s.form, 'BL'); eq(s.attempt_no, 1); eq(s.resumed, false); eq(s.answers, {}); eq(s.self_ratings, {});
-  const order = s.items.slice(0, 40).map((i) => fx.COURSES.indexOf(i.course));
-  eq(order, order.slice().sort((a, b) => a - b), 'Part B grouped by course in calendar order');
-  eq(s.items.slice(40).every((i) => i.case_id === 'CASE1'), true, 'Part C last');
-  eq(Object.keys(s.items[0]).sort(), ['case_id', 'course', 'item_id', 'objective', 'options', 'stem_en', 'stem_vi']);
-  eq(s.items.every((i) => i.options.length === 4 && i.options.every((o) => Object.keys(o).sort().join() === 'en,id,vi')), true);
-  ok(!JSON.stringify(s).includes('Fixture reason'), 'no why text in start');
+// ============================================================ baseline v2 (specs/22), invented MOCK-BL items
+const BLI = fx.buildBaselineItems();
+const BLK = Object.fromEntries(BLI.map((i) => [i.item_id, i]));
+const BL_FORBIDDEN = new Set(['answer', 'answer_most', 'answer_least', 'why', 'why_en', 'why_vi', 'step', 'move', 'gate', 'level', 'charter', 'correct', 'is_correct', 'mockCorrect']);
+/** Paths of forbidden keys anywhere in a response (allow: exact paths that are not items: the profile's level, me.certificates.level). */
+function blLeaks(obj, allow = [], found = [], at = '$') {
+  if (Array.isArray(obj)) obj.forEach((v, i) => blLeaks(v, allow, found, `${at}[${i}]`));
+  else if (obj && typeof obj === 'object') {
+    for (const k of Object.keys(obj)) {
+      const p = `${at}.${k}`;
+      if (BL_FORBIDDEN.has(k) && !allow.some((a) => (a instanceof RegExp ? a.test(p) : a === p))) found.push(p);
+      blLeaks(obj[k], allow, found, p);
+    }
+  }
+  return found;
+}
+const BL_SECRET_TEXT = /Mock reason|Lý do mẫu/;
+const itemsOf = (s) => s.sections.flatMap((x) => x.items);
+const wrongL = (l) => (l === 'a' ? 'b' : 'a');
+/** Part 1 / Part 3 answers: the first n served items right, the rest wrong. */
+function mcqAnswers(items, n) {
+  return Object.fromEntries(items.map((it, i) => [it.item_id, i < n ? BLK[it.item_id].answer : wrongL(BLK[it.item_id].answer)]));
+}
+/** SJT answers: every item keyed (both picks), or with `miss` items given a wrong least pick. */
+function sjtAnswers(items, miss = 0) {
+  return Object.fromEntries(items.map((it, i) => {
+    const k = BLK[it.item_id];
+    const least = i < miss ? 'abcd'.split('').find((l) => l !== k.answer_most && l !== k.answer_least) : k.answer_least;
+    return [it.item_id, { most: k.answer_most, least }];
+  }));
+}
+const rateAll = (items, v) => Object.fromEntries(items.map((it) => [it.item_id, typeof v === 'function' ? v(it) : v]));
 
-  // save then resume: same item order, same option order, saved answers and self-ratings
-  const partial = answersFor(s.items.slice(0, 20), 20);
+/** Harness with the three parts open (rating and results closed). Records every response for a final leak scan. */
+function blHarness(now, opts = {}) {
+  const h = harness(now, Object.assign({}, opts, { config: Object.assign({ p1_open: 'TRUE', p2_open: 'TRUE', p3_open: 'TRUE' }, opts.config || {}) }));
+  h.seen = [];
+  const call = h.call;
+  h.call = (p) => { const r = call(p); h.seen.push({ action: typeof p === 'object' ? p.action : '?', r }); return r; };
+  h.scanAll = () => {
+    for (const { action, r } of h.seen) {
+      // not item fields: the profile's indicative level, the certificate level, the 0–4 self-rating scale
+      const leaks = blLeaks(r, action === 'profile' ? ['$.p3.level'] : action === 'me' ? ['$.certificates.level'] : [/^\$\.scale\[\d+\]\.level$/]);
+      eq(leaks, [], action + ' response carries no key, step, move, gate, level or charter: ' + leaks.slice(0, 3).join(', '));
+      ok(!BL_SECRET_TEXT.test(JSON.stringify(r)), action + ' response carries no explanation text');
+    }
+  };
+  return h;
+}
+
+/** A complete sitting through the API. Returns {s, res}. */
+function sitPart(h, tok, part, o = {}) {
+  const s = h.ok({ action: 'start', token: tok, assessment: 'baseline_p' + part });
+  if (part === 2) {
+    const sjt = s.sections[0].items;
+    const nx = h.ok({ action: 'baseline_next', token: tok, attempt_id: s.attempt_id, answers: sjtAnswers(sjt, o.miss || 0) });
+    const res = h.ok({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: rateAll(nx.section.items, o.self || 3) });
+    return { s, nx, res };
+  }
+  const answers = mcqAnswers(itemsOf(s), o.right === undefined ? 20 : o.right);
+  const body = { action: 'submit', token: tok, attempt_id: s.attempt_id, answers };
+  if (part === 3) body.self_ratings = o.selfRatings || SELF10;
+  return { s, res: h.ok(body) };
+}
+
+section('baseline v2: v1 removed, switches, Part 1 start shape, resume, result without feedback, once per part', () => {
+  const h = blHarness('2026-11-16T09:00:00+07:00', { config: { p1_open: 'FALSE' } });
+  const tok = h.login('T001');
+  h.err({ action: 'start', token: tok, assessment: 'baseline' }, 'bad_request');
+  h.err({ action: 'start', token: tok, assessment: 'baseline_p4' }, 'bad_request');
+  let me = h.ok({ action: 'me', token: tok });
+  eq(Object.keys(me.baseline).sort(), ['parts', 'profile_ready', 'rating', 'results_open', 'wave']);
+  eq([me.baseline.wave, me.baseline.results_open, me.baseline.profile_ready, me.baseline.rating], ['2026-11', false, false, null]);
+  eq(me.baseline.parts.p1, { open: false, status: 'not_started', minutes: 65, n_items: 32 });
+  eq(me.baseline.parts.p2, { open: true, status: 'not_started', minutes: 35, n_items: 38 });
+  eq(me.baseline.parts.p3, { open: true, status: 'not_started', minutes: 48, n_items: 28 });
+  eq(h.err({ action: 'start', token: tok, assessment: 'baseline_p1' }, 'not_open').opens_at, undefined, 'no dates gate the baseline');
+  h.setConfig('p1_open', 'TRUE');
+  const s = h.ok({ action: 'start', token: tok, assessment: 'baseline_p1' });
+  eq(Object.keys(s).sort(), ['answers', 'assessment', 'attempt_id', 'cases', 'deadline_at', 'exhibits', 'form', 'intro_en', 'intro_vi', 'module', 'ok', 'part',
+    'resumed', 'sections', 'server_now', 'started_at', 'time_limit_min', 'title_en', 'title_vi']);
+  eq([s.assessment, s.part, s.module, s.resumed, s.time_limit_min, s.deadline_at], ['baseline_p1', 1, '', false, 65, '2026-11-16T10:05:00+07:00']);
+  ok(s.form === 'B' || s.form === 'C', 'a live form');
+  eq(s.sections.map((x) => [x.id, x.items.length, x.locked]), [['A', 22, false], ['B', 10, false]]);
+  eq(Object.keys(s.sections[0]).sort(), ['id', 'intro_en', 'intro_vi', 'items', 'locked', 'title_en', 'title_vi']);
+  eq(s.sections[1].intro_en, 'Mock logic intro for form ' + s.form + '.');
+  eq(s.title_en, 'Part 1 · Mock problem solving');
+  const it = s.sections[0].items[2];
+  eq(Object.keys(it).sort(), ['case_id', 'exhibit_ids', 'item_id', 'options', 'section', 'stem_en', 'stem_vi', 'type']);
+  eq([it.type, it.section, it.case_id], ['mcq', 'A', 'C1']);
+  eq(itemsOf(s).every((x) => x.item_id.startsWith('MOCK-BL-1' + s.form + '-')), true, 'one form only');
+  eq(itemsOf(s).every((x) => x.options.length === 4 && x.options.every((o) => Object.keys(o).sort().join() === 'en,id,vi')), true);
+  eq(Object.keys(s.exhibits).sort(), ['C1', 'C2'].flatMap((c) => [`MOCK-EX-${s.form}-${c}-T1`, `MOCK-EX-${s.form}-${c}-T2`]).sort(), 'only the exhibits the items reference');
+  eq(Object.keys(s.exhibits[`MOCK-EX-${s.form}-C1-T1`]).sort(), ['md_en', 'md_vi', 'title_en', 'title_vi']);
+  eq(s.cases, { C1: { title_en: `Mock case one (${s.form})`, title_vi: `VI Mock case one (${s.form})` }, C2: { title_en: `Mock case two (${s.form})`, title_vi: `VI Mock case two (${s.form})` } });
+  eq(s.answers, {});
+  // save (no lock), resume: same order and options, saved answers back
+  const partial = mcqAnswers(s.sections[0].items.slice(0, 5), 5);
+  partial['MOCK-BL-2S01'] = { most: 'a', least: 'b' };
   const acq = h.lock.acquisitions;
-  const sv = h.ok({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: partial, self_ratings: { A2: 2, A3: 9, ZZ: 1 } });
-  eq(Object.keys(sv).sort(), ['ok', 'saved_at', 'server_now']);
-  eq(h.lock.acquisitions, acq, 'save never takes the script lock (F4)');
+  eq(Object.keys(h.ok({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: partial })).sort(), ['ok', 'saved_at', 'server_now']);
+  eq(h.lock.acquisitions, acq, 'save never takes the script lock');
   h.clock.advance(5 * MIN);
-  const r = h.ok({ action: 'start', token: tok, assessment: 'baseline' });
-  eq(r.resumed, true); eq(r.attempt_id, s.attempt_id);
-  eq(r.items, s.items, 'same items and option order on resume (F9)');
-  eq(r.answers, partial); eq(r.self_ratings, { A2: 2 }, 'invalid self-ratings dropped');
-  eq(h.ok({ action: 'me', token: tok }).baseline.status, 'in_progress');
-  eq(h.ok({ action: 'me', token: tok }).baseline.deadline_at, '2026-11-16T10:00:00+07:00');
-
-  // Part A required
-  const nine = Object.assign({}, SELF10); delete nine.P6;
-  eq(h.err({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: partial, self_ratings: nine }, 'bad_request').field, 'self_ratings');
-  const all = answersFor(s.items, 23); // 23 of 46 right
-  const res = h.ok({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: all, self_ratings: SELF10 });
-  eq(Object.keys(res).sort(), ['assessment', 'by_course', 'gaps', 'ok', 'score_pct', 'self', 'server_now']);
-  eq(res.score_pct, 50); eq(Object.keys(res.by_course), fx.COURSES); eq(res.self, SELF10);
-  // expected by course from the served order
-  const exp = {};
-  const counts = {};
-  s.items.forEach((it, i) => { counts[it.course] = counts[it.course] || [0, 0]; counts[it.course][0]++; if (i < 23) counts[it.course][1]++; });
-  for (const c of fx.COURSES) exp[c] = Math.round(100 * counts[c][1] / counts[c][0]);
-  eq(res.by_course, exp, 'by_course = Part B + case items per course');
-  const lows = fx.COURSES.slice().sort((a, b) => exp[a] - exp[b] || SELF10[a] - SELF10[b] || fx.COURSES.indexOf(a) - fx.COURSES.indexOf(b));
-  eq(res.gaps, lows.slice(0, 2));
-  eq(h.ok({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: {} }).score_pct, 50, 'idempotent submit');
-  h.err({ action: 'start', token: tok, assessment: 'baseline' }, 'already_submitted');
+  const r = h.ok({ action: 'start', token: tok, assessment: 'baseline_p1' });
+  eq([r.resumed, r.attempt_id, r.deadline_at], [true, s.attempt_id, s.deadline_at]);
+  eq(r.sections, s.sections, 'same items and option order on resume');
+  delete partial['MOCK-BL-2S01'];
+  eq(r.answers, partial, 'answers for items not served are dropped');
+  me = h.ok({ action: 'me', token: tok });
+  eq(me.baseline.parts.p1, { open: true, status: 'in_progress', minutes: 65, n_items: 32, attempt_id: s.attempt_id, started_at: s.started_at, deadline_at: s.deadline_at, form: s.form });
+  // closing the switch stops new starts, not a sitting in progress
+  h.setConfig('p1_open', 'FALSE');
+  h.err({ action: 'start', token: h.login('T002'), assessment: 'baseline_p1' }, 'not_open');
+  eq(h.ok({ action: 'start', token: tok, assessment: 'baseline_p1' }).resumed, true);
+  const res = h.ok({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: mcqAnswers(itemsOf(s), 24) });
+  eq(Object.keys(res).sort(), ['assessment', 'ok', 'part', 'server_now', 'submitted_at', 'time_used_s'], 'no score, no item feedback');
+  eq([res.assessment, res.part, res.submitted_at, res.time_used_s], ['baseline_p1', 1, '2026-11-16T09:05:00+07:00', 300]);
+  const row = h.table('Attempts').find((a) => a.attempt_id === s.attempt_id);
+  eq([row.status, row.part, row.n_items, row.n_correct, row.raw_pct, row.scaled_pct, row.score_pct, row.time_used_s, row.wave], ['submitted', '1', '32', '24', '75', '75', '75', '300', '2026-11']);
+  eq(JSON.parse(row.section_pct), { A: 100, B: 20 });
+  eq(Object.values(JSON.parse(row.by_step)).reduce((a, c) => a + c.n, 0), 32);
+  ok(JSON.parse(row.by_move).ASK.n > 0); ok(JSON.parse(row.by_course).A1.n > 0);
+  eq(h.ok({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: {} }), Object.assign({}, res, { server_now: '2026-11-16T09:05:00+07:00' }), 'idempotent');
+  eq(h.ok({ action: 'review', token: tok, attempt_id: s.attempt_id }).time_used_s, 300);
+  h.setConfig('p1_open', 'TRUE');
+  h.err({ action: 'start', token: tok, assessment: 'baseline_p1' }, 'already_submitted');
   h.err({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: {} }, 'already_submitted');
-  const me = h.ok({ action: 'me', token: tok });
-  eq(me.baseline.status, 'submitted'); eq(me.baseline.result.gaps, res.gaps); eq(me.baseline.result.score_pct, 50);
-  eq(h.ok({ action: 'review', token: tok, attempt_id: s.attempt_id }).by_course, exp);
-  eq(h.table('SelfRatings').filter((x) => x.employee_code === 'T001').length, 10);
+  me = h.ok({ action: 'me', token: tok });
+  eq(me.baseline.parts.p1, { open: true, status: 'submitted', minutes: 65, n_items: 32, attempt_id: s.attempt_id, started_at: s.started_at, submitted_at: res.submitted_at, form: s.form });
+  eq(me.baseline.profile_ready, false, 'results closed');
   const other = h.login('T002');
-  h.err({ action: 'review', token: other, attempt_id: s.attempt_id }, 'not_found');
   h.err({ action: 'save', token: other, attempt_id: s.attempt_id, answers: {} }, 'not_found');
+  h.err({ action: 'submit', token: other, attempt_id: s.attempt_id }, 'not_found');
+  h.err({ action: 'baseline_next', token: other, attempt_id: s.attempt_id }, 'not_found');
+  h.err({ action: 'baseline_next', token: tok, attempt_id: s.attempt_id }, 'bad_request');
+  h.scanAll();
+});
 
-  // 70-minute expiry graded from the last save (me path)
-  const s2 = h.ok({ action: 'start', token: other, assessment: 'baseline' });
-  h.clock.advance(10 * MIN);
-  h.ok({ action: 'save', token: other, attempt_id: s2.attempt_id, answers: answersFor(s2.items, 10, true), self_ratings: SELF10 });
-  h.clock.advance(59 * MIN); // 69 min: still inside the grace
-  h.ok({ action: 'save', token: other, attempt_id: s2.attempt_id, answers: answersFor(s2.items, 12, true), self_ratings: SELF10 });
-  h.clock.advance(2 * MIN); // 71 min
-  h.err({ action: 'save', token: other, attempt_id: s2.attempt_id, answers: answersFor(s2.items, 46) }, 'already_submitted');
-  const me2 = h.ok({ action: 'me', token: other });
-  eq(me2.baseline.status, 'submitted');
-  eq(me2.baseline.result.score_pct, Math.round(100 * 12 / 46), 'graded from the last save');
-  const row2 = h.table('Attempts').find((x) => x.attempt_id === s2.attempt_id);
-  eq(row2.status, 'expired'); eq(row2.submitted_at, '2026-11-16T10:15:00+07:00');
-
-  // expiry through submit: the late answers are ignored
-  const t3 = h.login('T003');
-  const s3 = h.ok({ action: 'start', token: t3, assessment: 'baseline' });
-  h.ok({ action: 'save', token: t3, attempt_id: s3.attempt_id, answers: answersFor(s3.items, 5, true), self_ratings: SELF10 });
-  h.clock.advance(71 * MIN);
-  const late = h.ok({ action: 'submit', token: t3, attempt_id: s3.attempt_id, answers: answersFor(s3.items, 46), self_ratings: SELF10 });
-  eq(late.score_pct, Math.round(100 * 5 / 46));
-  h.err({ action: 'start', token: t3, assessment: 'baseline' }, 'already_submitted');
-
-  // window ends 23:59:59 +07:00; an open attempt can still be resumed after it
-  h.clock.set(T('2026-11-27T23:59:59+07:00'));
-  const t4 = h.login('T004');
-  const s4 = h.ok({ action: 'start', token: t4, assessment: 'baseline' });
-  h.clock.set(T('2026-11-28T00:00:00+07:00'));
-  const t5 = h.login('T005');
-  const closed = h.err({ action: 'start', token: t5, assessment: 'baseline' }, 'not_open');
-  eq(closed.opens_at, undefined);
-  eq(h.ok({ action: 'me', token: t5 }).baseline.window, 'after');
-  h.clock.set(T('2026-11-28T00:30:00+07:00'));
-  eq(h.ok({ action: 'start', token: t4, assessment: 'baseline' }).resumed, true);
-  eq(h.ok({ action: 'submit', token: t4, attempt_id: s4.attempt_id, answers: {}, self_ratings: SELF10 }).score_pct, 0);
-
-  // re-test wave: the earlier wave shows as previous
-  h.setConfig('wave', '2027-12');
-  h.setConfig('baseline_open_from', '2027-11-29');
-  h.setConfig('baseline_open_to', '2027-12-10');
-  h.clock.set(T('2027-11-29T08:00:00+07:00'));
+section('baseline v2: Part 1 forms balance by role, Overrides give the backup, void lets a person re-sit, re-test swaps', () => {
+  const h = blHarness('2026-11-16T09:00:00+07:00');
+  const forms = {};
+  for (const c of ['T001', 'T002', 'T003', 'T004', 'T005', 'T006', 'T007', 'T008', 'T009']) forms[c] = h.ok({ action: 'start', token: h.login(c), assessment: 'baseline_p1' }).form;
+  eq(Object.values(forms).every((f) => f === 'B' || f === 'C'), true, 'never the backup without an override');
+  const demand = ['T001', 'T002', 'T003'].map((c) => forms[c]);
+  ok(demand.includes('B') && demand.includes('C'), 'balanced inside demand');
+  const supply = ['T004', 'T005', 'T006'].map((c) => forms[c]);
+  ok(supply.includes('B') && supply.includes('C'), 'balanced inside supply');
+  ok(forms.T007 !== forms.T008, 'materials: the second person gets the other form');
+  // Assign a Part 1 form… (menu) → backup for a person who saw a live form
+  h.ui.prompts.push('t010', 'a', 'saw a live form');
+  h.run('menuAssignP1Form');
+  ok(/T010 gets Part 1 form A/.test(h.ui.alerts.pop().message));
+  eq(h.table('Overrides').map((o) => [o.employee_code, o.wave, o.part, o.form, o.reason]), [['T010', '2026-11', '1', 'A', 'saw a live form']]);
+  const t10 = h.login('T010');
+  const s10 = h.ok({ action: 'start', token: t10, assessment: 'baseline_p1' });
+  eq(s10.form, 'A'); ok(itemsOf(s10).every((x) => x.item_id.startsWith('MOCK-BL-1A-')));
+  eq(Object.keys(s10.exhibits).every((x) => x.startsWith('MOCK-EX-A-')), true);
+  // a person with an attempt: the menu says to void it first; after the void they sit again with the override
+  const first = h.table('Attempts').find((a) => a.employee_code === 'T001');
+  h.ui.prompts.push('T001', 'A', 're-sit after a technical problem');
+  h.run('menuAssignP1Form');
+  ok(/void it first/.test(h.ui.alerts.pop().message));
   const t1 = h.login('T001');
-  const mb = h.ok({ action: 'me', token: t1 }).baseline;
-  eq(mb.wave, '2027-12'); eq(mb.status, 'not_started'); eq(mb.window, 'open');
-  eq(mb.previous, { wave: '2026-11', score_pct: 50, by_course: exp });
-  eq(h.ok({ action: 'start', token: t1, assessment: 'baseline' }).items.length, 46, 'same items in the re-test');
+  eq(h.ok({ action: 'start', token: t1, assessment: 'baseline_p1' }).attempt_id, first.attempt_id, 'still resumes the open attempt');
+  h.ui.prompts.push(first.attempt_id, 'technical problem');
+  h.run('menuVoidAttempt');
+  const again = h.ok({ action: 'start', token: t1, assessment: 'baseline_p1' });
+  ok(again.attempt_id !== first.attempt_id); eq(again.form, 'A');
+  // re-test wave: the other live form; the earlier wave shows as previous
+  const t2 = h.login('T002');
+  h.ok({ action: 'submit', token: t2, attempt_id: h.ok({ action: 'start', token: t2, assessment: 'baseline_p1' }).attempt_id, answers: {} });
+  h.setConfig('wave', '2027-12');
+  h.clock.set(T('2027-11-29T09:00:00+07:00'));
+  const t2b = h.login('T002');
+  const mb = h.ok({ action: 'me', token: t2b }).baseline;
+  eq([mb.wave, mb.parts.p1.status, mb.previous], ['2027-12', 'not_started', { wave: '2026-11', parts_done: [1] }]);
+  eq(h.ok({ action: 'start', token: t2b, assessment: 'baseline_p1' }).form, forms.T002 === 'B' ? 'C' : 'B', 'the live form not taken last wave');
+  h.scanAll();
+});
+
+section('baseline v2: Part 2 SJT lock, rating statements withheld until then, frozen answers, self-ratings to Ratings', () => {
+  const h = blHarness('2026-11-16T09:00:00+07:00');
+  const tok = h.login('T004');
+  const s = h.ok({ action: 'start', token: tok, assessment: 'baseline_p2' });
+  eq(Object.keys(s).sort(), ['answers', 'assessment', 'attempt_id', 'deadline_at', 'form', 'intro_en', 'intro_vi', 'module', 'ok', 'part', 'rating_scale',
+    'resumed', 'sections', 'server_now', 'started_at', 'time_limit_min', 'title_en', 'title_vi']);
+  eq([s.form, s.time_limit_min, s.deadline_at], ['ONE', 35, '2026-11-16T09:35:00+07:00']);
+  eq(s.sections.map((x) => [x.id, x.items.length, x.locked]), [['SJT', 15, false], ['RATE', 0, false]], 'no statement before the SJT is locked');
+  eq(Object.keys(s.sections[0].items[0]).sort(), ['item_id', 'options', 'stem_en', 'stem_vi', 'type']);
+  eq(s.rating_scale, { points: [1, 2, 3, 4].map((v, i) => ({ v, en: v + ' · ' + ['Rarely', 'Sometimes', 'Often', 'Almost always'][i], vi: 'VI ' + v + ' · ' + ['Rarely', 'Sometimes', 'Often', 'Almost always'][i] })), nr: { en: 'Not my role', vi: 'VI Not my role' } });
+  ok(!/mock behaviour|MOCK-BL-2R/.test(JSON.stringify(s)), 'no rating text or id before the lock');
+  const sjt = s.sections[0].items;
+  h.err({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: {} }, 'bad_request');
+  eq(h.call({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: {} }).error.field, 'SJT');
+  // rating answers before the lock are dropped; an incomplete or most = least SJT cannot lock (but is saved)
+  const keyed = sjtAnswers(sjt);
+  const part = Object.assign({}, keyed); delete part[sjt[14].item_id];
+  part['MOCK-BL-2R01'] = 4;
+  eq(h.err({ action: 'baseline_next', token: tok, attempt_id: s.attempt_id, answers: part }, 'bad_request').field, sjt[14].item_id);
+  const same = Object.assign({}, keyed, { [sjt[3].item_id]: { most: 'c', least: 'c' } });
+  eq(h.err({ action: 'baseline_next', token: tok, attempt_id: s.attempt_id, answers: same }, 'bad_request').field, sjt[3].item_id, 'most = least rejected');
+  const r1 = h.ok({ action: 'start', token: tok, assessment: 'baseline_p2' });
+  eq(r1.answers[sjt[3].item_id], { most: 'c', least: 'c' }, 'saved anyway'); eq(r1.answers['MOCK-BL-2R01'], undefined); eq(r1.sections[1].items, []);
+  // lock: 2 of 30 points lost on purpose (one wrong least pick in the first item)
+  const lockAns = sjtAnswers(sjt, 1);
+  const nx = h.ok({ action: 'baseline_next', token: tok, attempt_id: s.attempt_id, answers: lockAns });
+  eq(Object.keys(nx).sort(), ['locked', 'ok', 'section', 'server_now']); eq(nx.locked, ['SJT']);
+  eq([nx.section.id, nx.section.locked, nx.section.items.length, nx.section.title_en], ['RATE', false, 23, '2B · Mock self-rating']);
+  const ri = nx.section.items;
+  eq(Object.keys(ri[0]).sort(), ['allow_nr', 'anchor1_en', 'anchor1_vi', 'anchor4_en', 'anchor4_vi', 'item_id', 'text_en', 'text_vi', 'type']);
+  eq(ri.filter((x) => x.allow_nr).map((x) => x.item_id), fx.NR_POSITIONS.map((n) => 'MOCK-BL-2R' + String(n).padStart(2, '0')));
+  eq(ri[0].text_en, 'I do mock behaviour 1.', 'self wording');
+  eq(h.ok({ action: 'baseline_next', token: tok, attempt_id: s.attempt_id, answers: keyed }).section.items.length, 23, 'idempotent once locked');
+  // after the lock: SJT answers are frozen (save and submit cannot change them)
+  const changed = Object.assign(rateAll(ri, 2), sjtAnswers(sjt));
+  h.ok({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: changed });
+  const r2 = h.ok({ action: 'start', token: tok, assessment: 'baseline_p2' });
+  eq(r2.sections.map((x) => [x.id, x.items.length, x.locked]), [['SJT', 15, true], ['RATE', 23, false]]);
+  eq(r2.answers[sjt[0].item_id], lockAns[sjt[0].item_id], 'frozen at the lock');
+  eq(r2.answers['MOCK-BL-2R05'], 2, 'ratings saved after the lock');
+  // every statement must be answered; NR only where allowed
+  const rates = rateAll(ri, (x) => (x.allow_nr ? 'NR' : x.item_id.endsWith('01') ? 4 : 2));
+  const missing = Object.assign({}, rates); delete missing['MOCK-BL-2R07'];
+  eq(h.err({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: missing }, 'bad_request').field, 'MOCK-BL-2R07');
+  eq(h.err({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: Object.assign({}, rates, { 'MOCK-BL-2R04': 'NR' }) }, 'bad_request').field, 'MOCK-BL-2R04');
+  const res = h.ok({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: Object.assign({}, rates, sjtAnswers(sjt)) });
+  eq(Object.keys(res).sort(), ['assessment', 'ok', 'part', 'server_now', 'submitted_at', 'time_used_s']);
+  const row = h.table('Attempts').find((a) => a.attempt_id === s.attempt_id);
+  eq([row.n_items, row.n_correct, row.raw_pct, row.score_pct], ['30', '29', '97', '97'], 'graded on the frozen SJT answers');
+  const bc = JSON.parse(row.by_charter);
+  eq(Object.keys(bc), ['1', '2', '3', '4', '5', 'QWS']);
+  eq(bc['1'], { sjt_points: 5, sjt_max: 6, self_mean: 2.7 }, 'NR left out of the mean: (4 + 2 + 2) / 3'); eq(bc.QWS, { sjt_points: 0, sjt_max: 0, self_mean: 2 });
+  const ratings = h.table('Ratings').filter((x) => x.ratee_code === 'T004');
+  eq(ratings.length, 23); eq(ratings.every((x) => x.rater_code === 'T004' && x.rater_role === 'self' && x.wave === '2026-11'), true);
+  eq(ratings.filter((x) => x.value === 'NR').length, 3);
+  // a voided Part 2 clears its self-ratings, and the person can sit again
+  h.run('voidAttempt_', s.attempt_id, 'pilot');
+  eq(h.table('Ratings').filter((x) => x.ratee_code === 'T004' && x.value !== '').length, 0);
+  sitPart(h, tok, 2, { self: 4 });
+  eq(h.table('Ratings').filter((x) => x.ratee_code === 'T004').map((x) => x.value), Array(23).fill('4'), 'upserted, not duplicated');
+  h.scanAll();
+});
+
+section('baseline v2: Part 3 module routing, self-rating opener, glossary, exhibits, level and gate stored', () => {
+  const h = blHarness('2026-11-16T09:00:00+07:00');
+  h.updateWhere('Roster', 'employee_code', 'T005', { p3_module: 'rpm' });
+  h.run('resetRequest_');
+  const tok = h.login('T001');
+  const s = h.ok({ action: 'start', token: tok, assessment: 'baseline_p3' });
+  eq(Object.keys(s).sort(), ['answers', 'assessment', 'attempt_id', 'deadline_at', 'exhibits', 'form', 'glossary', 'intro_en', 'intro_vi', 'module', 'ok', 'part',
+    'resumed', 'scale', 'sections', 'self', 'self_ratings', 'server_now', 'started_at', 'time_limit_min', 'title_en', 'title_vi']);
+  eq([s.module, s.time_limit_min, s.intro_en], ['DP', 48, 'Mock intro for Part 3.']);
+  eq(s.sections.map((x) => [x.id, x.items.length, x.title_en]), [['CORE', 10, 'Mock S&OP core'], ['MOD', 18, 'Mock module DP']]);
+  eq(s.sections[1].items.every((x) => x.item_id.startsWith('MOCK-BL-3DP') && x.section === 'MOD'), true);
+  eq(Object.keys(s.exhibits).sort(), ['MOCK-EX-3-CORE-1', 'MOCK-EX-3-DP-1']);
+  eq(s.glossary, { en: ['FA: mock forecast accuracy', 'Bias: mock bias', 'FVA: mock value added'], vi: ['VI FA: mock forecast accuracy', 'VI Bias: mock bias', 'VI FVA: mock value added'] });
+  eq(s.self.map((x) => x.course), fx.COURSES); eq(s.scale.length, 5); eq(s.self_ratings, {});
+  eq(h.ok({ action: 'start', token: h.login('T005'), assessment: 'baseline_p3' }).module, 'RPM', 'Roster.p3_module wins over role_area');
+  eq(h.ok({ action: 'start', token: h.login('T007'), assessment: 'baseline_p3' }).module, 'RPM', 'materials → RPM');
+  eq(h.err({ action: 'start', token: h.login('T050'), assessment: 'baseline_p3' }, 'not_found').message, 'No Part 3 module is set for you yet. Please ask HR.');
+  // self-ratings saved, required at submit
+  h.ok({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: {}, self_ratings: { A2: 2, A3: 9 } });
+  eq(h.ok({ action: 'start', token: tok, assessment: 'baseline_p3' }).self_ratings, { A2: 2 });
+  const nine = Object.assign({}, SELF10); delete nine.P6;
+  const all = mcqAnswers(itemsOf(s), 28);
+  eq(h.err({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: all, self_ratings: nine }, 'bad_request').field, 'self_ratings');
+  h.ok({ action: 'submit', token: tok, attempt_id: s.attempt_id, answers: all, self_ratings: SELF10 });
+  const row = h.table('Attempts').find((a) => a.attempt_id === s.attempt_id);
+  eq([row.module, row.n_items, row.n_correct, row.raw_pct], ['DP', '28', '28', '100']);
+  eq(JSON.parse(row.section_pct), { CORE: 100, MOD: 100 });
+  eq(Object.keys(JSON.parse(row.by_level)), ['BA', 'WK', 'FO', 'LE']); ok(Object.keys(JSON.parse(row.by_gate)).length > 1);
+  eq(JSON.parse(row.self_ratings), SELF10);
+  eq(h.table('SelfRatings').filter((x) => x.employee_code === 'T001').length, 10);
+  h.scanAll();
+});
+
+section('baseline v2: one timer per part + grace, auto-submit from the last save (me, start, submit, baseline_next)', () => {
+  const h = blHarness('2026-11-16T09:00:00+07:00');
+  const tok = h.login('T001');
+  const s = h.ok({ action: 'start', token: tok, assessment: 'baseline_p1' });
+  h.clock.advance(64 * MIN);
+  h.ok({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: mcqAnswers(itemsOf(s).slice(0, 10), 10) });
+  h.clock.advance(5 * MIN); // 69 min: inside the 5-min grace
+  h.ok({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: mcqAnswers(itemsOf(s).slice(0, 12), 12) });
+  h.clock.advance(2 * MIN); // 71 min
+  h.err({ action: 'save', token: tok, attempt_id: s.attempt_id, answers: mcqAnswers(itemsOf(s), 32) }, 'already_submitted');
+  const me = h.ok({ action: 'me', token: tok });
+  eq(me.baseline.parts.p1.status, 'submitted');
+  const row = h.table('Attempts').find((a) => a.attempt_id === s.attempt_id);
+  eq([row.status, row.submitted_at, row.n_correct, row.time_used_s], ['expired', '2026-11-16T10:10:00+07:00', '12', '3900'], 'graded from the last save at deadline + grace');
+  // through submit: late answers ignored
+  const t2 = h.login('T002');
+  const s2 = h.ok({ action: 'start', token: t2, assessment: 'baseline_p3' });
+  h.ok({ action: 'save', token: t2, attempt_id: s2.attempt_id, answers: mcqAnswers(itemsOf(s2).slice(0, 5), 5) });
+  h.clock.advance(54 * MIN);
+  const late = h.ok({ action: 'submit', token: t2, attempt_id: s2.attempt_id, answers: mcqAnswers(itemsOf(s2), 28), self_ratings: SELF10 });
+  eq(late.time_used_s, 48 * 60);
+  eq(h.table('Attempts').find((a) => a.attempt_id === s2.attempt_id).n_correct, '5', 'no self-rating check on an expiry');
+  // Part 2 expiring before the lock: SJT graded from the save, no ratings
+  const t3 = h.login('T003');
+  const s3 = h.ok({ action: 'start', token: t3, assessment: 'baseline_p2' });
+  h.ok({ action: 'save', token: t3, attempt_id: s3.attempt_id, answers: sjtAnswers(s3.sections[0].items.slice(0, 4)) });
+  h.clock.advance(41 * MIN);
+  h.err({ action: 'baseline_next', token: t3, attempt_id: s3.attempt_id, answers: sjtAnswers(s3.sections[0].items) }, 'already_submitted');
+  const r3 = h.table('Attempts').find((a) => a.attempt_id === s3.attempt_id);
+  eq([r3.status, r3.n_correct], ['expired', '8']);
+  eq(h.table('Ratings').filter((x) => x.ratee_code === 'T003').length, 0);
+  // through start: the expired attempt is graded first, then already_submitted
+  const t4 = h.login('T004');
+  const s4 = h.ok({ action: 'start', token: t4, assessment: 'baseline_p2' });
+  h.clock.advance(41 * MIN);
+  h.err({ action: 'start', token: t4, assessment: 'baseline_p2' }, 'already_submitted');
+  eq(h.table('Attempts').find((a) => a.attempt_id === s4.attempt_id).status, 'expired');
+  // a timer change in Config does not move a sitting that already started
+  const t5 = h.login('T005');
+  const s5 = h.ok({ action: 'start', token: t5, assessment: 'baseline_p1' });
+  h.setConfig('p1_minutes', '10');
+  eq(h.ok({ action: 'start', token: t5, assessment: 'baseline_p1' }).deadline_at, s5.deadline_at);
+  h.scanAll();
+});
+
+section('baseline v2: manager rating (rate_list / rate_get / rate_save), rating_open switch, forbidden for non-reports', () => {
+  const h = blHarness('2026-11-16T09:00:00+07:00');
+  h.updateWhere('Roster', 'employee_code', 'T010', { manager_code: 'T050' });
+  h.run('resetRequest_');
+  const learner = h.login('T001');
+  h.err({ action: 'rate_list', token: learner }, 'forbidden');
+  h.err({ action: 'rate_get', token: learner, ratee: 'T002' }, 'forbidden');
+  h.err({ action: 'rate_save', token: learner, ratee: 'T002', values: {} }, 'forbidden');
+  const mgr = h.login('T010');
+  let rl = h.ok({ action: 'rate_list', token: mgr });
+  eq(Object.keys(rl).sort(), ['ok', 'open', 'reports', 'server_now', 'wave']);
+  eq([rl.open, rl.wave], [false, '2026-11']);
+  eq(rl.reports.map((r) => r.code), ['T001', 'T002', 'T003', 'T004'], 'test user T040 and inactive T060 are not listed');
+  eq(rl.reports[0], { code: 'T001', first_name: 'Alpha', role_area: 'demand', status: 'not_started', saved_at: null });
+  h.err({ action: 'rate_get', token: mgr, ratee: 'T001' }, 'not_open');
+  h.err({ action: 'rate_save', token: mgr, ratee: 'T001', values: { 'MOCK-BL-2R01': 3 } }, 'not_open');
+  eq(h.ok({ action: 'me', token: mgr }).baseline.rating, { open: false, to_rate: 4, done: 0 });
+  h.setConfig('rating_open', 'TRUE');
+  const g = h.ok({ action: 'rate_get', token: mgr, ratee: 't001' });
+  eq(Object.keys(g).sort(), ['guide_en', 'guide_vi', 'items', 'ok', 'open', 'ratee', 'saved_at', 'scale', 'server_now', 'values']);
+  eq([g.open, g.ratee, g.values, g.saved_at], [true, { code: 'T001', first_name: 'Alpha' }, {}, null]);
+  eq(g.items.length, 23); eq(Object.keys(g.items[0]).sort(), ['anchor1_en', 'anchor1_vi', 'anchor4_en', 'anchor4_vi', 'item_id', 'text_en', 'text_vi']);
+  eq(g.items[0].text_en, 'He/she does mock behaviour 1.', 'manager wording');
+  eq(g.scale.points.length, 4); eq(g.scale.na, { en: 'N/A · not observed', vi: 'VI N/A · not observed' });
+  ok(g.guide_en.includes('**seen**'), 'rater guide (Markdown text)');
+  h.err({ action: 'rate_get', token: mgr, ratee: 'T005' }, 'forbidden');
+  h.err({ action: 'rate_get', token: mgr, ratee: 'T040' }, 'forbidden');
+  h.err({ action: 'rate_save', token: mgr, ratee: 'T005', values: { 'MOCK-BL-2R01': 3 } }, 'forbidden');
+  h.err({ action: 'rate_save', token: mgr, ratee: 'T060', values: { 'MOCK-BL-2R01': 3 } }, 'forbidden');
+  eq(h.err({ action: 'rate_save', token: mgr, ratee: 'T001', values: { 'MOCK-BL-2R01': 5 } }, 'bad_request').field, 'MOCK-BL-2R01');
+  eq(h.err({ action: 'rate_save', token: mgr, ratee: 'T001', values: { 'MOCK-BL-2R03': 'NR' } }, 'bad_request').field, 'MOCK-BL-2R03', 'NR is for the self form only');
+  const half = h.ok({ action: 'rate_save', token: mgr, ratee: 'T001', values: { 'MOCK-BL-2R01': 3, 'MOCK-BL-2R02': 'na' } });
+  eq(Object.keys(half).sort(), ['complete', 'ok', 'saved_at', 'server_now']); eq(half.complete, false);
+  eq(h.ok({ action: 'rate_list', token: mgr }).reports[0].status, 'in_progress');
+  const full = rateAll(g.items, (x) => (x.item_id === 'MOCK-BL-2R02' ? 'NA' : 2));
+  eq(h.ok({ action: 'rate_save', token: mgr, ratee: 'T001', values: full }).complete, true);
+  h.clock.advance(MIN);
+  h.ok({ action: 'rate_save', token: mgr, ratee: 'T001', values: { 'MOCK-BL-2R01': 4 } });
+  const rows = h.table('Ratings').filter((x) => x.ratee_code === 'T001' && x.rater_role === 'manager');
+  eq(rows.length, 23, 'one row per statement (edits update in place)');
+  eq(rows.find((x) => x.item_id === 'MOCK-BL-2R01').value, '4'); eq(rows.find((x) => x.item_id === 'MOCK-BL-2R02').value, 'NA');
+  rl = h.ok({ action: 'rate_list', token: mgr });
+  eq([rl.reports[0].status, rl.reports[0].saved_at], ['complete', '2026-11-16T09:01:00+07:00']);
+  eq(h.ok({ action: 'rate_get', token: mgr, ratee: 'T001' }).values['MOCK-BL-2R02'], 'NA');
+  eq(h.ok({ action: 'me', token: mgr }).baseline.rating, { open: true, to_rate: 4, done: 1 });
+  eq(h.ok({ action: 'me', token: learner }).baseline.rating, null);
+  // admins rate their own reports (Quân rates the managers); a manager can be a ratee
+  const admin = h.login('T050');
+  eq(h.ok({ action: 'rate_list', token: admin }).reports.map((r) => r.code), ['T010']);
+  h.ok({ action: 'rate_save', token: admin, ratee: 'T010', values: { 'MOCK-BL-2R01': 3 } });
+  h.err({ action: 'rate_save', token: admin, ratee: 'T001', values: { 'MOCK-BL-2R01': 3 } }, 'forbidden');
+  h.setConfig('rating_open', 'FALSE');
+  h.err({ action: 'rate_save', token: mgr, ratee: 'T001', values: full }, 'not_open');
+  eq(h.ok({ action: 'rate_list', token: mgr }).open, false);
+  ok(h.table('Log').some((r) => r.action === 'rate_save' && r.employee_code === 'T010'));
+  ok(!h.table('Log').some((r) => /MOCK-BL/.test(r.message)), 'no item ids or values in the Log');
+  h.scanAll();
+});
+
+section('baseline v2: profile hidden until results_open; buildProfiles, equating, flags, team_summary, team_status, hourly job', () => {
+  const roster = fx.testRoster().map((p) => (p.employee_code === 'T030' ? Object.assign({}, p, { must_change_pin: 'FALSE', consent_at: '2026-11-01T09:00:00+07:00' }) : p));
+  const h = blHarness('2026-11-16T09:00:00+07:00', { roster, config: { rating_open: 'TRUE' } });
+  // Part 1: two on the backup (overrides), the live forms far apart → equating applies (reference Form A)
+  for (const c of ['T008', 'T009']) h.run('assignP1Form_', c, 'A', 'fixture', 'test');
+  const p1 = {};
+  const scoreFor = { A: [16, 24], B: [16, 20, 24], C: [24, 28, 32] };
+  const used = { A: 0, B: 0, C: 0 };
+  for (const c of ['T001', 'T002', 'T003', 'T004', 'T005', 'T006', 'T007', 'T008', 'T009']) {
+    const t = h.login(c);
+    const s = h.ok({ action: 'start', token: t, assessment: 'baseline_p1' });
+    const list = scoreFor[s.form];
+    const right = list[Math.min(used[s.form]++, list.length - 1)];
+    h.ok({ action: 'submit', token: t, attempt_id: s.attempt_id, answers: mcqAnswers(itemsOf(s), right) });
+    p1[c] = { form: s.form, raw: Math.round(100 * right / 32) };
+  }
+  // Parts 2 and 3 for T001 (all three parts) and some others; manager ratings for T001
+  const t1 = h.login('T001');
+  sitPart(h, t1, 2, { self: 4 });
+  sitPart(h, t1, 3, { right: 14, selfRatings: Object.assign({}, SELF10, { P4: 4, A2: 3 }) });
+  for (const c of ['T002', 'T003', 'T005']) { const t = h.login(c); sitPart(h, t, 2, { self: 3 }); sitPart(h, t, 3, { right: 20 }); }
+  const mgr = h.login('T010');
+  const items = h.ok({ action: 'rate_get', token: mgr, ratee: 'T001' }).items;
+  h.ok({ action: 'rate_save', token: mgr, ratee: 'T001', values: rateAll(items, (x) => (x.item_id === 'MOCK-BL-2R05' ? 1 : x.item_id === 'MOCK-BL-2R06' ? 1 : 2)) });
+  for (const c of ['T002', 'T003']) h.ok({ action: 'rate_save', token: mgr, ratee: c, values: rateAll(items, 3) });
+
+  // before results_open: no profile, no team numbers
+  h.err({ action: 'profile', token: t1 }, 'not_open');
+  eq(h.ok({ action: 'me', token: t1 }).baseline.profile_ready, false);
+  h.run('buildSummary');
+  let ts = h.ok({ action: 'team_summary', token: t1 });
+  eq([ts.baseline_published, ts.baseline_publish_after, ts.baseline], [false, null, []]);
+  eq(h.table('Profiles').length, 0, 'the hourly job builds profiles only while results_open');
+  const st = h.ok({ action: 'team_status', token: mgr });
+  eq(st.reports.find((r) => r.code === 'T001').baseline, { p1: 'done', p2: 'done', p3: 'done' });
+  eq(st.reports.find((r) => r.code === 'T004').baseline, { p1: 'done', p2: 'not_done', p3: 'not_done' });
+  const t4 = h.login('T004');
+  h.ok({ action: 'start', token: t4, assessment: 'baseline_p3' });
+  eq(h.ok({ action: 'team_status', token: mgr }).reports.find((r) => r.code === 'T004').baseline.p3, 'in_progress');
+  ok(!/pct|score|n_correct/.test(JSON.stringify(h.ok({ action: 'team_status', token: mgr }))), 'no scores in team_status');
+
+  // results open: live profile first (not built yet), then the built row
+  h.setConfig('results_open', 'TRUE');
+  eq(h.ok({ action: 'me', token: t1 }).baseline.profile_ready, true);
+  eq(h.ok({ action: 'me', token: h.login('T030') }).baseline.profile_ready, false, 'nothing submitted');
+  h.err({ action: 'profile', token: h.login('T030') }, 'not_found');
+  const live = h.ok({ action: 'profile', token: t1 });
+  eq(Object.keys(live).sort(), ['built_at', 'courses', 'gaps', 'ok', 'p1', 'p2', 'p3', 'server_now', 'wave']);
+  const n = h.run('buildProfiles');
+  eq(n, 9, 'one profile per person with a submitted part (T001–T009)');
+  const prow = h.table('Profiles').find((r) => r.employee_code === 'T001');
+  eq([prow.wave, prow.built_at], ['2026-11', '2026-11-16T09:00:00+07:00']);
+  const p = h.ok({ action: 'profile', token: t1 });
+  eq(p.built_at, '2026-11-16T09:00:00+07:00');
+  eq(Object.keys(p.p1).sort(), ['by_move', 'by_step', 'form', 'raw_pct', 'scaled_pct', 'section_A_pct', 'section_B_pct']);
+  eq([p.p1.form, p.p1.raw_pct], [p1.T001.form, p1.T001.raw]);
+  eq(Object.keys(p.p2).sort(), ['by_charter', 'mgr_mean', 'self_mean', 'sjt_pct', 'top_dev']);
+  eq([p.p2.sjt_pct, p.p2.self_mean], [100, 4]);
+  eq(Object.keys(p.p2.by_charter), ['1', '2', '3', '4', '5', 'QWS']);
+  eq(Object.keys(p.p2.by_charter['1']).sort(), ['flags', 'index', 'mgr_mean', 'name_en', 'name_vi', 'self_mean', 'sjt_band']);
+  eq(p.p2.by_charter['1'], { name_en: 'Mock charter 1', name_vi: 'VI Mock charter 1', sjt_band: 'high', self_mean: 4, mgr_mean: 2, index: Math.round(0.5 * 100 + 0.5 * 100 / 3), flags: ['blind_spot', 'knowing_doing'] });
+  eq(p.p2.top_dev.map((x) => x.item_id), ['MOCK-BL-2R05', 'MOCK-BL-2R06']);
+  eq(Object.keys(p.p2.top_dev[0]).sort(), ['item_id', 'text_en', 'text_vi']);
+  eq([p.p3.module, p.p3.total_pct, p.p3.core_pct], ['DP', 50, 100]);
+  eq(Object.keys(p.p3).sort(), ['by_gate', 'by_level', 'core_pct', 'level', 'module', 'module_pct', 'total_pct']);
+  eq(p.courses.P4, { self: 4, score_pct: p.p3.module_pct, flag: p.p3.module_pct < 50 });
+  eq(p.courses.A3, { self: SELF10.A3, score_pct: null, flag: false });
+  eq(p.gaps.length, 2); eq(Object.keys(p.gaps[0]).sort(), ['area', 'name_en', 'name_vi', 'pct']);
+  ok(!JSON.stringify(p).includes('"values"'), 'no item-level manager ratings in the profile');
+  // equating: B and C means differ by > 5 points → mean-sigma onto Form A (two backup takers)
+  const att = h.table('Attempts').filter((a) => a.assessment === 'baseline_p1');
+  const byForm = (f) => att.filter((a) => a.form === f);
+  ok(byForm('A').length === 2 && byForm('B').length >= 2 && byForm('C').length >= 2, 'all three forms sat');
+  const L = require('../Logic.gs');
+  const stats = Object.fromEntries(['A', 'B', 'C'].map((f) => [f, L.meanSd(byForm(f).map((a) => +a.raw_pct))]));
+  for (const a of byForm('C')) eq(+a.scaled_pct, L.equateLinear(+a.raw_pct, stats.C, stats.A), 'C onto A for ' + a.employee_code);
+  for (const a of byForm('A')) eq(a.scaled_pct, a.raw_pct, 'Form A is the reference');
+  // team numbers: published while results_open, from the Summary tab only
+  ts = h.ok({ action: 'team_summary', token: t1 });
+  eq([ts.baseline_published, ts.baseline], [true, []], 'never computed on a request');
+  h.run('buildSummary');
+  ts = h.ok({ action: 'team_summary', token: t1 });
+  eq(ts.baseline.map((g) => g.group), ['all', 'demand', 'supply']);
+  eq(Object.keys(ts.baseline[0]).sort(), ['group', 'n', 'p1_pct', 'p2_mgr_mean', 'p2_sjt_pct', 'p3_core_pct']);
+  eq(ts.baseline[0].n, 9, 'managers and test users left out');
+  ok(Number.isInteger(ts.baseline[0].p1_pct)); eq(ts.baseline[0].p2_mgr_mean, round1((2 * 21 + 1 * 2 + 3 * 23 * 2) / (23 * 3)));
+  eq(ts.baseline[0].p3_core_pct, 100); ok(Number.isInteger(ts.baseline[0].p2_sjt_pct));
+  eq([ts.baseline[1].p2_sjt_pct, ts.baseline[2].p2_sjt_pct], [null, null], 'supply has 1 Part 2 (< 3), so demand is hidden too (complement rule)');
+  eq(ts.baseline[1].p2_mgr_mean, ts.baseline[0].p2_mgr_mean, 'demand = the 3 rated people');
+  ok(!/T00|Alpha/.test(JSON.stringify(ts)));
+  // the hourly job (buildSummary) also rebuilds profiles while results_open
+  h.clock.advance(H);
+  h.run('buildSummary');
+  eq(h.table('Profiles').find((r) => r.employee_code === 'T001').built_at, '2026-11-16T10:00:00+07:00');
+  h.setConfig('results_open', 'FALSE');
+  h.err({ action: 'profile', token: t1 }, 'not_open');
+  eq(h.ok({ action: 'team_summary', token: t1 }).baseline, []);
+  h.scanAll();
 });
 
 // ============================================================ predict, checkpoint, recall, watch
@@ -514,61 +883,26 @@ section('watch: ticks saved per episode, reflected in me', () => {
 });
 
 // ============================================================ team views, capstone, panel
-section('team_summary: published only after the window, per-metric counts, never live; team_status', () => {
+section('team_summary: checkpoint numbers published only after the late window, per-metric counts, never live; team_status', () => {
   const roster = fx.testRoster().concat([Object.assign(fx.testRoster().find((p) => p.employee_code === 'T010'),
     { employee_code: 'T011', display_name: 'Fixture Manager Quebec', manager_code: 'T010' })]);
-  const h = harness('2026-11-16T09:00:00+07:00', { roster });
-  const takers = ['T001', 'T002', 'T003', 'T004', 'T005', 'T006', 'T007', 'T008', 'T010', 'T011', 'T040'];
-  takers.forEach((c, i) => {
-    const t = h.login(c);
-    const s = h.ok({ action: 'start', token: t, assessment: 'baseline' });
-    const self = Object.fromEntries(fx.COURSES.map((k) => [k, (i + 1) % 5]));
-    h.ok({ action: 'submit', token: t, attempt_id: s.attempt_id, answers: answersFor(s.items, 10 + i * 3), self_ratings: self });
-  });
+  const h = harness('2027-01-05T09:00:00+07:00', { roster });
   const tok = h.login('T001');
   let ts = h.ok({ action: 'team_summary', token: tok });
   eq(Object.keys(ts).sort(), ['baseline', 'baseline_publish_after', 'baseline_published', 'checkpoints', 'min_n', 'ok', 'server_now', 'updated_at', 'wave']);
-  eq([ts.min_n, ts.wave, ts.baseline_published, ts.baseline_publish_after], [3, '2026-11', false, '2026-11-27']);
-  eq([ts.baseline, ts.checkpoints, ts.updated_at], [[], [], null], 'nothing while the window is open');
-  h.run('buildSummary');
-  eq(h.table('Summary').length, 0, 'the hourly rebuild publishes nothing during the window');
-  eq(h.ok({ action: 'team_summary', token: tok }).baseline, []);
-  // one learner abandons the baseline just before the window closes: graded at publication
-  h.clock.set(T('2026-11-27T23:30:00+07:00'));
-  const t9 = h.login('T009');
-  const s9 = h.ok({ action: 'start', token: t9, assessment: 'baseline' });
-  h.ok({ action: 'save', token: t9, attempt_id: s9.attempt_id, answers: answersFor(s9.items, 20, true), self_ratings: SELF10 });
-  h.clock.set(T('2026-11-28T01:09:59+07:00'));
-  h.run('buildSummary');
-  eq(h.ok({ action: 'team_summary', token: h.login('T001') }).baseline_published, false, 'still inside timer + grace');
-  eq(h.table('Summary').length, 0);
-  h.clock.set(T('2026-11-28T01:10:01+07:00'));
-  ts = h.ok({ action: 'team_summary', token: h.login('T001') });
-  eq([ts.baseline_published, ts.baseline], [true, []], 'never computed on a request: empty until the rebuild');
-  h.run('buildSummary');
-  eq(h.table('Attempts').find((a) => a.attempt_id === s9.attempt_id).status, 'expired', 'rebuild grades abandoned baselines first');
-  ts = h.ok({ action: 'team_summary', token: h.login('T001') });
-  eq(ts.baseline.map((g) => [g.group, g.n]), [['all', 9], ['demand', 3], ['supply', 3]], 'materials (2) and cs (1) hidden; managers and test user never counted');
-  eq(Object.keys(ts.baseline[0].courses), fx.COURSES);
-  eq(Object.keys(ts.baseline[0].courses.A2).sort(), ['pct', 'self']);
-  eq(ts.baseline[1].courses.A2.self, round1((1 + 2 + 3) / 3));
-  ok(Number.isInteger(ts.baseline[0].courses.A2.pct));
-  eq(ts.updated_at, '2026-11-28T01:10:01+07:00');
-  ok(h.table('Summary').every((r) => +r.n >= 3 && +r.count >= 0), 'Summary rows carry n and count');
-  ok(!/T00|Alpha|Juliet/.test(JSON.stringify(ts)), 'no names or codes in team_summary');
-  eq(ts.checkpoints, []);
+  eq([ts.min_n, ts.wave, ts.baseline_published, ts.baseline_publish_after], [3, '2026-11', false, null]);
+  eq([ts.baseline, ts.checkpoints, ts.updated_at], [[], [], null], 'nothing published yet');
 
   // team_status: direct reports only, no managers, no test users, no scores
   h.err({ action: 'team_status', token: h.login('T001') }, 'forbidden');
   const st = h.ok({ action: 'team_status', token: h.login('T010') });
   eq(st.reports.map((r) => r.code), ['T001', 'T002', 'T003', 'T004'], 'manager T011 and test user T040 hidden');
   eq(Object.keys(st.reports[0]).sort(), ['baseline', 'code', 'courses', 'first_name']);
-  eq(st.reports[0].first_name, 'Alpha'); eq(st.reports[0].baseline, 'done');
+  eq(st.reports[0].first_name, 'Alpha'); eq(st.reports[0].baseline, { p1: 'not_done', p2: 'not_done', p3: 'not_done' });
   eq(st.reports[0].courses.A2, 'not_started'); eq(Object.keys(st.reports[0].courses), fx.COURSES);
   ok(!/pct|score|n_correct/.test(JSON.stringify(st)), 'no scores in team_status');
 
   // checkpoints: published after late_until (A2: 2027-02-02 23:59:59), counts per metric
-  h.clock.set(T('2027-01-05T09:00:00+07:00'));
   for (const [c, n] of [['T001', 9], ['T002', 3], ['T003', 2], ['T004', 10]]) {
     const t = h.login(c);
     const a = h.ok({ action: 'start', token: t, assessment: 'checkpoint', course: 'A2' });
@@ -912,7 +1246,9 @@ section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate,
   h.run('onOpen');
   const labels = h.ui.menus[0].items.filter((i) => i.label).map((i) => i.label);
   eq(h.ui.menus[0].name, '1% Planner');
-  for (const l of ['Set up / repair tabs', 'Import items from CSV…', 'Validate items / courses', 'Issue PINs for new roster rows', 'Reset a PIN…', 'Unlock a retake…', 'Void an attempt…', 'Rebuild summaries', 'Install hourly summary trigger', 'Baseline heatmap', 'Course gate report', 'IDP export', 'Recall due list', 'Seed episodes', 'Panel results', 'Clear a lock…']) ok(labels.includes(l), 'menu: ' + l);
+  for (const l of ['Set up / repair tabs', 'Import items from CSV…', 'Validate items / courses', 'Issue PINs for new roster rows', 'Reset a PIN…', 'Unlock a retake…', 'Void an attempt…', 'Rebuild summaries', 'Install hourly summary trigger', 'Course gate report', 'IDP export', 'Recall due list', 'Seed episodes', 'Panel results', 'Clear a lock…',
+    'Baseline: open or close parts…', 'Assign a Part 1 form…', 'Build baseline profiles', 'Baseline v2 reports']) ok(labels.includes(l), 'menu: ' + l);
+  ok(!labels.includes('Baseline heatmap'), 'the v1 heatmap is gone');
   for (const i of h.ui.menus[0].items) if (i.fn) eq(typeof h.ctx[i.fn], 'function', 'menu handler exists: ' + i.fn);
 
   // Issue PINs: shown once, only hashes stored, first login must change
@@ -959,44 +1295,96 @@ section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate,
   eq(h.ok({ action: 'start', token: t6, assessment: 'checkpoint', course: 'A2' }).attempt_no, 1);
   ok(h.table('Log').some((r) => r.action === 'admin_void' && r.employee_code === 'T006'));
 
-  // dashboards (baseline taken in the window first)
-  h.clock.set(T('2026-11-20T09:00:00+07:00'));
-  for (const [c, n, lvl] of [['T002', 46, 1], ['T003', 5, 4]]) {
+  // Baseline: open or close parts… (dialog shows the state; saving writes Config and refreshes the cache)
+  h.run('menuBaselineSwitches');
+  let dlgS = h.ui.dialogs.pop();
+  eq(dlgS.title, 'Baseline: open or close parts');
+  for (const k of ['p1_open', 'p2_open', 'p3_open', 'rating_open', 'results_open']) ok(new RegExp('id="' + k + '">').test(dlgS.html), k + ' shown closed');
+  const t2 = h.login('T002');
+  h.err({ action: 'start', token: t2, assessment: 'baseline_p1' }, 'not_open');
+  const rep = h.run('adminSetBaselineSwitches', { p1_open: true, p2_open: true, p3_open: 'TRUE', rating_open: false });
+  ok(/Saved: Part 1 · Problem solving with data: open/.test(rep) && /Results \(profiles and team averages\): closed/.test(rep));
+  eq(Object.fromEntries(h.table('Config').map((r) => [r.key, r.value])).p1_open, 'TRUE');
+  ok(h.table('Log').some((r) => r.action === 'admin_baseline_switches'));
+  h.run('menuBaselineSwitches');
+  dlgS = h.ui.dialogs.pop();
+  ok(/id="p1_open" checked/.test(dlgS.html) && /id="results_open">/.test(dlgS.html), 'the dialog shows the new state');
+  eq(h.run('adminSetBaselineSwitches', { p1_open: true }).split('\n')[0], 'Nothing changed.');
+  // baseline v2 dashboards: two people with all three parts, one manager rating
+  for (const [c, right] of [['T002', 30], ['T003', 6]]) {
     const t = h.login(c);
-    const b = h.ok({ action: 'start', token: t, assessment: 'baseline' });
-    h.ok({ action: 'submit', token: t, attempt_id: b.attempt_id, answers: answersFor(b.items, n), self_ratings: Object.fromEntries(fx.COURSES.map((k) => [k, lvl])) });
+    const p1 = h.ok({ action: 'start', token: t, assessment: 'baseline_p1' });
+    h.ok({ action: 'submit', token: t, attempt_id: p1.attempt_id, answers: mcqAnswers(itemsOf(p1), right) });
+    const p2 = h.ok({ action: 'start', token: t, assessment: 'baseline_p2' });
+    const nx = h.ok({ action: 'baseline_next', token: t, attempt_id: p2.attempt_id, answers: sjtAnswers(p2.sections[0].items, right > 10 ? 0 : 15) });
+    h.ok({ action: 'submit', token: t, attempt_id: p2.attempt_id, answers: rateAll(nx.section.items, 4) });
+    const p3 = h.ok({ action: 'start', token: t, assessment: 'baseline_p3' });
+    h.ok({ action: 'submit', token: t, attempt_id: p3.attempt_id, answers: mcqAnswers(itemsOf(p3), right > 10 ? 26 : 3), self_ratings: Object.fromEntries(fx.COURSES.map((k) => [k, 4])) });
   }
+  h.run('adminSetBaselineSwitches', { rating_open: true });
+  const mt = h.login('T010');
+  const rItems = h.ok({ action: 'rate_get', token: mt, ratee: 'T003' }).items;
+  h.ok({ action: 'rate_save', token: mt, ratee: 'T003', values: rateAll(rItems, 1) });
+  h.run('menuBaselineReports');
+  ok(/Dash_BL2_Heatmap 2 person/.test(h.ui.alerts.pop().message));
+  const heat = h.table('Dash_BL2_Heatmap');
+  eq(heat.map((r) => r.code), ['T002', 'T003']);
+  eq([heat[0].p1_raw, heat[0].p3_module, heat[1].p3_module], [String(Math.round(100 * 30 / 32)), 'SP', 'RPM']);
+  ok(h.sheet('Dash_BL2_Heatmap').backgrounds.length === 1, 'heatmap colours');
+  const di = h.table('Dash_BL2_Items');
+  const p1row = di.find((r) => r.type === 'mcq' && r.assessment === 'baseline_p1');
+  eq(p1row.n, '1'); ok(/a \d+% · b \d+% · c \d+% · d \d+% · blank \d+%/.test(p1row.distribution));
+  ok(di.some((r) => r.type === 'sjt' && /most: .*\| least: /.test(r.distribution)));
+  ok(di.some((r) => r.type === 'rating' && /manager mean 1 \(n 1\)/.test(r.distribution)));
+  const core = di.find((r) => r.item_id === 'MOCK-BL-3CORE01');
+  eq([core.n, core.p_value_or_mean], ['2', '0.5']); ok(core.point_biserial !== '', 'point-biserial with two takers');
+  const df = h.table('Dash_BL2_Forms');
+  eq(df.map((r) => r.form), ['A', 'B', 'C', 'equating']); eq(df[0].use, 'backup');
+  eq(df.filter((r) => r.use === 'live').reduce((a, r) => a + +r.starts, 0), 2);
+  eq(h.table('Dash_BL2_Raters').map((r) => [r.rater_code, r.ratees, r.ratings, r.mean]), [['T010', '1', '23', '1']]);
+  const fl = h.table('Dash_BL2_Flags');
+  ok(fl.some((r) => r.code === 'T003' && r.flag === 'blind_spot'), 'self 4 vs manager 1');
+  ok(fl.some((r) => r.code === 'T003' && r.flag === 'rates_high_scores_low'));
+  ok(!fl.some((r) => r.code === 'T002' && r.flag === 'rates_high_scores_low'));
+  // Build baseline profiles (menu) writes Profiles even while results are closed (learners cannot read them yet)
+  h.run('menuBuildProfiles');
+  eq(h.table('Profiles').map((r) => r.employee_code).sort(), ['T002', 'T003']);
+  h.err({ action: 'profile', token: h.login('T002') }, 'not_open');
   h.clock.set(T('2027-01-06T09:00:00+07:00'));
-  h.run('menuBaselineHeatmap');
-  const heat = h.table('Dash_Baseline');
-  eq(heat.length, 2);
-  ok(/rates low, scores high/.test(heat.find((r) => r.code === 'T002').flags));
-  ok(/rates high, scores low/.test(heat.find((r) => r.code === 'T003').flags));
-  ok(h.sheet('Dash_Baseline').backgrounds.length === 1, 'heatmap colours');
   h.run('menuGateReport');
   const gate = h.table('Dash_Gate');
   ok(gate.some((r) => r.course === 'A2' && r.code === 'TOTAL'));
   ok(!gate.some((r) => r.code === 'T040'), 'test users left out of the gate report');
   h.run('menuIdpExport');
   const idp = h.table('Dash_IDP');
-  ok(idp.find((r) => r.code === 'T003').goal_1.startsWith('Reach '));
+  ok(idp.find((r) => r.code === 'T003').goal_1.startsWith('Raise '));
+  ok(/\(\d+%\)$/.test(idp.find((r) => r.code === 'T003').gap_1));
   eq(idp.find((r) => r.code === 'T005').gap_1, 'no baseline');
   h.run('menuRecallDue');
   ok(h.sheet('Dash_Recall'));
   h.run('menuRebuildSummaries');
-  eq(h.table('Summary').length, 0, '2 baseline takers (< 3) and no closed late window: nothing to publish');
+  eq(h.table('Summary').length, 0, 'results closed and no closed late window: nothing to publish');
   ok(h.sheet('Summary').getRange(1, 1, 1, 8).getValues()[0].includes('count'));
   h.run('menuInstallTrigger'); h.run('menuInstallTrigger');
   eq(h.triggers.length, 1); eq(h.triggers[0].getHandlerFunction(), 'buildSummary'); eq(h.triggers[0].everyHours, 1);
   h.run('menuSeedEpisodes');
   eq(h.table('Episodes').length, 76);
 
-  // validate: the fixture bank matches the blueprint exactly
+  // validate: the fixture banks (Items and BaselineItems/Exhibits) match the blueprint exactly
   const v = h.run('validateNow_');
   eq(v.errors, []); eq(v.warnings, []);
   h.updateWhere('Items', 'item_id', 'FX_P6_B_10', { answer: 'e' });
+  h.updateWhere('BaselineItems', 'item_id', 'MOCK-BL-2S07', { answer_least: BLK['MOCK-BL-2S07'].answer_most });
+  h.updateWhere('BaselineItems', 'item_id', 'MOCK-BL-1C-A05', { exhibit_ids: 'MOCK-EX-GONE' });
   h.run('menuValidate');
-  ok(/answer must be a, b, c or d/.test(h.ui.dialogs.pop().html));
+  const vd = h.ui.dialogs.pop().html;
+  ok(/answer must be a, b, c or d/.test(vd));
+  ok(/MOCK-BL-2S07.*answer_most and answer_least must differ/.test(vd));
+  ok(/MOCK-BL-1C-A05.*MOCK-EX-GONE is not in Exhibits/.test(vd));
+  // import BaselineText (invented) through the CSV dialog path
+  const bt = h.run('adminImportCsv', 'BaselineText', 'key,en,vi\r\np1_title,"Part 1, imported",Phần 1\r\n');
+  ok(/BaselineText: imported 1 row/.test(bt));
+  eq(h.table('BaselineText'), [{ key: 'p1_title', en: 'Part 1, imported', vi: 'Phần 1' }]);
   // import a Cases CSV (invented)
   const rep = h.run('adminImportCsv', 'Cases', 'case_id,title_en,title_vi,context_en,context_vi\r\nCASE1,"Fixture, imported",VI,"Context ""quoted""",VI ctx\r\n');
   ok(/Cases: imported 1 row/.test(rep));

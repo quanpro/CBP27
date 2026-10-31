@@ -20,11 +20,15 @@ function onOpen() {
     .addSeparator()
     .addItem('Rebuild summaries', 'menuRebuildSummaries')
     .addItem('Install hourly summary trigger', 'menuInstallTrigger')
-    .addItem('Baseline heatmap', 'menuBaselineHeatmap')
     .addItem('Course gate report', 'menuGateReport')
     .addItem('IDP export', 'menuIdpExport')
     .addItem('Recall due list', 'menuRecallDue')
     .addItem('Panel results', 'menuPanelResults')
+    .addSeparator()
+    .addItem('Baseline: open or close parts…', 'menuBaselineSwitches')
+    .addItem('Assign a Part 1 form…', 'menuAssignP1Form')
+    .addItem('Build baseline profiles', 'menuBuildProfiles')
+    .addItem('Baseline v2 reports', 'menuBaselineReports')
     .addToUi();
 }
 
@@ -62,8 +66,8 @@ function adminRun_(action, fn) {
 
 function menuImportCsv() {
   var html = '<p>Paste the whole CSV file (with its header row), choose the tab and press Import. ' +
-    '<b>Items</b> and <b>Cases</b> are replaced; <b>Courses</b> rows are updated by code and keep your dates and Blink links.</p>' +
-    '<select id="tab"><option>Items</option><option>Courses</option><option>Cases</option></select> ' +
+    '<b>Items</b>, <b>Cases</b>, <b>BaselineItems</b>, <b>Exhibits</b> and <b>BaselineText</b> are replaced; <b>Courses</b> rows are updated by code and keep your dates and Blink links.</p>' +
+    '<select id="tab"><option>Items</option><option>Courses</option><option>Cases</option><option>BaselineItems</option><option>Exhibits</option><option>BaselineText</option></select> ' +
     '<button onclick="go()">Import</button><br><textarea id="csv" style="width:100%;height:230px;margin-top:8px"></textarea>' +
     '<pre id="out" style="white-space:pre-wrap"></pre>' +
     '<script>function go(){document.getElementById("out").textContent="Importing…";' +
@@ -75,8 +79,8 @@ function menuImportCsv() {
 
 /** Called from the import dialog. Returns a plain-text report. */
 function adminImportCsv(tab, csvText) {
-  var keyCol = { Items: 'item_id', Courses: 'code', Cases: 'case_id' }[tab];
-  if (!keyCol) throw new Error('Choose Items, Courses or Cases');
+  var keyCol = { Items: 'item_id', Courses: 'code', Cases: 'case_id', BaselineItems: 'item_id', Exhibits: 'exhibit_id', BaselineText: 'key' }[tab];
+  if (!keyCol) throw new Error('Choose Items, Courses, Cases, BaselineItems, Exhibits or BaselineText');
   var rows = parseCsv(csvText);
   if (rows.length < 2) throw new Error('The CSV needs a header row and at least one data row');
   var headers = rows[0].map(headerKey_);
@@ -129,17 +133,20 @@ function ensureTabColumns_(tab, cols, report) {
   report.push(tab + ': kept extra column(s) ' + cols.join(', ') + '.');
 }
 
-/** Repairs Items/Courses/Cases (columns, plain text, default dates) and validates the bank. */
+/** Repairs Items/Courses/Cases and the baseline tabs (columns, plain text, default dates) and validates both banks. */
 function validateNow_() {
   var report = [];
   adminRun_('', function () {
     var ss = ss_();
-    ['Items', 'Courses', 'Cases'].forEach(function (n) { ensureTab_(ss, n, SCHEMA[n], report); normaliseTab_(n, report); });
+    ['Items', 'Courses', 'Cases', 'BaselineItems', 'Exhibits', 'BaselineText'].forEach(function (n) { ensureTab_(ss, n, SCHEMA[n], report); normaliseTab_(n, report); });
     seedCourses_(report);
     clearCaches_();
   });
   resetRequest_();
   var res = validateBank(readTable_('Items').rows, readTable_('Courses').rows, readTable_('Cases').rows);
+  var cfg = config_();
+  var bl = validateBaselineBank(readTable_('BaselineItems').rows, readTable_('Exhibits').rows, { live: cfg.p1_live, backup: cfg.p1_backup });
+  res = { errors: res.errors.concat(bl.errors), warnings: res.warnings.concat(bl.warnings) };
   var summary = [
     (res.errors.length ? '✖ ' + res.errors.length + ' problem(s) to fix' : '✔ No problems') +
       (res.warnings.length ? ', ' + res.warnings.length + ' warning(s)' : '') + '.'
@@ -152,7 +159,7 @@ function validateNow_() {
 function menuValidate() {
   var v = validateNow_();
   var html = '<p><b>' + escapeHtml(v.summary[0]) + '</b></p>' + listHtml_('Repairs', v.repairs) +
-    listHtml_('Problems (fix in the Items / Courses / Cases tab)', v.errors.slice(0, 100)) +
+    listHtml_('Problems (fix in the Items / Courses / Cases / BaselineItems / Exhibits tab)', v.errors.slice(0, 100)) +
     listHtml_('Warnings (counts against the blueprint)', v.warnings.slice(0, 100));
   showHtml_('Validate items / courses', html, 480);
 }
@@ -166,7 +173,7 @@ function menuSeedEpisodes() {
 function menuRefreshCache() {
   resetRequest_();
   clearCaches_();
-  notify_('Cache', 'Done: the Hub reads Items, Courses, Config and Episodes fresh from the Sheet now.');
+  notify_('Cache', 'Done: the Hub reads Items, Courses, Config, Episodes and the baseline tabs fresh from the Sheet now.');
 }
 
 // ---------------------------------------------------------------- PINs
@@ -278,8 +285,9 @@ function menuUnlock() {
 
 /**
  * Marks an attempt void: it no longer counts anywhere (attempt numbers, forms, gate,
- * summaries, once-per-wave baseline). A voided pass also voids its pending recall rows;
- * a voided recall attempt makes that recall day available again.
+ * summaries, once-per-part-per-wave baseline: the person can sit that part again). A voided
+ * pass also voids its pending recall rows; a voided recall attempt makes that recall day
+ * available again; a voided Part 2 clears its self-ratings in Ratings.
  */
 function voidAttempt_(attemptId, reason) {
   var id = String(attemptId || '').trim();
@@ -295,6 +303,12 @@ function voidAttempt_(attemptId, reason) {
           if (String(r.status).trim().toLowerCase() !== 'done') updateRow_('Recall', r._row, { status: 'void' });
         });
       }
+    }
+    if (att.assessment === 'baseline_p2') {
+      readTable_('Ratings').rows.forEach(function (r) {
+        if (normWave(r.wave) === att.wave && normCode(r.ratee_code) === att.code && normCode(r.rater_code) === att.code &&
+          String(r.rater_role).trim().toLowerCase() === 'self' && String(r.value).trim() !== '') updateRow_('Ratings', r._row, { value: '' });
+      });
     }
     if (att.assessment === 'recall') {
       var rr = recallRowForAttempt_(att);
@@ -317,11 +331,12 @@ function menuVoidAttempt() {
 
 // ---------------------------------------------------------------- summaries and trigger
 
-/** Rebuilds the Summary tab (team-view rules). Also the hourly trigger's handler. */
+/** Rebuilds the Summary tab (team-view rules). Also the hourly trigger's handler: while results_open it also builds the baseline profiles. */
 function buildSummary() {
   resetRequest_();
   var n = 0;
   withLock_(function () {
+    if (config_().results_open) buildProfilesLocked_();
     var rows = buildSummaryRows_();
     replaceBody_('Summary', SCHEMA.Summary, rows);
     n = rows.length;
@@ -344,7 +359,7 @@ function installSummaryTrigger_() {
 
 function menuInstallTrigger() {
   installSummaryTrigger_();
-  notify_('Hourly summary', 'Installed: the Summary tab is rebuilt every hour.');
+  notify_('Hourly summary', 'Installed: the Summary tab is rebuilt every hour (and the baseline profiles while Results are open).');
 }
 
 // ---------------------------------------------------------------- dashboards
@@ -377,38 +392,6 @@ function scoreColour_(pct) {
 
 function adminPeople_() {
   return rosterRows_().map(userView_).filter(function (u) { return u.active && u.code && !u.is_test; });
-}
-
-/** Dash_Baseline: people × courses (score % and self-rating), calibration flags. */
-function buildDashBaseline_() {
-  var rowsOut = [], bgs = [];
-  adminRun_('', function () {
-    var cfg = config_(), order = courseOrder_();
-    var atts = allAttempts_();
-    var header = ['code', 'name', 'role_area', 'wave', 'overall_pct'];
-    order.forEach(function (c) { header.push(c + ' %', c + ' self'); });
-    header.push('flags');
-    adminPeople_().forEach(function (u) {
-      var a = atts.filter(function (x) { return x.code === u.code && x.assessment === 'baseline' && x.wave === cfg.wave && isDone_(x); })[0];
-      if (!a) return;
-      var self = cleanSelfRatings(a.self_ratings, order), flags = [];
-      var row = [u.code, u.display_name, u.role_area, a.wave, a.score_pct], bg = ['#ffffff', '#ffffff', '#ffffff', '#ffffff', scoreColour_(a.score_pct)];
-      order.forEach(function (c) {
-        var pct = typeof a.by_course[c] === 'number' ? a.by_course[c] : '';
-        var sv = c in self ? self[c] : '';
-        row.push(pct, sv);
-        bg.push(scoreColour_(pct), '#ffffff');
-        var f = calibrationFlag(sv === '' ? null : sv, pct === '' ? null : pct);
-        if (f) flags.push(c + ': ' + f);
-      });
-      row.push(flags.join('; '));
-      bg.push(flags.length ? '#fce5cd' : '#ffffff');
-      rowsOut.push(row);
-      bgs.push(bg);
-    });
-    writeDash_('Dash_Baseline', header, rowsOut, bgs);
-  });
-  return rowsOut.length;
 }
 
 /** Dash_Gate: per course pass status, first-try pass rate and the three most-missed items. */
@@ -459,34 +442,26 @@ function buildDashGate_() {
   return out.length;
 }
 
-/** Dash_IDP: two largest gaps, suggested capability goals and checkpoint status per person. */
+/** Dash_IDP: the two baseline gaps (specs/22 IDP areas), suggested goals and checkpoint status per person. */
 function buildDashIdp_() {
   var out = [];
   adminRun_('', function () {
-    var cfg = config_(), order = courseOrder_();
-    var scale = SEED.scale || [];
-    var levelName = function (l) { var s = scale.filter(function (x) { return x.level === l; })[0]; return s ? s.en : String(l); };
+    var order = courseOrder_();
+    var ctx = blProfileContext_();
     var atts = allAttempts_();
     var header = ['code', 'name', 'role_area', 'gap_1', 'gap_2', 'goal_1', 'goal_2', 'checkpoints_passed', 'checkpoint_status'];
     adminPeople_().forEach(function (u) {
       var mine = atts.filter(function (a) { return a.code === u.code; });
-      var b = mine.filter(function (a) { return a.assessment === 'baseline' && a.wave === cfg.wave && isDone_(a); })[0];
-      var g = b ? baselineSummary_(b) : null;
-      var goal = function (code) {
-        if (!code) return '';
-        var c = courseByCode_(code);
-        var cur = g.self[code];
-        var target = Math.min(4, (typeof cur === 'number' ? cur : 0) + 1);
-        return 'Reach ' + levelName(target) + ' in ' + code + (c && c.name_en ? ' ' + c.name_en : '') +
-          ' by Mar 2028 (evidence: checkpoint passed, field sign-off, re-test score; baseline ' + g.by_course[code] + '%)';
-      };
+      var p = buildProfile_(u.code, ctx);
+      var g = p ? p.gaps : [];
+      var goal = function (x) { return x ? 'Raise ' + x.name_en + ' from ' + x.pct + '% by the Dec 2027 re-test (evidence: checkpoints passed, field sign-off, re-test score)' : ''; };
       var status = order.map(function (c) {
         var cp = mine.filter(function (a) { return a.assessment === 'checkpoint' && a.course === c && isDone_(a); });
         return c + ' ' + (cp.some(function (a) { return a.passed; }) ? '✓' : cp.length ? 'not yet' : '–');
       });
       var passedN = order.filter(function (c) { return mine.some(function (a) { return a.assessment === 'checkpoint' && a.course === c && a.passed; }); }).length;
-      out.push([u.code, u.display_name, u.role_area, g ? g.gaps[0] || '' : 'no baseline', g ? g.gaps[1] || '' : '',
-        g ? goal(g.gaps[0]) : '', g ? goal(g.gaps[1]) : '', passedN + '/' + order.length, status.join(' · ')]);
+      out.push([u.code, u.display_name, u.role_area, p ? (g[0] ? g[0].name_en + ' (' + g[0].pct + '%)' : '') : 'no baseline', g[1] ? g[1].name_en + ' (' + g[1].pct + '%)' : '',
+        goal(g[0]), goal(g[1]), passedN + '/' + order.length, status.join(' · ')]);
     });
     writeDash_('Dash_IDP', header, out);
   });
@@ -543,7 +518,245 @@ function buildDashPanel_() {
 
 function menuPanelResults() { var n = buildDashPanel_(); notify_('Panel results', 'Dash_Panel: ' + n + ' team score(s). Pitch Day weights communication double; the capstone weights result and value double.'); }
 
-function menuBaselineHeatmap() { var n = buildDashBaseline_(); notify_('Baseline heatmap', 'Dash_Baseline: ' + n + ' person(s).'); }
 function menuGateReport() { buildDashGate_(); notify_('Course gate report', 'Dash_Gate is up to date.'); }
 function menuIdpExport() { var n = buildDashIdp_(); notify_('IDP export', 'Dash_IDP: ' + n + ' person(s). Copy the goals into the HR system.'); }
 function menuRecallDue() { var n = buildDashRecall_(); notify_('Recall due list', 'Dash_Recall: ' + n + ' recall(s) due this week or overdue.'); }
+
+// ---------------------------------------------------------------- Baseline v2 (specs/22 §2)
+
+var BL_SWITCHES_ = [
+  ['p1_open', 'Part 1 · Problem solving with data'],
+  ['p2_open', 'Part 2 · Leadership behaviours'],
+  ['p3_open', 'Part 3 · Core planning'],
+  ['rating_open', 'Manager rating'],
+  ['results_open', 'Results (profiles and team averages)']
+];
+
+/** Current switches {p1_open: bool, …} read fresh from the Sheet. */
+function adminGetBaselineSwitches() {
+  resetRequest_();
+  clearCaches_();
+  var cfg = config_(), out = {};
+  BL_SWITCHES_.forEach(function (x) { out[x[0]] = !!cfg[x[0]]; });
+  return out;
+}
+
+/** Writes the given switches to Config (TRUE/FALSE), refreshes the cache, returns a plain-text report. */
+function adminSetBaselineSwitches(values) {
+  values = values || {};
+  var changed = [];
+  adminRun_('admin_baseline_switches', function () {
+    var rows = readTable_('Config').rows, byKey = {};
+    rows.forEach(function (r) { byKey[String(r.key || '').trim()] = r; });
+    var add = [];
+    BL_SWITCHES_.forEach(function (x) {
+      if (!Object.prototype.hasOwnProperty.call(values, x[0])) return;
+      var v = toBool(values[x[0]]) ? 'TRUE' : 'FALSE';
+      var r = byKey[x[0]];
+      if (r) { if (String(r.value).trim().toUpperCase() !== v) { updateRow_('Config', r._row, { value: v }); changed.push(x[1] + ': ' + (v === 'TRUE' ? 'open' : 'closed')); } }
+      else { add.push({ key: x[0], value: v, note: x[1] }); changed.push(x[1] + ': ' + (v === 'TRUE' ? 'open' : 'closed')); }
+    });
+    if (add.length) appendRows_('Config', add);
+    setLogInfo_('', changed.join('; ').slice(0, 120));
+    clearCaches_();
+  });
+  var now = adminGetBaselineSwitches();
+  return (changed.length ? 'Saved: ' + changed.join(' · ') + '.' : 'Nothing changed.') + '\n' +
+    BL_SWITCHES_.map(function (x) { return x[1] + ': ' + (now[x[0]] ? 'OPEN' : 'closed'); }).join('\n');
+}
+
+function menuBaselineSwitches() {
+  var st = adminGetBaselineSwitches();
+  var rows = BL_SWITCHES_.map(function (x) {
+    return '<label style="display:block;margin:6px 0"><input type="checkbox" id="' + x[0] + '"' + (st[x[0]] ? ' checked' : '') + '> ' +
+      escapeHtml(x[1]) + ' <span style="color:#666">(now ' + (st[x[0]] ? 'open' : 'closed') + ')</span></label>';
+  }).join('');
+  var ids = JSON.stringify(BL_SWITCHES_.map(function (x) { return x[0]; }));
+  var html = '<p>Tick a part to open it for everyone at once; untick to close it. Closing stops new starts; a sitting in progress can still be finished until its own timer ends. ' +
+    '<b>Results</b> shows each learner their profile and publishes the baseline team averages.</p>' + rows +
+    '<button onclick="go()" style="margin-top:8px">Save</button><pre id="out" style="white-space:pre-wrap"></pre>' +
+    '<script>function go(){var v={};' + ids + '.forEach(function(k){v[k]=document.getElementById(k).checked;});' +
+    'document.getElementById("out").textContent="Saving…";google.script.run.withSuccessHandler(function(r){document.getElementById("out").textContent=r;})' +
+    '.withFailureHandler(function(e){document.getElementById("out").textContent="Error: "+e.message;}).adminSetBaselineSwitches(v);}</script>';
+  showHtml_('Baseline: open or close parts', html, 380);
+}
+
+/** Writes an Overrides row: the Part 1 form this person gets at their next start in this wave. */
+function assignP1Form_(code, form, reason, by) {
+  var c = normCode(code), f = String(form || '').trim().toUpperCase(), msg = '';
+  if (BL_FORMS.indexOf(f) < 0) throw new Error('Form must be A, B or C');
+  adminRun_('admin_assign_form', function () {
+    var cfg = config_();
+    if (!findRosterRow_(c)) throw new Error('No roster row for ' + c);
+    appendRows_('Overrides', [{ employee_code: c, wave: cfg.wave, part: 1, form: f, reason: guardCell(String(reason || '').slice(0, 200)), by: guardCell(by || 'admin'), at: iso7(nowMs_()) }]);
+    var cur = userAttempts_(c).filter(function (a) { return a.assessment === 'baseline_p1' && a.wave === cfg.wave; })[0];
+    msg = 'Done: ' + c + ' gets Part 1 form ' + f + ' at their next start in wave ' + cfg.wave + '.' +
+      (cur ? ' They already have a Part 1 attempt (' + cur.attempt_id + ', form ' + cur.form + ', ' + cur.status + '): void it first (Void an attempt…) so they can sit again.' : '');
+    setLogInfo_(c, 'form ' + f);
+  });
+  return msg;
+}
+
+function menuAssignP1Form() {
+  var code = ask_('Assign a Part 1 form (1/3)', 'Employee code:'); if (!code) return;
+  var form = ask_('Assign a Part 1 form (2/3)', 'Form A, B or C (A is the backup form):'); if (!form) return;
+  var reason = ask_('Assign a Part 1 form (3/3)', 'Reason (e.g. saw a live form, re-sit after a technical problem):'); if (reason === null) return;
+  var by = '';
+  try { by = Session.getActiveUser().getEmail(); } catch (e) { by = ''; }
+  try { notify_('Assign a Part 1 form', assignP1Form_(code, form, reason, by || 'admin')); } catch (e) { notify_('Assign a Part 1 form', e.message); }
+}
+
+function menuBuildProfiles() {
+  var n = buildProfiles();
+  notify_('Build baseline profiles', 'Profiles: ' + n + ' person(s) for wave ' + config_().wave + '. Learners see theirs only while Results are open.');
+}
+
+function pctCell_(v) { return typeof v === 'number' ? v : ''; }
+
+/** The five Baseline v2 dashboards (admin only, never on the Hub). Returns row counts. */
+function buildBaselineReports_() {
+  var counts = {};
+  adminRun_('', function () {
+    var cfg = config_();
+    expireAllBl_();
+    applyEquating_(cfg);
+    var ctx = blProfileContext_();
+    var people = adminPeople_();
+    var peopleByCode = {};
+    people.forEach(function (u) { peopleByCode[u.code] = u; });
+    var profiles = {};
+    people.forEach(function (u) { profiles[u.code] = buildProfile_(u.code, ctx); });
+
+    // Dash_BL2_Heatmap: person × area
+    var heatHeader = ['code', 'name', 'role_area', 'p1_form', 'p1_raw', 'p1_scaled', 'p1_A', 'p1_B', 'p2_sjt'];
+    BL_CHARTERS.forEach(function (c) { heatHeader.push('charter_' + c + '_index'); });
+    heatHeader.push('p3_module', 'p3_core', 'p3_module_pct', 'p3_level');
+    var heat = [], heatBg = [];
+    people.forEach(function (u) {
+      var p = profiles[u.code];
+      if (!p) return;
+      var row = [u.code, u.display_name, u.role_area, p.p1 ? p.p1.form : '', p.p1 ? p.p1.raw_pct : '', p.p1 ? p.p1.scaled_pct : '',
+        p.p1 ? pctCell_(p.p1.section_A_pct) : '', p.p1 ? pctCell_(p.p1.section_B_pct) : '', p.p2 ? pctCell_(p.p2.sjt_pct) : ''];
+      BL_CHARTERS.forEach(function (c) { var x = p.p2 && p.p2.by_charter[c]; row.push(x && x.index !== null ? x.index : ''); });
+      row.push(p.p3 ? p.p3.module : '', p.p3 ? pctCell_(p.p3.core_pct) : '', p.p3 ? pctCell_(p.p3.module_pct) : '', p.p3 ? p.p3.level || '' : '');
+      heat.push(row);
+      heatBg.push(row.map(function (v, i) { return i >= 4 && typeof v === 'number' ? scoreColour_(v) : '#ffffff'; }));
+    });
+    writeDash_('Dash_BL2_Heatmap', heatHeader, heat, heatBg);
+    counts.heatmap = heat.length;
+
+    // Dash_BL2_Items: p-value, point-biserial (item vs rest of the part), distractor %
+    var itemsOut = [];
+    var addStats = function (att, byId) {
+      var served = blServed_(att, byId), g = gradedAnswers_(att);
+      var total = 0, scores = {};
+      served.forEach(function (id) {
+        var it = byId[id], sc = 0;
+        if (it.item_type === 'mcq') sc = g[id] === it.answer ? 1 : 0;
+        else if (it.item_type === 'sjt') { var a = g[id] || {}; if (!(a.most && a.most === a.least)) sc = (a.most === it.answer_most ? 1 : 0) + (a.least === it.answer_least ? 1 : 0); }
+        else return;
+        scores[id] = sc;
+        total += sc;
+      });
+      return { scores: scores, total: total, g: g, served: served };
+    };
+    var stat = {};
+    BL_ASSESSMENTS.forEach(function (asmt) {
+      Object.keys(ctx.byCode).forEach(function (code) {
+        var att = ctx.byCode[code][asmt];
+        if (!att || !peopleByCode[code]) return;
+        var byId = indexItems_(blItemsForAttempt_(att));
+        var r = addStats(att, byId);
+        r.served.forEach(function (id) {
+          var it = byId[id], s = stat[id] = stat[id] || { it: it, rows: [], least: [], ratings: [] };
+          if (it.item_type === 'rating') { s.ratings.push(r.g[id]); return; }
+          var pick = it.item_type === 'sjt' ? ((r.g[id] || {}).most || '') : (r.g[id] || '');
+          s.rows.push({ score: r.scores[id], max: it.item_type === 'sjt' ? 2 : 1, total: r.total, pick: pick });
+          if (it.item_type === 'sjt') s.least.push((r.g[id] || {}).least || '');
+        });
+      });
+    });
+    var mgrAll = {};
+    Object.keys(ctx.mgr).forEach(function (code) { if (!peopleByCode[code]) return; Object.keys(ctx.mgr[code]).forEach(function (id) { mgrAll[id] = (mgrAll[id] || []).concat(ctx.mgr[code][id]); }); });
+    Object.keys(stat).sort().forEach(function (id) {
+      var s = stat[id], it = s.it;
+      if (it.item_type === 'rating') {
+        var nums = s.ratings.filter(function (v) { return typeof v === 'number'; });
+        var m = meanSd(nums), mg = meanSd(mgrAll[id] || []);
+        itemsOut.push([id, it.assessment, it.form, it.section, it.item_type, s.ratings.length, m.mean === null ? '' : round1(m.mean), '', '',
+          'self NR ' + (s.ratings.length ? Math.round(100 * (s.ratings.length - nums.length) / s.ratings.length) : 0) + '% · manager mean ' + (mg.mean === null ? '–' : round1(mg.mean)) + ' (n ' + mg.n + ')']);
+        return;
+      }
+      var a = itemAnalysis(s.rows);
+      var dist = 'a ' + a.dist.a + '% · b ' + a.dist.b + '% · c ' + a.dist.c + '% · d ' + a.dist.d + '% · blank ' + a.dist.blank + '%';
+      if (it.item_type === 'sjt') {
+        var ld = itemAnalysis(s.least.map(function (l) { return { score: 0, max: 1, total: 0, pick: l }; })).dist;
+        dist = 'most: ' + dist + ' | least: a ' + ld.a + '% · b ' + ld.b + '% · c ' + ld.c + '% · d ' + ld.d + '% · blank ' + ld.blank + '%';
+      }
+      itemsOut.push([id, it.assessment, it.form, it.section, it.item_type, a.n, a.p_value === null ? '' : a.p_value, a.point_biserial === null ? '' : a.point_biserial,
+        it.item_type === 'sjt' ? 'most ' + it.answer_most + ' / least ' + it.answer_least : it.answer, dist]);
+    });
+    writeDash_('Dash_BL2_Items', ['item_id', 'assessment', 'form', 'section', 'type', 'n', 'p_value_or_mean', 'point_biserial', 'key', 'distribution'], itemsOut);
+    counts.items = itemsOut.length;
+
+    // Dash_BL2_Forms: starts and mean per Part 1 form
+    var p1All = allAttempts_().filter(function (a) { return a.assessment === 'baseline_p1' && a.wave === cfg.wave && peopleByCode[a.code]; });
+    var forms = BL_FORMS.map(function (f) {
+      var mine = p1All.filter(function (a) { return a.form === f; });
+      var done = mine.filter(isDone_);
+      var raw = meanSd(done.map(function (a) { return a.raw_pct; })), sc = meanSd(done.map(function (a) { return a.scaled_pct === null ? a.raw_pct : a.scaled_pct; }));
+      var byRole = ROLE_GROUPS.map(function (g) { return g + ' ' + mine.filter(function (a) { return peopleByCode[a.code].role_area === g; }).length; }).join(' · ');
+      return [f, cfg.p1_live.indexOf(f) >= 0 ? 'live' : f === cfg.p1_backup ? 'backup' : 'off', mine.length, done.length,
+        raw.mean === null ? '' : round1(raw.mean), raw.sd === null ? '' : round1(raw.sd), sc.mean === null ? '' : round1(sc.mean), byRole];
+    });
+    var plan = equatingPlan((function () { var o = {}; p1All.filter(isDone_).forEach(function (a) { (o[a.form] = o[a.form] || []).push(a.raw_pct); }); return o; })(), cfg.p1_live, cfg.equate_threshold_pts, 'A');
+    forms.push(['equating', plan.apply ? 'applied (reference ' + plan.reference + ')' : 'not applied', '', '', '', '', '', 'live-form mean difference ' + plan.diff + ' pts (threshold ' + cfg.equate_threshold_pts + ')']);
+    writeDash_('Dash_BL2_Forms', ['form', 'use', 'starts', 'submitted', 'mean_raw', 'sd_raw', 'mean_scaled', 'starts_by_role'], forms);
+    counts.forms = forms.length;
+
+    // Dash_BL2_Raters: mean and spread per rater (leniency)
+    var raters = {};
+    ratingRows_(cfg.wave).forEach(function (r) {
+      if (String(r.rater_role).trim().toLowerCase() !== 'manager') return;
+      var rc = normCode(r.rater_code), x = raters[rc] = raters[rc] || { ratees: {}, vals: [], na: 0, n: 0 };
+      var v = String(r.value || '').trim().toUpperCase();
+      if (!v) return;
+      x.n++;
+      x.ratees[normCode(r.ratee_code)] = true;
+      if (v === 'NA') x.na++; else x.vals.push(toInt(v, 0));
+    });
+    var raterOut = Object.keys(raters).sort().map(function (rc) {
+      var x = raters[rc], m = meanSd(x.vals);
+      var selfMeans = Object.keys(x.ratees).map(function (c) { var p = profiles[c] || buildProfile_(c, ctx); return p && p.p2 ? p.p2.self_mean : null; }).filter(function (v) { return typeof v === 'number'; });
+      var row = findRosterRow_(rc);
+      return [rc, row ? row.display_name : '', Object.keys(x.ratees).length, x.n, m.mean === null ? '' : round1(m.mean), m.sd === null ? '' : round1(m.sd),
+        x.n ? Math.round(100 * x.na / x.n) : 0, selfMeans.length ? round1(meanSd(selfMeans).mean) : ''];
+    });
+    writeDash_('Dash_BL2_Raters', ['rater_code', 'name', 'ratees', 'ratings', 'mean', 'sd', 'na_pct', 'ratees_self_mean'], raterOut);
+    counts.raters = raterOut.length;
+
+    // Dash_BL2_Flags: blind spot / hidden strength / knowing–doing / rates high, scores low
+    var flags = [];
+    people.forEach(function (u) {
+      var p = profiles[u.code];
+      if (!p) return;
+      if (p.p2) Object.keys(p.p2.by_charter).forEach(function (c) {
+        var x = p.p2.by_charter[c];
+        x.flags.forEach(function (f) { flags.push([u.code, u.display_name, u.role_area, 'charter ' + c, f, 'self ' + x.self_mean + ' · manager ' + x.mgr_mean + ' · SJT ' + (x.sjt_band || '–')]); });
+      });
+      Object.keys(p.courses).forEach(function (k) {
+        var x = p.courses[k];
+        if (x.flag) flags.push([u.code, u.display_name, u.role_area, k, 'rates_high_scores_low', 'self ' + x.self + ' · score ' + x.score_pct + '%']);
+      });
+    });
+    writeDash_('Dash_BL2_Flags', ['code', 'name', 'role_area', 'area', 'flag', 'detail'], flags);
+    counts.flags = flags.length;
+  });
+  return counts;
+}
+
+function menuBaselineReports() {
+  var c = buildBaselineReports_();
+  notify_('Baseline v2 reports', 'Dash_BL2_Heatmap ' + c.heatmap + ' person(s) · Dash_BL2_Items ' + c.items + ' item(s) · Dash_BL2_Forms · Dash_BL2_Raters ' + c.raters +
+    ' rater(s) · Dash_BL2_Flags ' + c.flags + ' flag(s). Admin only: never shown on the Hub.');
+}

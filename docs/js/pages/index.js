@@ -4,6 +4,7 @@ import { h, render, icon, chip, codeBadge, ring, progressBar, stepMeter, emptySt
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, getSession, setSession, updateProfile, isDemo, serverNow } from '../api.js';
 import { loadCatalog, journey, courseStatus, courseProgress, stepInfo, nextStep, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
+import { PARTS, partTile, partOf, waveLabel as blWave } from '../bl2.js';
 
 // "A2 + A3" for a pair; more than three courses on one date reads "A2, A3 +3" so the line stays short.
 const codeList = (set) => (set.length <= 3 ? set.map((c) => c.code).join(' + ') : `${set.slice(0, 2).map((c) => c.code).join(', ')} +${set.length - 2}`);
@@ -35,13 +36,6 @@ const pct = (x) => `${Math.round(Number(x) || 0)}%`;
 const toDate = (v) => (v ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T12:00:00+07:00` : v) : null);
 function part(v, o) { const d = toDate(v); return d ? new Intl.DateTimeFormat(loc(), { timeZone: TZ, ...o }).format(d) : ''; }
 function monthLabel(v) { const d = toDate(v); if (!d) return ''; return getLang() === 'vi' ? `Th${part(v, { month: 'numeric' })}` : part(v, { month: 'short' }); }
-function fmtRange(a, b) {
-  if (!a || !b) return fmtShortDate(a || b);
-  const vi = getLang() === 'vi';
-  const sameMonth = a.slice(0, 7) === b.slice(0, 7);
-  const dm = (v) => part(v, vi ? { day: 'numeric', month: 'numeric' } : { day: 'numeric', month: 'short' });
-  return sameMonth ? `${part(a, { day: 'numeric' })}–${dm(b)}` : `${dm(a)} – ${dm(b)}`;
-}
 /** "1 Dec" / "1/12"; the year is added when it is not this year ("12 Jan 2027"). */
 function dayMonth(v) {
   const vi = getLang() === 'vi';
@@ -394,7 +388,7 @@ function heroNext(ns) {
     lead = h('div', { class: 'row tight' }, h('span', { class: 'code-badge hero-code' }, c.code), chip(ns.status.label, ns.status.variant, ns.status.icon));
     meter = stepMeter(stepInfo(c), { onHero: true });
   } else if (ns.kind === 'baseline') {
-    aside = h('div', { class: 'hero-aside' }, h('span', { class: 'hero-glyph' }, icon('target', 'lg')), h('span', { class: 'small', text: t('home.next.baseline_aside') }));
+    aside = h('div', { class: 'hero-aside' }, h('span', { class: 'hero-glyph' }, icon('target', 'lg')), h('span', { class: 'small', text: t('home.next.baseline_aside', { min: ns.minutes || '' }) }));
   } else if (ns.kind === 'done') {
     aside = h('div', { class: 'hero-aside' }, h('span', { class: 'hero-glyph' }, icon('check-circle', 'lg')));
   } else if (ns.kind === 'wait' && c) {
@@ -464,48 +458,35 @@ function recentFromStreak(st) {
   return out;
 }
 
-// Baseline card: CTA while open; readiness and the two largest gaps after submit.
+// Baseline v2 (specs/22): three part tiles (open / closed, not started / in progress / done), a
+// "Rate my team" tile for managers while rating is open, and the profile link once results are open.
 function baselineCard(b) {
-  if (!b) return null;
-  const head = (chipEl) => h('div', { class: 'section-head' },
-    h('div', { class: 'stack sm' }, h('h2', { id: 'bl-title', text: t('home.bl.title') }), h('p', { text: t('home.bl.sub', { wave: waveLabel(b.wave) }) })), chipEl);
-  if (b.status === 'submitted' && b.result) return baselineRow(b);
-  let body;
-  if (b.window === 'open' || b.status === 'in_progress') {
-    const inProg = b.status === 'in_progress';
-    body = h('div', { class: 'card pad stack bl-open' },
-      h('div', { class: 'bl-facts' },
-        fact('calendar', t('home.bl.window'), fmtRange(b.open_from, b.open_to)),
-        fact('clock', t('home.bl.time'), t('home.bl.time_v')),
-        fact('list', t('home.bl.parts'), t('home.bl.parts_v')),
-        fact('lock', t('home.bl.who'), t('home.bl.who_v'))),
-      h('p', { class: 'muted', text: t(inProg ? 'home.bl.body_continue' : 'home.bl.body_open') }),
-      inProg && b.deadline_at ? h('p', { class: 'small strong ink' }, icon('clock', 'sm'), ' ', t('home.bl.deadline', { time: fmtDateTime(b.deadline_at) })) : null,
-      h('div', null, h('a', { class: 'btn btn-primary btn-lg', href: 'baseline.html' }, t(inProg ? 'cta.continue' : 'cta.start_baseline'), icon('arrow-right'))));
-    return h('section', { 'aria-labelledby': 'bl-title' }, head(chip(t(inProg ? 'home.bl.chip_progress' : 'home.bl.chip_open'), 'info', inProg ? 'edit' : 'clock')), body);
-  }
-  if (b.window === 'before') {
-    body = h('div', { class: 'card pad' }, h('p', { class: 'muted', text: t('home.bl.body_before', { from: fmtLongDate(b.open_from), to: fmtLongDate(b.open_to) }) }));
-    return h('section', { 'aria-labelledby': 'bl-title' }, head(chip(t('home.bl.chip_soon'), 'locked', 'lock')), body);
-  }
-  body = h('div', { class: 'card pad' }, h('p', { class: 'muted', text: t('home.bl.body_missed', { date: fmtLongDate(b.open_to) }) }));
-  return h('section', { 'aria-labelledby': 'bl-title' }, head(chip(t('home.bl.chip_closed'), 'locked', 'lock')), body);
-}
-function fact(ic, k, v) { return h('div', { class: 'bl-fact' }, icon(ic), h('div', null, h('span', { class: 'xs muted', text: k }), h('b', { text: v }))); }
-function waveLabel(w) {
-  if (!w) return '';
-  const [y, m] = String(w).split('-');
-  return getLang() === 'vi' ? `${t('home.bl.month')} ${Number(m)}/${y}` : new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(y), Number(m) - 1, 15)));
-}
-// After the baseline: one row. The full result (by course, self-rating, gaps) is on baseline.html.
-function baselineRow(b) {
-  return h('section', { class: 'bl-row-sec', 'aria-labelledby': 'bl-title' },
-    h('a', { class: 'card hover bl-row', href: 'baseline.html' },
-      h('span', { class: 'tile-icon' }, icon('target')),
-      h('span', { class: 'bl-row-text' },
-        h('h2', { id: 'bl-title', class: 'title-sm', text: t('home.bl.title') }),
-        h('span', { class: 'bl-row-pct', text: t('home.bl.row_overall', { pct: pct(b.result.score_pct) }) })),
-      h('span', { class: 'bl-row-go' }, h('span', { text: t('home.bl.row_link') }), icon('arrow-right', 'sm'))));
+  if (!b || !b.parts) return null;
+  const parts = PARTS.map((n) => partOf(b, n));
+  const done = parts.filter((p) => p && p.status === 'submitted').length;
+  const allDone = done === PARTS.length;
+  const anyOpen = parts.some((p) => p && (p.open || p.status === 'in_progress'));
+  const headChip = allDone ? chip(t('home.bl.chip_done'), 'pass', 'check') : anyOpen ? chip(t('home.bl.chip_n', { n: done, total: PARTS.length }), 'info', 'clock') : chip(t('home.bl.chip_soon'), 'locked', 'lock');
+  const r = b.rating;
+  const rateTile = r && r.open ? h('a', { class: 'card hover card-link bl2-tile bl2-rate-tile', href: 'rate.html' },
+    h('span', { class: 'bl2-tile-n', 'aria-hidden': 'true' }, icon('users')),
+    h('div', { class: 'bl2-tile-main' },
+      h('p', { class: 'bl2-tile-k', text: t('home.bl.rate_k') }),
+      h('h3', { class: 'bl2-tile-name', text: t('home.bl.rate_title', { done: r.done || 0, total: r.to_rate || 0 }) }),
+      h('p', { class: 'bl2-tile-meta', text: t('home.bl.rate_meta') }),
+      h('p', { class: 'bl2-tile-state' }, (r.to_rate && r.done >= r.to_rate) ? chip(t('home.bl.rate_done'), 'pass', 'check') : chip(t('home.bl.rate_left', { count: Math.max(0, (r.to_rate || 0) - (r.done || 0)) }), 'warn', 'edit'))),
+    h('span', { class: 'bl2-tile-go' }, h('span', { text: t('home.bl.rate_go') }), icon('arrow-right', 'sm'))) : null;
+  const profile = b.results_open && b.profile_ready ? h('a', { class: 'card hover card-link bl2-cta', href: 'profile.html' },
+    h('span', { class: 'tile-icon' }, icon('trend-up')),
+    h('span', { class: 'grow stack sm' }, h('b', { class: 'ink', text: t('home.bl.profile_cta') }), h('span', { class: 'small muted', text: t('home.bl.profile_sub') })),
+    icon('arrow-right')) : null;
+  return h('section', { 'aria-labelledby': 'bl-title', class: 'bl2-home' },
+    h('div', { class: 'section-head' },
+      h('div', { class: 'stack sm' }, h('h2', { id: 'bl-title', text: t('home.bl.title') }), h('p', { text: t(allDone ? 'home.bl.sub_done' : 'home.bl.sub', { wave: blWave(b.wave) }) })),
+      headChip),
+    h('div', { class: 'stack' }, profile,
+      h('div', { class: 'bl2-tiles' }, PARTS.map((n) => partTile(n, partOf(b, n))), rateTile),
+      allDone ? null : h('p', { class: 'xs muted note-line' }, icon('lock', 'sm'), ' ', t('home.bl.note'))));
 }
 
 // Courses grouped by cycle, calendar order, as a learning path.
@@ -578,9 +559,6 @@ function courseCard(c) {
 function comingUp(me, courses) {
   const today = todayVN();
   const items = [];
-  const b = me.baseline || {};
-  if (b.window === 'open' && b.status !== 'submitted' && b.open_to) items.push({ date: b.open_to, icon: 'target', title: t('home.up.baseline_closes'), sub: t('home.up.baseline_sub'), href: 'baseline.html', prio: 0 });
-  if (b.window === 'before' && b.open_from) items.push({ date: b.open_from, icon: 'target', title: t('home.up.baseline_opens'), sub: t('home.up.baseline_sub'), prio: 3 });
   courses.forEach((c) => (c.recall || []).forEach((r) => {
     if (r.status === 'due') items.push({ date: r.due_date < today ? today : r.due_date, icon: 'refresh', title: t('home.up.recall_due', { code: c.code, day: r.day }), sub: pick(c, 'name'), href: `quiz.html?type=recall&c=${encodeURIComponent(c.code)}&day=${r.day}`, prio: 0, due: true });
   }));

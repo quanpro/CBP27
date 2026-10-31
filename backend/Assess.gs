@@ -557,7 +557,7 @@ function buildSummaryRows_() {
     out.push({ wave_or_course: key, group: g.group, n: g.n, metric: metric, course: course, value: value, updated_at: updated, count: count });
   };
 
-  if (cfg.results_open) blSummaryRows_(people, byCode, minN, emit);
+  if (cfg.results_open) blSummaryRows_(people, minN, emit);
 
   var published = courses.filter(function (c) { return now > checkpointPublishMs_(c); });
   if (published.length) {
