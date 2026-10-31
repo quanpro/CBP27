@@ -273,6 +273,12 @@ function blSubmit_(att, body) {
   var byId = indexItems_(blItemsForAttempt_(att));
   var answers = blEffectiveAnswers_(att, body.answers !== undefined ? body.answers : att.answers, byId);
   var self = att.self_ratings;
+  // Time is up (inside the grace period): grade what was sent, without the completeness checks.
+  if (now >= blDeadlineMs_(att, cfg)) {
+    if (att.assessment === 'baseline_p3') self = cleanSelfRatings(body.self_ratings !== undefined ? body.self_ratings : att.self_ratings, courseOrder_());
+    finalizeBl_(att, answers, self, 'submitted', now);
+    return;
+  }
   if (att.assessment === 'baseline_p2') {
     if (!sjtLock_(att)) throw apiError_('bad_request', 'Finish and lock Part 2A first.', { field: 'SJT' });
     var missing = blServed_(att, byId).filter(function (x) { return byId[x].section === 'RATE' && answers[x] === undefined; })[0];

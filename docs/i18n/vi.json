@@ -1064,7 +1064,9 @@
    "self_hint": "Chấm mức bạn đang ở hôm nay, không phải mức bạn mong muốn. Phần này không có đúng sai. Chấm đủ 10 nhận định để đi tiếp.",
    "to_questions": "Sang phần câu hỏi",
    "back_self": "Tự đánh giá",
-   "self_required": "Hãy chấm đủ 10 nhận định trước khi nộp."
+   "self_required": "Hãy chấm đủ 10 nhận định trước khi nộp.",
+   "no_module_title": "Chưa có phần theo vai trò của bạn",
+   "no_module_body": "Phần 3 cần biết vai trò của bạn (nhu cầu, cung ứng, vật tư hoặc dịch vụ khách hàng). Hãy nhờ quản trị viên cập nhật trong danh sách nhân sự rồi quay lại."
   },
   "sec": {
    "A": "Mục A",
@@ -1378,7 +1380,6 @@
   "start": "Bắt đầu",
   "continue": "Chấm tiếp",
   "review": "Xem lại",
-  "view": "Xem",
   "empty_title": "Chưa có ai để chấm",
   "empty_body": "HR L&D liên kết những người bạn quản lý trong danh sách nhân sự. Hãy hỏi họ nếu thiếu ai.",
   "note": "Không hiện tài khoản thử nghiệm và người đã nghỉ việc.",
@@ -1508,6 +1509,7 @@
    "SP": "Supply planning",
    "RPM": "Materials planning",
    "CS": "Customer service"
-  }
+  },
+  "to_baseline": "Đến bài đánh giá đầu vào"
  }
 }

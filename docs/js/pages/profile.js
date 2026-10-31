@@ -163,6 +163,12 @@ function coursesCard(courses) {
 function draw(keep) {
   const y = window.scrollY;
   if (!S.data) {
+    if (S.err && S.err.code === 'not_found') {
+      render(app, h('div', { class: 'pf stack lg' }, h('section', { class: 'card qz-state' }, h('div', { class: 'empty' },
+        h('div', { class: 'em-icon' }, icon('target', 'lg')), h('h1', { class: 'qz-h1', text: t('profile.title') }), h('p', { text: t('profile.empty') }),
+        h('a', { class: 'btn btn-primary', href: 'baseline.html' }, t('profile.to_baseline'))))));
+      return;
+    }
     if (S.err && S.err.code === 'not_open') {
       render(app, h('div', { class: 'pf stack lg' }, h('section', { class: 'card qz-state' }, h('div', { class: 'empty' },
         h('div', { class: 'em-icon' }, icon('lock', 'lg')), h('h1', { class: 'qz-h1', text: t('profile.closed_title') }), h('p', { text: t('profile.closed_body') }),

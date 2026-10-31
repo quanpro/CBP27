@@ -1064,7 +1064,9 @@
    "self_hint": "Rate where you are today, not where you’d like to be. There are no right answers here. Rate all 10 to go on.",
    "to_questions": "Continue to the questions",
    "back_self": "Self-ratings",
-   "self_required": "Rate all 10 statements before you submit."
+   "self_required": "Rate all 10 statements before you submit.",
+   "no_module_title": "Your role module is not set yet",
+   "no_module_body": "Part 3 needs your role module (demand, supply, materials or customer service). Ask your admin to set it in the roster, then come back."
   },
   "sec": {
    "A": "Section A",
@@ -1378,7 +1380,6 @@
   "start": "Start",
   "continue": "Continue",
   "review": "Review",
-  "view": "View",
   "empty_title": "No one to rate",
   "empty_body": "HR L&D links the people you manage in the roster. Ask them if someone is missing.",
   "note": "Test users and people who have left are not listed.",
@@ -1508,6 +1509,7 @@
    "SP": "Supply planning",
    "RPM": "Materials planning",
    "CS": "Customer service"
-  }
+  },
+  "to_baseline": "Go to the baseline"
  }
 }

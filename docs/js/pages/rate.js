@@ -100,11 +100,12 @@ async function loadRatee(code) {
       if (sameVals(draft, server) || !newer) dropDraft(code);
       else {
         S.values = draft; S.unsaved = true; S.status = { kind: 'draft' };
-        if (res.open) saveSoon(300);
+        saveSoon(300);
       }
     }
   } catch (e) {
     S.curErr = e;
+    if (e.code === 'not_open') { S.list = null; try { history.replaceState(null, '', 'rate.html'); } catch (e2) { /* ignore */ } }
     if (!S.list) { try { S.list = await api.rateList(); } catch (e2) { S.listErr = e2; } }
   }
 }
@@ -131,7 +132,7 @@ async function saveNow() {
       if (row) { row.saved_at = res.saved_at; row.status = res.complete ? 'complete' : (Object.keys(sent).length ? 'in_progress' : 'not_started'); }
       okDone = true;
     } catch (e) {
-      if (e.code === 'not_open') { S.cur.open = false; setStatus({ kind: 'closed' }); draw(true); return; }
+      if (e.code === 'not_open') { if (S.cur) S.cur.open = false; setStatus({ kind: 'closed' }); draw(true); return; }
       setStatus({ kind: e.code === 'network' ? 'offline' : 'error', msg: errorMessage(e) });
       clearTimeout(S.retry);
       S.retry = setTimeout(() => { if (S.unsaved) saveNow(); }, RETRY_MS);
@@ -200,12 +201,21 @@ function listView() {
   const reports = L.reports || [];
   const done = reports.filter((r) => r.status === 'complete').length;
   return h('div', { class: 'rt stack lg' }, head,
-    S.curErr ? errorState(S.curErr) : null,
+    S.curErr && S.curErr.code !== 'not_open' ? errorState(S.curErr) : null,
     L.open ? null : h('div', { class: 'callout warn', role: 'status' }, icon('lock'), h('div', { class: 'stack sm' }, h('b', { text: t('rate.closed_title') }), h('span', { text: t('rate.closed_body') }))),
     reports.length ? h('p', { class: 'small strong ink', text: t('rate.progress', { n: done, total: reports.length }) }) : null,
     reports.length ? h('ul', { class: 'rt-list' }, reports.map((r) => {
       const d = ST[r.status] || ST.not_started;
-      const action = !L.open ? t('rate.view') : r.status === 'complete' ? t('rate.review') : r.status === 'in_progress' ? t('rate.continue') : t('rate.start');
+      const action = r.status === 'complete' ? t('rate.review') : r.status === 'in_progress' ? t('rate.continue') : t('rate.start');
+      // While rating is closed the list is read only: the statements are not served (rate_get → not_open).
+      if (!L.open) {
+        return h('li', null, h('div', { class: 'card rt-row' },
+          h('span', { class: 'avatar', 'aria-hidden': 'true', text: String(r.first_name || r.code || '?').trim().charAt(0).toUpperCase() }),
+          h('span', { class: 'rt-row-main' },
+            h('b', { class: 'ink rt-name', text: r.first_name || r.code }),
+            h('span', { class: 'small muted', text: r.role_area ? t(`role.${r.role_area}`) : '' }),
+            h('span', { class: 'row tight' }, chip(t(d[2]), d[0], d[1]), r.saved_at ? h('span', { class: 'xs muted', text: t('rate.saved_on', { time: fmtDateTime(r.saved_at) }) }) : null))));
+      }
       return h('li', null, h('a', { class: 'card hover card-link rt-row', href: urlFor(r.status === 'not_started' && L.open ? 'guide' : 'form', r.code), 'data-fk': `row|${r.code}`,
         onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); nav(r.status === 'not_started' && L.open ? 'guide' : 'form', r.code); } },
         h('span', { class: 'avatar', 'aria-hidden': 'true', text: String(r.first_name || r.code || '?').trim().charAt(0).toUpperCase() }),

@@ -170,7 +170,7 @@ function chooserView() {
   render(app, h('div', { class: 'qz bl bl2 stack lg' },
     h('header', { class: 'stack sm' },
       h('p', { class: 'eyebrow', text: t('baseline.eyebrow', { wave: waveLabel(b.wave) }) }),
-      h('h1', { class: 'qz-h1', text: t('baseline.chooser_title') }),
+      h('h1', { id: 'bl-title', class: 'qz-h1', text: t('baseline.chooser_title') }),
       h('p', { class: 'muted', text: t('baseline.chooser_lead') })),
     h('div', { class: 'bl2-tiles' }, PARTS.map((n) => partTile(n, partOf(b, n), { heading: 'h2' }))),
     h('div', { class: 'row qz-actions' }, h('a', { class: 'btn btn-ghost', href: 'index.html' }, icon('chevron-left'), h('span', { text: t('baseline.back_home') })))));
@@ -228,6 +228,7 @@ async function begin(btn, resuming) {
     btn.disabled = false;
     if (e.code === 'already_submitted') { await boot(); return; }
     if (e.code === 'not_open') { show(closedView); return; }
+    if (e.code === 'not_found' && S.part === 3) { show(() => stateCard({ iconName: 'users', title: t('baseline.p3.no_module_title'), body: t('baseline.p3.no_module_body') })); return; }
     show(() => introView(e));
     return;
   }
@@ -435,7 +436,9 @@ function renderQ(err) {
   const tabs = navSecs.length > 1 ? h('div', { class: 'bl2-sec-tabs', role: 'group', 'aria-label': t('baseline.sections_aria') },
     navSecs.map((x) => h('button', { type: 'button', class: 'bl2-sec-tab', 'aria-pressed': String(x.id === s.id), 'data-fk': `sec|${x.id}`, onclick: () => { if (x.id !== s.id) viewQ(x.id); } },
       h('span', { class: 'bl2-sec-name', text: secTitle(x) }), h('span', { class: 'bl2-sec-count', text: t('baseline.sec_count', { n: doneIn(x.items), total: x.items.length }) })))) : null;
-  const intro = i === 0 && pick(s, 'intro') ? h('p', { class: 'bl2-sec-intro small' }, icon('info', 'sm'), h('span', { text: pick(s, 'intro') })) : null;
+  const partIntro = i === 0 && secIdxOf(s) === 0 && pick(S.start, 'intro') ? pick(S.start, 'intro') : '';
+  const intro = i === 0 && (pick(s, 'intro') || partIntro) ? h('div', { class: 'bl2-sec-intro small' }, icon('info', 'sm'),
+    h('div', { class: 'stack sm' }, partIntro ? h('p', { text: partIntro }) : null, pick(s, 'intro') ? h('p', { text: pick(s, 'intro') }) : null)) : null;
   const caseInfo = it && it.case_id && S.start.cases && S.start.cases[it.case_id] ? h('p', { class: 'bl2-case-line' }, icon('file', 'sm'), h('span', { text: pick(S.start.cases[it.case_id], 'title') })) : null;
   const card = it ? (it.type === 'sjt' ? sjtCard(it) : mcqCard(it)) : null;
   const last = i === items.length - 1;
@@ -473,6 +476,7 @@ function renderQ(err) {
   if (errEl) errEl.focus({ preventScroll: false });
 }
 const secTitleShort = (s) => t(`baseline.sec_short.${s.id}`);
+const secIdxOf = (s) => qSections().indexOf(s);
 function go(k) {
   const s = sec(S.pos.sec);
   S.pos.idx[s.id] = Math.max(0, Math.min(s.items.length - 1, k));
@@ -690,7 +694,8 @@ function renderOpener() {
     h('header', { class: 'bl-part-head stack sm', 'data-anchor': 'head-self' },
       h('p', { class: 'eyebrow', text: t('baseline.p3.self_eyebrow') }),
       h('h1', { class: 'qz-h1', text: t('baseline.p3.self_title') }),
-      h('p', { class: 'muted', text: t('baseline.p3.self_hint') })),
+      h('p', { class: 'muted', text: t('baseline.p3.self_hint') }),
+      pick(S.start, 'intro') ? h('p', { class: 'small bl2-sec-intro' }, icon('info', 'sm'), h('span', { text: pick(S.start, 'intro') })) : null),
     h('div', { class: 'row bl2-tools' }, glossaryButton()),
     h('section', { class: 'card pad bl-scale', 'aria-labelledby': 'bl-scale-h', 'data-anchor': 'scale' },
       h('h2', { id: 'bl-scale-h', class: 'bl-h3', text: t('baseline.scale_title') }),

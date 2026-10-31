@@ -374,6 +374,11 @@ const BL_MOVES = ['ASK', 'SHAPE', 'SIZE', 'CHECK', 'SO WHAT'];
 const BL_LEVELS = ['BA', 'WK', 'FO', 'LE'];
 const BL_GATES = ['Data ready', 'Demand review', 'Supply review', 'Decision'];
 const BL_TXT = {
+  p1_title: ['Part 1 · Problem solving with data (demo)', 'Phần 1 · Giải quyết vấn đề bằng dữ liệu (demo)'],
+  p1_intro: ['Two short cases with exhibits, then logic questions. (demo)', 'Hai tình huống ngắn kèm bảng số liệu, sau đó là các câu hỏi logic. (demo)'],
+  p2_title: ['Part 2 · Leadership behaviours (demo)', 'Phần 2 · Hành vi lãnh đạo (demo)'],
+  p2_intro: ['Scenarios first, then statements about your own behaviour. (demo)', 'Các tình huống trước, sau đó là các nhận định về hành vi của bạn. (demo)'],
+  p3_title: ['Part 3 · Core planning (demo)', 'Phần 3 · Hoạch định cốt lõi (demo)'],
   p1_sec_A: ['Section A · Case questions', 'Mục A · Câu hỏi tình huống'],
   p1_sec_B: ['Section B · Logic questions', 'Mục B · Câu hỏi tư duy logic'],
   p1_sec_B_intro: ['Short questions on reasoning with numbers. No exhibits needed. (demo)', 'Các câu hỏi ngắn về suy luận với con số. Không cần bảng số liệu. (demo)'],
@@ -482,30 +487,30 @@ function blBank() {
     for (let i = 1; i <= 6; i += 1) {
       const caseId = i <= 3 ? 'C1' : 'C2';
       const ex = caseId === 'C1' ? ['MOCK-BL-EX1'] : (i === 6 ? ['MOCK-BL-EX2', 'MOCK-BL-EX1'] : ['MOCK-BL-EX2']);
-      mcq({ item_id: `MOCK-BL-P1${form}-A${i}`, part: 1, section: 'A', form, order: i, case_id: caseId, exhibit_ids: ex, step: String(((i - 1) % 7) + 1), move: BL_MOVES[(i - 1) % 5],
+      mcq({ item_id: `MOCK-BL-1${form}-A${i}`, part: 1, section: 'A', form, order: i, case_id: caseId, exhibit_ids: ex, step: String(((i - 1) % 7) + 1), move: BL_MOVES[(i - 1) % 5],
         ...stem(`Demo case question ${i} · form ${form}. Use the exhibit.`, `Câu hỏi tình huống demo ${i} · đề ${form}. Dùng bảng số liệu.`) });
     }
     for (let i = 1; i <= 6; i += 1) {
-      mcq({ item_id: `MOCK-BL-P1${form}-B${i}`, part: 1, section: 'B', form, order: 6 + i, step: String(((i + 3) % 7) + 1), move: BL_MOVES[(i + 1) % 5],
+      mcq({ item_id: `MOCK-BL-1${form}-B${i}`, part: 1, section: 'B', form, order: 6 + i, step: String(((i + 3) % 7) + 1), move: BL_MOVES[(i + 1) % 5],
         ...stem(`Demo logic question ${i} · form ${form}.`, `Câu hỏi logic demo ${i} · đề ${form}.`) });
     }
   });
   SJT_STEMS.forEach(([en, vi], k) => {
-    const id = `MOCK-BL-P2-S${k + 1}`;
+    const id = `MOCK-BL-2S${k + 1}`;
     const ids = shuffle('abcd'.split(''), hash(id));
     const options = SJT_OPTS.map((o, j) => ({ id: ids[j], en: o[0], vi: o[1] })).sort((x, y) => x.id.localeCompare(y.id));
     items.push({ item_id: id, part: 2, section: 'SJT', type: 'sjt', form: 'ONE', order: k + 1, charter: String(k + 1), options, mockMost: ids[0], mockLeast: ids[3],
       stem_en: `${en} In the live Hub this is a real workplace scenario.`, stem_vi: `${vi} Trên Hub thật đây là một tình huống công việc thực tế.` });
   });
-  BL_RATINGS.forEach((r, k) => items.push({ item_id: `MOCK-BL-P2-R${k + 1}`, part: 2, section: 'RATE', type: 'rating', form: 'ONE', order: k + 1, charter: r.charter, allow_nr: !!r.nr,
+  BL_RATINGS.forEach((r, k) => items.push({ item_id: `MOCK-BL-2R${k + 1}`, part: 2, section: 'RATE', type: 'rating', form: 'ONE', order: k + 1, charter: r.charter, allow_nr: !!r.nr,
     self_en: r.self[0], self_vi: r.self[1], mgr_en: r.mgr[0], mgr_vi: r.mgr[1], anchor1_en: r.a1[0], anchor1_vi: r.a1[1], anchor4_en: r.a4[0], anchor4_vi: r.a4[1] }));
   for (let i = 1; i <= 3; i += 1) {
-    mcq({ item_id: `MOCK-BL-P3-CORE${i}`, part: 3, section: 'CORE', form: 'ONE', order: i, exhibit_ids: i === 3 ? ['MOCK-BL-EX1'] : [], level: BL_LEVELS[i - 1], gate: BL_GATES[i - 1],
+    mcq({ item_id: `MOCK-BL-3CORE${i}`, part: 3, section: 'CORE', form: 'ONE', order: i, exhibit_ids: i === 3 ? ['MOCK-BL-EX1'] : [], level: BL_LEVELS[i - 1], gate: BL_GATES[i - 1],
       ...stem(`Demo core question ${i}.`, `Câu hỏi cốt lõi demo ${i}.`) });
   }
   ['DP', 'SP', 'RPM', 'CS'].forEach((m) => {
     for (let i = 1; i <= 4; i += 1) {
-      mcq({ item_id: `MOCK-BL-P3-${m}${i}`, part: 3, section: 'MOD', module: m, form: 'ONE', order: i, level: BL_LEVELS[i - 1], gate: BL_GATES[i % 4],
+      mcq({ item_id: `MOCK-BL-3${m}${i}`, part: 3, section: 'MOD', module: m, form: 'ONE', order: i, level: BL_LEVELS[i - 1], gate: BL_GATES[i % 4],
         ...stem(`Demo ${m} module question ${i}.`, `Câu hỏi demo phần ${m} số ${i}.`) });
     }
   });
@@ -555,7 +560,8 @@ const blRateSection = (a, items) => blSection(a, 'RATE', BL_TXT.p2_sec_RATE, BL_
 function blStartOut(a, resumed, cat) {
   const items = a.served.map(blItem);
   const out = { attempt_id: a.attempt_id, assessment: a.assessment, part: a.part, form: a.form, module: a.module, started_at: a.started_at, deadline_at: a.deadline_at,
-    time_limit_min: BL_MIN[a.part], resumed, answers: clone(a.answers || {}) };
+    time_limit_min: BL_MIN[a.part], resumed, answers: clone(a.answers || {}),
+    title_en: BL_TXT[`p${a.part}_title`][0], title_vi: BL_TXT[`p${a.part}_title`][1], intro_en: BL_TXT[`p${a.part}_intro`][0], intro_vi: BL_TXT[`p${a.part}_intro`][1] };
   if (a.part === 1) {
     out.sections = [
       blSection(a, 'A', BL_TXT.p1_sec_A, null, items.filter((i) => i.section === 'A')),
@@ -571,7 +577,7 @@ function blStartOut(a, resumed, cat) {
     out.rating_scale = { points: RATE_POINTS.map(([v, en, vi]) => ({ v, en, vi })), nr: clone(RATE_NR) };
   } else {
     out.sections = [
-      blSection(a, 'CORE', BL_TXT.p3_sec_CORE, BL_TXT.p3_intro, items.filter((i) => i.section === 'CORE')),
+      blSection(a, 'CORE', BL_TXT.p3_sec_CORE, null, items.filter((i) => i.section === 'CORE')),
       blSection(a, 'MOD', BL_TXT[`p3_sec_${a.module}`] || BL_TXT.p3_sec_DP, null, items.filter((i) => i.section === 'MOD')),
     ];
     out.glossary = { en: BL_GLOSSARY.map((g) => g[0]), vi: BL_GLOSSARY.map((g) => g[1]) };
@@ -855,7 +861,7 @@ function seedBaselineL(s, T) {
   };
   mk(1, 'B', '', -6, '14:05', 9, (it, i) => (it.section === 'A' ? (i % 3 !== 2 ? it.mockCorrect : wrong(it)) : (i % 2 ? it.mockCorrect : wrong(it))));
   const sjt = { 1: [1, 1], 2: [1, 0], 3: [0, 0], 4: [1, 1] };
-  const selfR = { R1: 4, R2: 3, R3: 'NR', R4: 3, R5: 1, R6: 3 };
+  const selfR = { '2R1': 4, '2R2': 3, '2R3': 'NR', '2R4': 3, '2R5': 1, '2R6': 3 };
   mk(2, 'ONE', '', -5, '09:40', 5, (it) => {
     if (it.type === 'sjt') {
       const [m, l] = sjt[it.charter];
@@ -866,7 +872,7 @@ function seedBaselineL(s, T) {
   });
   mk(3, 'ONE', 'DP', -4, '15:30', 7, (it) => (it.section === 'CORE' ? (it.order < 3 ? it.mockCorrect : wrong(it)) : (it.order === 1 ? it.mockCorrect : wrong(it))),
     { A2: 3, A3: 2, A1: 2, P1: 3, C1: 1, P2: 1, P3: 1, P4: 3, P5: 1, P6: 2 });
-  s.ratings['DEMO-M|DEMO-L'] = { values: { 'MOCK-BL-P2-R1': 2, 'MOCK-BL-P2-R2': 2, 'MOCK-BL-P2-R3': 3, 'MOCK-BL-P2-R4': 'NA', 'MOCK-BL-P2-R5': 4, 'MOCK-BL-P2-R6': 4 }, saved_at: iso(T(-2, '17:20')) };
+  s.ratings['DEMO-M|DEMO-L'] = { values: { 'MOCK-BL-2R1': 2, 'MOCK-BL-2R2': 2, 'MOCK-BL-2R3': 3, 'MOCK-BL-2R4': 'NA', 'MOCK-BL-2R5': 4, 'MOCK-BL-2R6': 4 }, saved_at: iso(T(-2, '17:20')) };
 }
 
 // ---------- actions ----------
@@ -1037,6 +1043,7 @@ const ACTIONS = {
     if (!isRater(u)) return fail('forbidden');
     const r = blReports(u).find((x) => x.code === String(p.ratee || '').trim().toUpperCase());
     if (!r) return fail('forbidden');
+    if (!state.bl.rating_open) return fail('not_open'); // the statements describe what Part 2A rewards
     const rec = state.ratings[`${u.code}|${r.code}`] || { values: {}, saved_at: null };
     return ok({ open: !!state.bl.rating_open, ratee: { code: r.code, first_name: r.first_name }, guide_en: RATER_GUIDE.en, guide_vi: RATER_GUIDE.vi,
       scale: { points: RATE_POINTS.map(([v, en, vi]) => ({ v, en, vi })), na: clone(RATE_NA) },
@@ -1052,6 +1059,7 @@ const ACTIONS = {
     const values = {};
     for (const [k, v] of Object.entries(p.values && typeof p.values === 'object' ? p.values : {})) {
       if (!ids.has(k)) return fail('bad_request', 'Unknown statement', { field: k });
+      if (v === null || v === '') continue; // clears the value
       if (v === 'NA') values[k] = 'NA';
       else if ([1, 2, 3, 4].includes(Number(v)) && v !== '' && v !== null) values[k] = Number(v);
       else return fail('bad_request', 'Ratings are 1–4 or NA', { field: k });
