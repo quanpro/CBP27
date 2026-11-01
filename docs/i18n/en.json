@@ -418,10 +418,13 @@
   "player": {
    "watch": "Watch on Blink",
    "watch_aria": "Watch {label}, {title}, on Blink (opens in a new tab)",
+   "watch_yt": "Watch on YouTube",
+   "watch_aria_yt": "Watch {label}, {title}, on YouTube (opens in a new tab)",
    "soon": "Link coming soon",
    "soon_note": "Blink links are added by HR L&D.",
    "locked": "Episodes open on {date}.",
    "embed_failed": "The video didn't load here. Watch it on Blink instead.",
+   "embed_failed_yt": "The video didn't load here. Watch it on YouTube instead.",
    "iframe_title": "{label}: {title}",
    "watched": "Watched",
    "mark": "Mark as watched",

@@ -418,10 +418,13 @@
   "player": {
    "watch": "Xem trên Blink",
    "watch_aria": "Xem {label}, {title}, trên Blink (mở trong tab mới)",
+   "watch_yt": "Xem trên YouTube",
+   "watch_aria_yt": "Xem {label}, {title}, trên YouTube (mở trong tab mới)",
    "soon": "Sắp có đường dẫn",
    "soon_note": "HR L&D sẽ bổ sung đường dẫn Blink.",
    "locked": "Các tập sẽ mở vào {date}.",
    "embed_failed": "Video không tải được ở đây. Hãy xem trên Blink.",
+   "embed_failed_yt": "Video không tải được ở đây. Hãy xem trên YouTube.",
    "iframe_title": "{label}: {title}",
    "watched": "Đã xem",
    "mark": "Đánh dấu đã xem",

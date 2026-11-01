@@ -5,6 +5,7 @@
 import { h, render, icon, chip, codeBadge, ring, stepMeter, emptyState, errorState, errorMessage, toast, mountShell, qs } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, serverNow } from '../api.js';
+import { playerSrc, isYouTube } from '../video.js';
 import { loadCatalog, journey, courseStatus, courseProgress, courseSteps, stepInfo, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 
 // Links and embeds come from the Sheet: only https URLs are used (anything else is treated as missing).
@@ -221,6 +222,7 @@ function selectEp(ep, scroll) {
 function posterEl(e, failed) {
   const c = S.course;
   const url = safeUrl(e.blink_url) || safeUrl(c.blink_url);
+  const yt = isYouTube(url);
   const kicker = h('p', { class: 'poster-kicker' }, epLabel(e), e.minutes ? ` · ${t('common.minutes', { n: e.minutes })}` : '');
   let action;
   if (!c.open) {
@@ -228,8 +230,8 @@ function posterEl(e, failed) {
       h('p', { class: 'poster-note', text: t('course.player.locked', { date: fmtLongDate(c.online_from) }) }));
   } else if (url) {
     action = h('div', { class: 'poster-actions' },
-      h('a', { class: 'play-btn', href: url, target: '_blank', rel: 'noopener', 'aria-label': t('course.player.watch_aria', { label: epLabel(e), title: epTitle(e) }) }, icon('play')),
-      h('a', { class: 'btn btn-light', href: url, target: '_blank', rel: 'noopener', tabindex: '-1', 'aria-hidden': 'true' }, t('course.player.watch'), icon('external', 'sm')));
+      h('a', { class: 'play-btn', href: url, target: '_blank', rel: 'noopener', 'aria-label': t(yt ? 'course.player.watch_aria_yt' : 'course.player.watch_aria', { label: epLabel(e), title: epTitle(e) }) }, icon('play')),
+      h('a', { class: 'btn btn-light', href: url, target: '_blank', rel: 'noopener', tabindex: '-1', 'aria-hidden': 'true' }, t(yt ? 'course.player.watch_yt' : 'course.player.watch'), icon('external', 'sm')));
   } else {
     action = h('div', { class: 'poster-actions' },
       h('span', { class: 'play-btn is-off', 'aria-hidden': 'true' }, icon('play')),
@@ -239,7 +241,7 @@ function posterEl(e, failed) {
   return h('div', { class: 'poster' },
     kicker,
     h('h3', { text: epTitle(e) }),
-    failed ? h('p', { class: 'poster-note', text: t('course.player.embed_failed') }) : null,
+    failed ? h('p', { class: 'poster-note', text: t(yt ? 'course.player.embed_failed_yt' : 'course.player.embed_failed') }) : null,
     action);
 }
 
@@ -256,7 +258,9 @@ function renderPlayer(force) {
         h('p', { class: 'small', text: soon ? t('course.player.no_links_future', { date: fmtLongDate(S.course.online_from) }) : t('course.player.no_links_now') }))));
     return;
   }
-  const canEmbed = S.course.open && e.embed_url && /^https:\/\//i.test(e.embed_url) && !S.embedFailed.has(e.ep);
+  // A YouTube link (in embed_url or blink_url) or any https embed_url plays here; see js/video.js.
+  const src = playerSrc(e.embed_url, e.blink_url);
+  const canEmbed = S.course.open && !!src && !S.embedFailed.has(e.ep);
   const keepFrame = !force && S.player.iframe && S.player.ep === e.ep && canEmbed && E.player.querySelector('iframe');
   let stage;
   if (keepFrame) stage = E.player.querySelector('.player');
@@ -264,7 +268,15 @@ function renderPlayer(force) {
     clearTimeout(S.player.timer);
     stage = h('div', { class: 'player' });
     if (canEmbed) {
-      const fr = h('iframe', { src: e.embed_url, title: t('course.player.iframe_title', { label: epLabel(e), title: epTitle(e) }), allow: 'fullscreen; picture-in-picture', referrerpolicy: 'no-referrer', sandbox: 'allow-scripts allow-same-origin allow-presentation allow-popups' });
+      // YouTube refuses to play without the page's origin as referrer (player error 153), so only
+      // YouTube frames get the origin (never the path); other players get no referrer at all.
+      const yt = isYouTube(src);
+      const fr = h('iframe', {
+        src, title: t('course.player.iframe_title', { label: epLabel(e), title: epTitle(e) }),
+        allow: 'fullscreen; picture-in-picture; encrypted-media', allowfullscreen: true,
+        referrerpolicy: yt ? 'strict-origin' : 'no-referrer',
+        sandbox: 'allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox',
+      });
       let loaded = false;
       fr.addEventListener('load', () => { loaded = true; clearTimeout(S.player.timer); });
       S.player.timer = setTimeout(() => { if (!loaded && S.sel === e.ep) { S.embedFailed.add(e.ep); renderPlayer(true); } }, EMBED_TIMEOUT_MS);

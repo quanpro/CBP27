@@ -63,6 +63,8 @@ Instead of File ▸ Import you can paste the CSV text into **Import items from C
 ## 7 · Check Courses, Episodes and Config
 - **Courses**: the calendar dates come from the public course list. Paste each course's Blink playlist link into `blink_url` when HR has it. `open = TRUE` means the course opens by itself on `online_from`; set `FALSE` to hold a course back.
 - **Episodes**: one row per episode (ep 0 = trailer). Paste the Blink link into `blink_url`, and an embeddable player link into `embed_url` if Blink allows it (otherwise leave it empty: the Hub shows a "Watch on Blink" card). `minutes` is optional.
+  - **YouTube instead of Blink:** paste the normal YouTube link (`https://youtu.be/…` or `https://www.youtube.com/watch?v=…`, as copied from **Share**) into `blink_url`; leave `embed_url` empty. The episode then plays inside the course page (YouTube's privacy-enhanced player, no YouTube cookies until the learner presses play). A `&t=75` or `?t=1m15s` start time is kept. In YouTube Studio set each video to **Unlisted** (Private videos cannot be embedded) and leave **Allow embedding** ticked (Details ▸ Show more ▸ License). When Blink is ready, replace the link; nothing else changes.
+  - Try one episode on the office Wi-Fi and on a phone before the course opens: some company networks block YouTube.
 - **Config** (one row per setting; edit the `value` column):
 
 | key | default | meaning |
