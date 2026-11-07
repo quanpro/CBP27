@@ -10,6 +10,13 @@ const SESSION_KEY = 'hub.session';
 const RETRYABLE = new Set(['me', 'start', 'save', 'submit', 'review', 'team_summary', 'team_status', 'capstone_get', 'panel_list', 'watch',
   'baseline_next', 'rate_list', 'rate_get', 'rate_save', 'profile']); // all idempotent on the server
 const isLocalHost = ['localhost', '127.0.0.1'].includes(location.hostname);
+// Actions that change nothing on the server. Any other action that succeeds drops the cached `me`.
+const READ_ONLY = new Set(['me', 'review', 'team_summary', 'team_status', 'capstone_get', 'panel_list', 'rate_list', 'rate_get', 'profile']);
+// Signing in changes no learning data (a new token drops the copy in setSession), so a sign-in from the
+// "session expired" dialog does not make the `me` it was retrying look out of date.
+const NOT_A_CHANGE = new Set([...READ_ONLY, 'login']);
+const ME_KEY = 'hub.me';
+const ME_MAX_AGE_MS = 15 * 60 * 1000;
 
 function ss(op, key, val) {
   try {
@@ -66,14 +73,55 @@ export function setSession({ token, expires_at, profile }, { remember } = {}) {
   const prev = getSession();
   const keep = remember !== undefined ? remember : !!(prev && prev.remember);
   const value = JSON.stringify({ token, expires_at, profile, remember: keep });
-  clearSession();
+  if (!prev || prev.token !== token) ss('del', ME_KEY); // another sign-in: the last `me` is not theirs
+  ss('del', SESSION_KEY); ls('del', SESSION_KEY);
   if (keep) ls('set', SESSION_KEY, value); else ss('set', SESSION_KEY, value);
 }
 export function updateProfile(patch) {
   const s = getSession();
   if (s) setSession({ ...s, profile: { ...s.profile, ...patch } });
 }
-export function clearSession() { ss('del', SESSION_KEY); ls('del', SESSION_KEY); }
+export function clearSession() { ss('del', SESSION_KEY); ls('del', SESSION_KEY); ss('del', ME_KEY); }
+
+// ---- Last `me` (live mode only) ----
+// Each Apps Script call takes a few seconds, so pages draw the last `me` of this tab at once and
+// replace it when the fresh one arrives. Kept in sessionStorage (this tab only, gone when it closes),
+// tied to the session token, at most 15 minutes old, and dropped after any action that changes data.
+const tokenTag = (tok) => String(tok || '').slice(-24);
+let writes = 0;
+/** Counts data-changing calls started in this page; a `me` that began before one may be out of date. */
+export const writeMark = () => writes;
+function storeMe(data) {
+  const s = getSession();
+  if (!s || isDemo()) return;
+  ss('set', ME_KEY, JSON.stringify({ tag: tokenTag(s.token), at: Date.now(), data }));
+}
+/** The last `me` of this tab for the current session, or null. */
+export function cachedMe() {
+  const s = getSession();
+  if (!s || isDemo()) return null;
+  try {
+    const c = JSON.parse(ss('get', ME_KEY) || 'null');
+    if (c && c.tag === tokenTag(s.token) && Date.now() - c.at < ME_MAX_AGE_MS && c.data && c.data.ok) return c.data;
+  } catch (e) { /* unreadable: ignore */ }
+  return null;
+}
+// A ticked episode is the one change worth keeping in the cached `me` (it happens on every course visit).
+function patchWatched(course, watched) {
+  try {
+    const c = JSON.parse(ss('get', ME_KEY) || 'null');
+    const crs = c && c.data && Array.isArray(c.data.courses) ? c.data.courses.find((x) => x.code === course) : null;
+    if (!crs || !Array.isArray(watched)) { ss('del', ME_KEY); return; }
+    const set = new Set(watched.map(Number));
+    crs.episodes.forEach((e) => { e.watched = set.has(Number(e.ep)); });
+    ss('set', ME_KEY, JSON.stringify(c));
+  } catch (e) { ss('del', ME_KEY); }
+}
+/** Same data apart from the server clock (so a page redraws only when something changed). */
+export const sameMe = (a, b) => {
+  const strip = (x) => JSON.stringify({ ...x, server_now: '' });
+  return !!a && !!b && strip(a) === strip(b);
+};
 
 // Clock offset (server_now − client now), so timers follow the server clock.
 let clockOffset = 0;
@@ -113,8 +161,10 @@ export async function call(action, params = {}, { auth = true, retries } = {}) {
   const maxTries = retries !== undefined ? retries : (RETRYABLE.has(action) ? 3 : 1);
   let attempt = 0;
   let reauthed = false;
+  const mark = writes; // a `me` that overlaps a change is not kept
   for (;;) {
     const session = getSession();
+    if (!NOT_A_CHANGE.has(action) && attempt === 0 && !reauthed) { writes += 1; if (action !== 'watch') ss('del', ME_KEY); }
     const payload = { action, ...params };
     if (auth && session) payload.token = session.token;
     let data;
@@ -129,7 +179,12 @@ export async function call(action, params = {}, { auth = true, retries } = {}) {
       const t = Date.parse(data.server_now);
       if (!Number.isNaN(t)) clockOffset = t - Date.now();
     }
-    if (data && data.ok) return data;
+    if (data && data.ok) {
+      if (action === 'me') { if (writes === mark) storeMe(data); }
+      else if (action === 'watch') patchWatched(params.course, data.watched);
+      else if (!NOT_A_CHANGE.has(action)) ss('del', ME_KEY);
+      return data;
+    }
     const err = (data && data.error) || { code: 'server_error', message: 'Unexpected response' };
     if (err.code === 'busy') {
       attempt += 1;
@@ -147,6 +202,19 @@ export async function call(action, params = {}, { auth = true, retries } = {}) {
     const { code, message, ...extra } = err;
     throw new ApiError(code, message, extra);
   }
+}
+
+/**
+ * Wakes the Apps Script web app while the person types their code and PIN: a script nobody used for a
+ * while needs several seconds to start, and this lets the sign-in itself skip that wait. A plain GET
+ * of the health check (no data, no token, nothing written); at most once a minute per tab.
+ */
+export function warmUp() {
+  if (isDemo()) return;
+  const last = Number(ss('get', 'hub.warm') || 0);
+  if (Date.now() - last < 60_000) return;
+  ss('set', 'hub.warm', String(Date.now()));
+  try { fetch(endpoint(), { method: 'GET', mode: 'no-cors', cache: 'no-store', credentials: 'omit' }).catch(() => {}); } catch (e) { /* best effort */ }
 }
 
 // ---- Convenience wrappers (one per action in specs/20) ----

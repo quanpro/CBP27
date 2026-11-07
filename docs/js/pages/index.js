@@ -2,7 +2,7 @@
 // All data from the Sheet is inserted as text (h() / textContent), never as HTML.
 import { h, render, icon, chip, codeBadge, ring, progressBar, stepMeter, emptyState, errorState, errorMessage, changePinForm, mountShell, refreshShell, qs, logout } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
-import { api, getSession, setSession, updateProfile, isDemo, serverNow } from '../api.js';
+import { api, getSession, setSession, updateProfile, isDemo, serverNow, cachedMe, sameMe, writeMark, warmUp } from '../api.js';
 import { loadCatalog, journey, courseStatus, courseProgress, stepInfo, nextStep, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 import { PARTS, partTile, partOf, waveLabel as blWave } from '../bl2.js';
 
@@ -87,7 +87,7 @@ function animateIn(root) {
 // ---------- routing ----------
 function route() {
   const s = getSession();
-  if (!s) return show('login');
+  if (!s) { warmUp(); return show('login'); }
   const p = s.profile || {};
   if (p.must_change_pin || p.consent_needed) {
     if (!S.onboardSteps.length) S.onboardSteps = [p.must_change_pin ? 'pin' : null, p.consent_needed ? 'consent' : null].filter(Boolean);
@@ -292,18 +292,35 @@ function viewConsent() {
 // ---------- dashboard ----------
 async function loadDash() {
   S.loading = true; S.error = null;
+  // The last `me` of this tab (if any) draws the dashboard at once; the fresh one replaces it below.
+  const cached = cachedMe();
+  let shown = null;
+  if (cached) {
+    try {
+      S.catalog = await loadCatalog();
+      S.courses = await journey(cached);
+      S.me = cached; shown = cached;
+      S.loading = false; S.animate = true;
+    } catch (e) { S.me = null; shown = null; }
+  }
   if (S.view === 'dash') draw();
+  const sess = getSession();
+  const teamEarly = !!(sess && sess.profile && sess.profile.is_manager);
+  if (teamEarly) loadTeam(); // in parallel with `me` instead of after it
+  const mark = writeMark();
   try {
     const [me, catalog] = await Promise.all([api.me(), loadCatalog()]);
+    if (shown && (sameMe(me, shown) || writeMark() !== mark)) return; // nothing new, or overtaken by a change
     S.catalog = catalog;
     S.courses = await journey(me);
     S.me = me;
     if (me.profile) updateProfile(me.profile);
-    S.loading = false; S.animate = true;
+    S.loading = false; S.animate = !shown;
     if (me.profile && (me.profile.must_change_pin || me.profile.consent_needed)) { S.onboardSteps = []; route(); return; }
-    if (me.profile && me.profile.is_manager) loadTeam();
+    if (me.profile && me.profile.is_manager && !teamEarly) loadTeam();
   } catch (ex) {
-    S.loading = false; S.error = ex;
+    S.loading = false;
+    if (!shown) S.error = ex; // keep showing the last data rather than an error over it
   }
   if (S.view === 'dash') draw();
 }

@@ -2179,7 +2179,7 @@ var REQ_ = null;
 var LOCK_DEPTH_ = 0;
 
 function resetRequest_() {
-  REQ_ = { now: Date.now(), tables: {}, cfg: null, courses: null, gen: null, secrets: {}, logAction: '', logged: false, loggable: false, logCode: '', logMsg: '' };
+  REQ_ = { now: Date.now(), tables: {}, ss: null, sheets: {}, cfg: null, courses: null, gen: null, secrets: {}, logAction: '', logged: false, loggable: false, logCode: '', logMsg: '' };
   LOCK_DEPTH_ = 0;
   return REQ_;
 }
@@ -2188,14 +2188,28 @@ function req_() { return REQ_ || resetRequest_(); }
 
 function nowMs_() { return req_().now; }
 
+// Every Sheet call is a round trip to Google (tens to hundreds of ms), so the spreadsheet and each tab
+// are looked up once per request.
 function ss_() {
+  var r = req_();
+  if (r.ss) return r.ss;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) throw new Error('No spreadsheet: the script must be bound to the "1pct-planner-data" Sheet');
+  r.ss = ss;
   return ss;
 }
 
-function sheet_(name) {
+/** A tab, or null when it does not exist (found tabs are remembered for this request). */
+function findSheet_(name) {
+  var memo = req_().sheets;
+  if (memo[name]) return memo[name];
   var sh = ss_().getSheetByName(name);
+  if (sh) memo[name] = sh;
+  return sh;
+}
+
+function sheet_(name) {
+  var sh = findSheet_(name);
   if (!sh) throw new Error('Missing tab ' + name + ': run setupSheet');
   return sh;
 }
@@ -2248,10 +2262,10 @@ function readTable_(name) {
   var memo = req_().tables;
   if (memo[name]) return memo[name];
   var sh = sheet_(name);
-  var lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
   var t = { name: name, headers: [], col: {}, rows: [] };
-  if (lastRow >= 1 && lastCol >= 1) {
-    var values = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  // One call (the used area of the tab) instead of getLastRow + getLastColumn + getRange().getValues().
+  var values = sh.getDataRange().getValues();
+  if (values.length && values[0].length) {
     t.headers = values[0].map(headerKey_);
     t.headers.forEach(function (h, i) { if (h && !(h in t.col)) t.col[h] = i; });
     for (var r = 1; r < values.length; r++) {
@@ -2272,7 +2286,7 @@ function readTable_(name) {
 
 /** Like readTable_, but a tab that does not exist yet reads as empty (the Baseline v2 tabs, before setupSheet runs on an updated deployment). */
 function readTableOpt_(name) {
-  if (!req_().tables[name] && !ss_().getSheetByName(name)) return { name: name, headers: [], col: {}, rows: [] };
+  if (!req_().tables[name] && !findSheet_(name)) return { name: name, headers: [], col: {}, rows: [] };
   return readTable_(name);
 }
 

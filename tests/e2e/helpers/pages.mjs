@@ -18,6 +18,8 @@ export const PAGES = [
 export async function waitReady(page, ready) {
   await expect(page.locator(ready).first()).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#app .skeleton, #app .loading-screen')).toHaveCount(0, { timeout: 15_000 });
+  // Entrance animations (.rise fades) finish first: mid-fade colours are not the page's real contrast.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect.getComputedTiming().iterations === Infinity), null, { timeout: 5_000 });
 }
 
 /** Sign in as the page's account (once per account) and open it. */

@@ -4,7 +4,7 @@
 // in a side column.
 import { h, render, icon, chip, codeBadge, ring, stepMeter, emptyState, errorState, errorMessage, toast, mountShell, qs } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
-import { api, serverNow } from '../api.js';
+import { api, serverNow, cachedMe, sameMe, writeMark } from '../api.js';
 import { playerSrc, isYouTube } from '../video.js';
 import { loadCatalog, journey, courseStatus, courseProgress, courseSteps, stepInfo, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 
@@ -55,18 +55,49 @@ function tile(ic, cls = '') { return h('span', { class: `tile-icon ${cls}`.trim(
   S.app = app;
   S.code = String(qs('c') || '').trim().toUpperCase();
   onLangChange(() => renderAll(true));
+  // `me` (a few seconds from Apps Script) starts now, in parallel with the course list.
+  const mark = writeMark();
+  const meP = api.me();
+  meP.catch(() => {}); // handled in load()
   try { S.catalog = await loadCatalog(); } catch (e) { S.error = e; }
   if (S.error) return renderError();
   const known = S.catalog.courses.some((c) => c.code === S.code);
   if (!known) return renderUnknown();
+  const cached = cachedMe();
+  if (cached && await show(cached)) return refresh(meP, cached, mark);
   render(app, skeletonView());
-  load();
+  load(meP);
 }());
 
-async function load() {
+/** Draws the page from a `me`; false when this course is not in it. */
+async function show(me) {
+  const course = (await journey(me)).find((c) => c.code === S.code);
+  if (!course) return false;
+  S.me = me; S.course = course;
+  const firstUnwatched = S.course.episodes.find((e) => !e.watched);
+  S.sel = (firstUnwatched || S.course.episodes[0] || { ep: null }).ep;
+  buildLayout();
+  renderAll(false);
+  if (location.hash === '#episodes') requestAnimationFrame(() => S.els.player.scrollIntoView({ block: 'start' }));
+  return true;
+}
+
+/** Page drawn from the last `me`: swap in the fresh one, keeping the selected episode and a playing video. */
+async function refresh(meP, shown, mark) {
+  let me;
+  try { me = await meP; } catch (ex) { return; } // keep the last data (a lapsed session is handled by the sign-in dialog)
+  if (sameMe(me, shown) || writeMark() !== mark || S.pending.size) return;
+  const course = (await journey(me)).find((c) => c.code === S.code);
+  if (!course) return;
+  S.me = me; S.course = course;
+  if (!S.course.episodes.some((e) => e.ep === S.sel)) S.sel = (S.course.episodes[0] || { ep: null }).ep;
+  renderAll(true);
+}
+
+async function load(meP) {
   S.error = null;
   try {
-    S.me = await api.me();
+    S.me = await (meP || api.me());
     const list = await journey(S.me);
     S.course = list.find((c) => c.code === S.code);
     if (!S.course) throw Object.assign(new Error('not_found'), { code: 'not_found' });

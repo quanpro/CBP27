@@ -122,8 +122,10 @@ test.describe('Step 4 · checkpoint', () => {
       expect(day2.status).toBe('upcoming');
       const hours = Math.ceil((Date.parse(`${day2.due_date}T09:00:00+07:00`) - Date.parse(me.server_now)) / 3600000);
       await hub.moveServerClock(hours);
-      await page.reload();
+      const seen = hub.payloads('me').filter((m) => m && m.ok).length;
+      await page.reload(); // drawn at once from the tab's last `me`, then redrawn from the fresh one
       await hub.reauthIfAsked(code);
+      await expect.poll(() => hub.payloads('me').filter((m) => m && m.ok).length, { timeout: 15_000 }).toBeGreaterThan(seen);
     } else {
       await hub.goto('index.html');
     }

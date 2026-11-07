@@ -216,6 +216,7 @@ Everything is opened by hand, for everyone at once. No dates are involved.
 - **Someone is locked out**: a first or second lock ends by itself (15 / 30 min). After 3 locks in 7 days the code stays locked: use **Clear a lock…** (PIN known) or **Reset a PIN…** (PIN forgotten).
 - **"busy"** in the Hub: many people saved at the same moment; the Hub retries automatically.
 - **Permission error mentioning `getActiveSpreadsheet`** after deploying: in `appsscript.json` replace `spreadsheets.currentonly` with `https://www.googleapis.com/auth/spreadsheets`, save, run `setupSheet` once to re-authorise, then redeploy (step 13).
+- **The Hub feels slow**: every page asks the web app for the person's data, and Apps Script takes 1–3 s per call (up to ~8 s when nobody has used it for a while). Keep the code current (step 13), and keep the data tabs lean: no formulas, conditional formatting, filters or extra blank columns in Roster, Attempts, Watched, Recall, Teams or Capstone (each page reads them whole), and never paste images or long notes into them. To see a call's time, open the `/exec` URL: it answers in well under a second once the script is awake.
 
 ## Alternative: deploy from a terminal with clasp
 For later updates without copy-paste (needs Node.js):
