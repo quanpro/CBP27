@@ -3,9 +3,10 @@
 // Results follow specs/14 + decision D5: a checkpoint that is not yet passed shows the learner's own
 // answers only; the right answer and "why" appear after a pass or once the late window closes.
 import { mountShell, h, icon, chip, codeBadge, render, qs, loading, emptyState, errorState, errorMessage, toast, confirmDialog } from '../ui.js';
+import { guideBox } from '../guide.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, serverNow } from '../api.js';
-import { loadCatalog, objectiveEpisodes, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN, journey, courseSteps } from '../courses.js';
+import { loadCatalog, objectiveEpisodes, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN, journey, learnDone } from '../courses.js';
 import { QuizRunner, buildTop, answerLine, announce, fmtTime } from '../quiz.js';
 
 const TYPES = ['predict', 'checkpoint', 'recall'];
@@ -162,6 +163,7 @@ function introView(err) {
         h('p', { class: 'eyebrow qz-eyebrow', text: kick }),
         h('h1', { id: 'qz-intro-title', text: title }),
         h('p', { class: 'lead', text: lead }),
+        ['predict', 'checkpoint', 'recall'].includes(type) ? guideBox({ id: `quiz-${type}`, page: t(`guide.quiz.${type}_page`), now: t('guide.quiz.now'), next: t(`guide.quiz.${type}_next`) }) : null,
         h('ul', { class: 'qz-facts' }, facts.map(([ic, text]) => h('li', null, h('span', { class: 'qz-fact-ico', 'aria-hidden': 'true' }, icon(ic)), h('span', { text })))),
         note,
         err ? errorState(err) : null,
@@ -482,9 +484,8 @@ async function fetchAfter(res) {
     }
     const list = await journey(me);
     const mine = list.find((c) => c.code === here);
-    const steps = mine ? courseSteps(mine) : [];
     // "Done" here = nothing left to do online in this course: predict, episodes and checkpoint.
-    const done = !!mine && ['predict', 'watch', 'checkpoint'].every((k) => (steps.find((s) => s.key === k) || {}).done);
+    const done = !!mine && learnDone(mine) && !!(mine.checkpoint && mine.checkpoint.status === 'passed');
     const idx = list.findIndex((c) => c.code === here);
     const open = (c) => c.code !== here && c.open && !(c.checkpoint && c.checkpoint.status === 'passed');
     const next = list.slice(idx + 1).find(open) || list.find(open) || null;

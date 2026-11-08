@@ -26,20 +26,26 @@ export const ACCOUNTS = {
 
 /**
  * Courses each flow uses. Real: no two tests share an (account, course) pair on the one dev server.
- * Mock: every test starts from a fresh demo seed, and the demo only has A2, A3 and A1 open
- * (A2/A3 past their late window; DEMO-L has two failed A3 attempts that need a coaching chat).
+ * Mock: every test starts from a fresh demo seed, set in cycle 3: A1, A2 and A3 are behind (past their
+ * late window; DEMO-L has two failed A3 attempts that need a coaching chat), C1 and P1 are open now.
  */
 export const COURSES = {
-  checkpoint:  { mock: 'A1', real: 'P4' },
-  resume:      { mock: 'A1', real: 'P5' },
-  viToggle:    { mock: 'A1', real: 'A1' },
-  predict:     { mock: 'A1', real: 'P1' },
+  checkpoint:  { mock: 'P1', real: 'P4' },
+  resume:      { mock: 'P1', real: 'P5' },
+  viToggle:    { mock: 'P1', real: 'A1' },
+  predict:     { mock: 'P1', real: 'P1' },
   lateReveal:  { mock: 'A3', real: 'P6' },
-  security:    { mock: 'A1', real: 'C1' },
+  security:    { mock: 'P1', real: 'C1' },
   unlock:      { mock: 'A3', real: 'P3' }, // with the capstone account (DEMO-L / T001)
   unlockUi:    { mock: 'A3', real: 'P2' }, // with the checkpoint account (DEMO-L / T002)
   a11yPredict: { mock: 'A2', real: 'A2' },
 };
 
-/** Calendar order (specs/19 F15). */
-export const ORDER = ['A2', 'A3', 'A1', 'P1', 'C1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+/**
+ * Calendar order: the demo follows courses.json (A1 opens the year); the dev server keeps the frozen
+ * fixture calendar of backend/tests/fixtures.js (FIXTURE_CALENDAR), so its order is the older one.
+ */
+export const ORDER = {
+  mock: ['A1', 'A2', 'A3', 'C1', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6'],
+  real: ['A2', 'A3', 'A1', 'P1', 'C1', 'P2', 'P3', 'P4', 'P5', 'P6'],
+};

@@ -82,6 +82,7 @@ export function partTile(n, ps, { heading = 'h3', current = false } = {}) {
       h('p', { class: 'bl2-tile-k', text: t('baseline.part_n', { n }) }),
       h(heading, { class: 'bl2-tile-name', id, text: partName(n) }),
       h('p', { class: 'bl2-tile-meta', text: partMeta(n, ps) }),
+      h('p', { class: 'bl2-tile-measures small', text: t(`baseline.measures.p${n}`) }),
       h('p', { class: 'bl2-tile-state' }, partChip(ps))),
     go);
 }

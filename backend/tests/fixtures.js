@@ -202,17 +202,49 @@ function devRoster() {
 }
 
 /**
+ * The fixture calendar (frozen): the tests check rules against these dates, so they do not move when the
+ * real program calendar changes (that lives in the Sheet, seeded from docs/data/courses.json).
+ */
+const FIXTURE_CALENDAR = {
+  A2: { order: '1', cycle: '1', online_from: '2027-01-04', online_to: '2027-01-22', checkpoint_close: '2027-01-22', forum_date: '2027-01-26', field_until: '2027-02-26' },
+  A3: { order: '2', cycle: '1', online_from: '2027-01-04', online_to: '2027-01-22', checkpoint_close: '2027-01-22', forum_date: '2027-01-26', field_until: '2027-02-26' },
+  A1: { order: '3', cycle: '2', online_from: '2027-02-15', online_to: '2027-03-12', checkpoint_close: '2027-03-19', forum_date: '2027-03-23', field_until: '2027-04-16' },
+  P1: { order: '4', cycle: '3', online_from: '2027-03-29', online_to: '2027-04-16', checkpoint_close: '2027-04-23', forum_date: '2027-04-27', field_until: '2027-05-21' },
+  C1: { order: '5', cycle: '4', online_from: '2027-05-10', online_to: '2027-05-28', checkpoint_close: '2027-06-04', forum_date: '2027-06-22', field_until: '2027-06-30' },
+  P2: { order: '6', cycle: '5', online_from: '2027-06-28', online_to: '2027-07-16', checkpoint_close: '2027-07-23', forum_date: '2027-07-27', field_until: '2027-09-10' },
+  P3: { order: '7', cycle: '5', online_from: '2027-06-28', online_to: '2027-07-16', checkpoint_close: '2027-07-23', forum_date: '2027-07-27', field_until: '2027-09-10' },
+  P4: { order: '8', cycle: '6', online_from: '2027-08-16', online_to: '2027-09-17', checkpoint_close: '2027-09-24', forum_date: '2027-09-28', field_until: '2027-10-22' },
+  P5: { order: '9', cycle: '7', online_from: '2027-09-27', online_to: '2027-10-15', checkpoint_close: '2027-10-22', forum_date: '2027-10-26', field_until: '2027-11-19' },
+  P6: { order: '10', cycle: '8', online_from: '2027-10-25', online_to: '2027-11-12', checkpoint_close: '2027-11-19', forum_date: '2027-11-23', field_until: '2027-12-10' },
+};
+/** Fixture offline sessions, one per forum date of the fixture calendar, plus Pitch Day and the War Room. */
+const FIXTURE_SESSIONS = [
+  { date: '2027-01-26', kind: 'kickoff', courses: 'A2 A3', title_en: 'Fixture kick-off', title_vi: 'Buổi mẫu khởi động' },
+  { date: '2027-03-23', kind: 'forum', courses: 'A1', title_en: 'Fixture forum A1', title_vi: 'Forum mẫu A1' },
+  { date: '2027-04-27', kind: 'forum', courses: 'P1', title_en: 'Fixture forum P1', title_vi: 'Forum mẫu P1' },
+  { date: '2027-06-22', kind: 'pitch', courses: 'C1', title_en: 'Fixture Pitch Day', title_vi: 'Pitch Day mẫu' },
+  { date: '2027-07-27', kind: 'forum', courses: 'P2 P3', title_en: 'Fixture forum P2 P3', title_vi: 'Forum mẫu P2 P3' },
+  { date: '2027-09-28', kind: 'forum', courses: 'P4', title_en: 'Fixture forum P4', title_vi: 'Forum mẫu P4' },
+  { date: '2027-10-26', kind: 'forum', courses: 'P5', title_en: 'Fixture forum P5', title_vi: 'Forum mẫu P5' },
+  { date: '2027-11-23', kind: 'forum', courses: 'P6', title_en: 'Fixture forum P6', title_vi: 'Forum mẫu P6' },
+  { date: '2027-12-21', kind: 'warroom', courses: '', title_en: 'Fixture War Room', title_vi: 'War Room mẫu' },
+].map((x) => Object.assign({ start: '13:30', end: '17:30', place: 'Fixture room', note_en: '', note_vi: '', active: 'TRUE' }, x));
+
+/**
  * Sets up the fake Sheet and loads the fixtures.
- * opts.roster, opts.courseDates(code) → {online_from, …} overrides, opts.config {key: value},
+ * opts.roster, opts.courseDates(code) → {online_from, …} overrides, opts.sessions (rows for the Sessions tab), opts.config {key: value},
  * opts.teams, opts.baseline (false = leave the baseline tabs empty).
  */
 function loadFixtures(h, opts = {}) {
   h.run('setupSheet');
   for (const c of COURSES) {
-    const patch = courseRow(c);
+    const patch = Object.assign(courseRow(c), FIXTURE_CALENDAR[c]);
     if (opts.courseDates) Object.assign(patch, opts.courseDates(c));
     h.updateWhere('Courses', 'code', c, patch);
   }
+  // the seeded sessions (real calendar) are switched off; the fixture ones follow the fixture calendar
+  h.table('Sessions').forEach((r) => h.updateWhere('Sessions', 'date', r.date, { active: 'FALSE' }));
+  h.appendObjects('Sessions', (opts.sessions || FIXTURE_SESSIONS).map((x) => Object.assign({ start: '13:30', end: '17:30', place: 'Fixture room', note_en: '', note_vi: '', active: 'TRUE' }, x)));
   h.appendObjects('Items', buildItems());
   h.appendObjects('Cases', CASES);
   if (opts.baseline !== false) {
@@ -235,4 +267,4 @@ function loadFixtures(h, opts = {}) {
   return { items: buildItems(), roster };
 }
 
-module.exports = { COURSES, PIN, buildItems, courseRow, CASES, testRoster, devRoster, loadFixtures, fxItem, buildBaselineItems, buildExhibits, buildBaselineText, BL_FORMS, BL_MODULES, NR_POSITIONS };
+module.exports = { COURSES, FIXTURE_CALENDAR, FIXTURE_SESSIONS, PIN, buildItems, courseRow, CASES, testRoster, devRoster, loadFixtures, fxItem, buildBaselineItems, buildExhibits, buildBaselineText, BL_FORMS, BL_MODULES, NR_POSITIONS };

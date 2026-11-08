@@ -30,7 +30,7 @@ async function getCatalog() {
   if (!catalog) catalog = await fetch(new URL('../data/courses.json', import.meta.url)).then((r) => r.json());
   return catalog;
 }
-const ORDER = ['A2', 'A3', 'A1', 'P1', 'C1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+const ORDER = ['A1', 'A2', 'A3', 'C1', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6']; // courses.json order (A1 opens the year)
 const OPTS = [
   ['The right answer (demo)', 'Đáp án đúng (demo)'],
   ['A tempting distractor', 'Một phương án dễ gây nhầm'],
@@ -72,11 +72,13 @@ async function getBank() {
 }
 
 // ---------- demo calendar ----------
-// The real 2027 calendar (courses.json) moved so that the day the demo was seeded sits in cycle 2:
-// the A2 + A3 forum was 9 days earlier (its late week has closed), A1 has been online for 4 days and
-// P1 … P6 open later on real-looking dates. Recall dates and the capstone deadlines follow from these
-// dates, so everything the demo shows adds up. The baseline has no dates: its parts open by switch.
-const DATE_KEYS = ['prework_from', 'online_from', 'online_to', 'checkpoint_close', 'forum_date', 'field_until'];
+// The real 2027 calendar (courses.json) moved so that the day the demo was seeded sits in cycle 3:
+// cycles 1–2 (A1, then A2 + A3) are behind, the A2 + A3 forum was 9 days earlier (its late week has
+// closed), C1 + P1 have been online for 4 days and P2 … P6 open later on real-looking dates. The
+// offline sessions move with their courses; Pitch Day moves with cycle 3 on; the War Room keeps its
+// real December date. Recall dates and the capstone deadlines follow from these dates, so everything
+// the demo shows adds up. The baseline has no dates: its parts open by switch.
+const DATE_KEYS = ['online_from', 'online_to', 'checkpoint_close', 'forum_date', 'field_until'];
 const LATE_DAYS = 7;
 const MAX_FREE = 2;
 const diffDays = (a, b) => Math.round((Date.parse(`${a}T12:00:00+07:00`) - Date.parse(`${b}T12:00:00+07:00`)) / D);
@@ -87,20 +89,26 @@ function calendar() {
   const cat = catalog;
   const base = day(state.t0);
   const find = (code) => cat.courses.find((c) => c.code === code);
-  const shift1 = diffDays(addDays(base, -9), find('A2').forum_date); // cycle 1: forum 9 days before the seed
-  const shift2 = diffDays(addDays(base, -4), find('A1').online_from); // cycle 2 on: A1 online 4 days before
+  const shift1 = diffDays(addDays(base, -9), find('A2').forum_date); // cycles 1–2: the A2 + A3 forum 9 days before the seed
+  const shift2 = diffDays(addDays(base, -4), find('P1').online_from); // cycle 3 on: C1 + P1 online 4 days before
+  const shiftOf = (code) => ((find(code) || {}).cycle <= 2 ? shift1 : shift2);
   const courses = {};
   for (const c of cat.courses) {
-    const sh = c.cycle === 1 ? shift1 : shift2;
+    const sh = shiftOf(c.code);
     const o = {};
     DATE_KEYS.forEach((k) => { if (c[k]) o[k] = addDays(c[k], sh); });
     o.late_until = addDays(o.forum_date, LATE_DAYS);
     courses[c.code] = o;
   }
-  const pitchDay = courses.C1.forum_date;
+  const sessions = (cat.program.sessions || []).map((x) => ({
+    date: x.kind === 'warroom' ? x.date : addDays(x.date, x.courses.length ? shiftOf(x.courses[0]) : shift2),
+    kind: x.kind, courses: x.courses.slice(), title_en: x.title_en, title_vi: x.title_vi, start: x.start || '', end: x.end || '',
+    place: x.kind === 'warroom' ? 'Demo: the War Room venue' : 'Demo: the training room', note_en: '', note_vi: '',
+  })).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const pitchDay = (sessions.find((x) => x.kind === 'pitch') || {}).date || addDays(cat.program.pitch_day, shift2);
   const capstoneDay = cat.program.capstone_day; // the War Room and graduation stay on their real December dates
   const cal = {
-    courses,
+    courses, sessions,
     pitch_deadline: addDays(pitchDay, -1), capstone_deadline: addDays(capstoneDay, -1),
   };
   calCache = { t0: state.t0, cal };
@@ -108,13 +116,14 @@ function calendar() {
 }
 
 // ---------- state ----------
-const VERSION = 3; // 3: baseline v2 (three parts, manager rating, profile); older demo state is replaced
+const VERSION = 4; // 4: A1 opens the year, sessions; 3: baseline v2 (three parts, manager rating, profile); older demo state is replaced
 function blankUser(code, first_name, role_area, extra = {}) {
   return { code, first_name, role_area, is_manager: false, manager: 'DEMO-M', roles: ['learner'], pin: PIN, must_change_pin: false,
     consent_at: iso(now() - 30 * D), lang: 'en', certificate: '', fails: 0, locked_until: null, locks: [], sv: 1, ...extra };
 }
 async function seedState() {
   const items = await getBank();
+  const cat = await getCatalog();
   const t0 = now();
   const s = {
     version: VERSION, t0,
@@ -159,12 +168,22 @@ async function seedState() {
     Object.assign(r, { status: 'done', score_pct: a.score_pct, attempt_id: a.attempt_id });
   };
 
-  // DEMO-L · Linh, a planner in cycle 2. Has done all three baseline parts (results are open, so her
-  // profile shows) and Minh has rated her. Passed A2 before the forum and did the day-2 recall;
-  // A3: two tries not yet passed, so a third needs a chat with Minh (her manager); A1 is online now
-  // (Predict done, three episodes ticked).
+  const allEps = (code) => { const c = cat.courses.find((x) => x.code === code); return (c.has_trailer ? [0] : []).concat(c.episodes.map((e) => e.ep)); };
+  const passA1 = (code, form, hhmm) => {
+    const ms = at(addDays(cal.courses.A1.checkpoint_close, -2), hhmm);
+    pr(code, 'A1', at(addDays(cal.courses.A1.online_from, 1), hhmm));
+    cp(code, 'A1', form, 1, 9, ms);
+    recallRows(code, 'A1', ms);
+    [2, 7, 30].forEach((d) => rc(code, 'A1', d, 3, at(addDays(cal.courses.A1.forum_date, d), hhmm)));
+  };
+
+  // DEMO-L · Linh, a planner in cycle 3. Has done all three baseline parts (results are open, so her
+  // profile shows) and Minh has rated her. A1 passed with every recall done; passed A2 before the
+  // forum and did the day-2 recall (day 7 is due); A3: two tries not yet passed, so a third needs a
+  // chat with Minh (her manager); P1 is online now (Predict done, three episodes ticked).
   const L = 'DEMO-L';
   seedBaselineL(s, T);
+  passA1(L, 'B', '20:05');
   pr(L, 'A2', at(addDays(cal.courses.A2.online_from, 1), '20:10'));
   pr(L, 'A3', at(addDays(cal.courses.A3.online_from, 2), '20:40'));
   cp(L, 'A3', 'B', 1, 7, T(-16, '10:15'));
@@ -172,12 +191,13 @@ async function seedState() {
   recallRows(L, 'A2', T(-14));
   cp(L, 'A3', 'A', 2, 6, T(-12, '11:40'));
   rc(L, 'A2', 2, 2, at(addDays(cal.courses.A2.forum_date, 2), '08:50'));
-  pr(L, 'A1', T(-3, '19:30'));
-  s.watched[L] = { A2: [1, 2, 3, 4, 5, 6, 7, 8], A3: [1, 2, 3, 4, 5, 6], A1: [0, 1, 2] };
+  pr(L, 'P1', T(-3, '19:30'));
+  s.watched[L] = { A1: allEps('A1'), A2: [1, 2, 3, 4, 5, 6, 7, 8], A3: [1, 2, 3, 4, 5, 6], P1: [0, 1, 2] };
   s.activity[L] = [10, 7, 3, 1].map((w) => iso(T(-7 * w - 1, '20:00'))).concat([iso(T(-1, '21:00'))]);
 
-  // DEMO-M · Minh, a manager who also learns: cycle 1 passed, A1 just started.
+  // DEMO-M · Minh, a manager who also learns: cycles 1 and 2 passed, P1 just started.
   const M = 'DEMO-M';
+  passA1(M, 'A', '07:20');
   pr(M, 'A2', at(addDays(cal.courses.A2.online_from, 3), '07:40'));
   pr(M, 'A3', at(addDays(cal.courses.A3.online_from, 3), '07:55'));
   cp(M, 'A2', 'B', 1, 8, T(-15, '08:10'));
@@ -185,7 +205,7 @@ async function seedState() {
   recallRows(M, 'A2', T(-15)); recallRows(M, 'A3', T(-14));
   rc(M, 'A2', 2, 3, at(addDays(cal.courses.A2.forum_date, 2), '07:30'));
   rc(M, 'A3', 2, 2, at(addDays(cal.courses.A3.forum_date, 2), '07:45'));
-  s.watched[M] = { A2: [1, 2, 3, 4, 5, 6, 7, 8], A3: [1, 2, 3, 4, 5, 6], A1: [0] };
+  s.watched[M] = { A1: allEps('A1'), A2: [1, 2, 3, 4, 5, 6, 7, 8], A3: [1, 2, 3, 4, 5, 6], P1: [0] };
   s.activity[M] = [5, 4, 2, 1].map((w) => iso(T(-7 * w - 2, '07:30')));
 
   s.capstone['TEAM-DEMO'] = { pitch: null, capstone: null };
@@ -263,7 +283,7 @@ async function courseRows(code) {
     return {
       code: c.code, order: c.order, cycle: c.cycle, open: today >= d.online_from, online_from: d.online_from, checkpoint_close: d.checkpoint_close,
       forum_date: d.forum_date, field_until: d.field_until, late_until: d.late_until, blink_url: '',
-      online_to: d.online_to, ...(d.prework_from ? { prework_from: d.prework_from } : {}), // demo extras: the shifted calendar
+      online_to: d.online_to,
       episodes: eps.map((ep) => ({ ep, minutes: ep === 0 ? 1 : 5, blink_url: '', embed_url: '', watched: watched.includes(ep) })),
       predict: { done: prs.length > 0, attempts: prs.length, last_pct: prs.length ? prs[prs.length - 1].score_pct : null },
       checkpoint: {
@@ -915,6 +935,8 @@ const ACTIONS = {
     const passed = courses.filter((c) => c.checkpoint.status === 'passed').length;
     const out = ok({
       profile: profileOf(u), baseline: blMe(u), courses,
+      sessions: calendar().sessions.map((x) => ({ ...x, courses: x.courses.slice() })),
+      charters: [], // the live Hub sends the five charter names from the private Sheet; the demo shows "Charter 1–5"
       capstone: { team_id: team ? team.team_id : null, project_title: team ? team.project_title : null, pitch_submitted_at: sub.pitch ? sub.pitch.submitted_at : null,
         capstone_submitted_at: sub.capstone ? sub.capstone.submitted_at : null, pitch_deadline: calendar().pitch_deadline, capstone_deadline: calendar().capstone_deadline },
       streak: streakOf(u.code),

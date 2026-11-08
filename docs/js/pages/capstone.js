@@ -3,6 +3,7 @@
 // (internal SharePoint, https); value in VND (digits) with a live preview and its basis; lessons.
 // Unsaved text is kept on this device until it is saved. Past the deadline the form is read-only.
 import { mountShell, h, icon, chip, render, loading, emptyState, errorState, errorMessage, toast } from '../ui.js';
+import { guideBox } from '../guide.js';
 import { t, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
 import { loadCatalog, fmtLongDate, fmtShortDate, fmtDateTime, todayVN } from '../courses.js';
@@ -262,6 +263,7 @@ function formCard() {
 function renderPage() {
   render(app, h('div', { class: 'cap stack lg' },
     header(),
+    guideBox({ id: 'capstone', page: t('guide.cap.page'), now: t(`guide.cap.now_${stage}`, { date: data.deadlines && data.deadlines[stage] ? fmtLongDate(data.deadlines[stage]) : '–' }), next: t(`guide.cap.next_${stage}`) }),
     tabs(),
     h('div', { id: `cap-panel-${stage}`, role: 'tabpanel', 'aria-labelledby': `cap-tab-${stage}`, class: 'layout-side cap-layout' },
       h('div', { class: 'stack lg' }, stageInfo(), formCard()),

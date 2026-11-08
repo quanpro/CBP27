@@ -4,6 +4,7 @@
 // course self-ratings next to the linked scores ("rates high, scores low") and the two IDP gaps.
 // Bars always carry their value as text; colour is never the only signal. Sheet text is text only.
 import { mountShell, h, icon, chip, codeBadge, render, loading, errorState } from '../ui.js';
+import { guideBox } from '../guide.js';
 import { t, pick, getLang, has, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
 import { loadCatalog, fmtDateTime } from '../courses.js';
@@ -135,7 +136,7 @@ function p3Card(p3) {
     Object.keys(p3.by_gate || {}).length ? h('div', { class: 'pf-bars' }, ordered(p3.by_gate, []).map((k) => bar(String(k), p3.by_gate[k]))) : null);
 }
 function coursesCard(courses) {
-  const codes = ordered(courses || {}, ORDER);
+  const codes = ordered(courses || {}, S.cat ? S.cat.courses.slice().sort((a, b) => a.order - b.order).map((c) => c.code) : ORDER);
   if (!codes.length) return null;
   const scaleName = (n) => {
     const s = S.cat && (S.cat.scale || []).find((x) => Number(x.level) === Number(n));
@@ -160,17 +161,20 @@ function coursesCard(courses) {
     h('p', { class: 'xs muted', text: t('profile.courses_note') }));
 }
 
+/** Before results open: what the profile will be, and what to do meanwhile. */
+const waitGuide = () => guideBox({ id: 'profile', page: t('guide.profile.page'), now: t('guide.profile.now_wait'), next: t('guide.profile.next_wait') });
+
 function draw(keep) {
   const y = window.scrollY;
   if (!S.data) {
     if (S.err && S.err.code === 'not_found') {
-      render(app, h('div', { class: 'pf stack lg' }, h('section', { class: 'card qz-state' }, h('div', { class: 'empty' },
+      render(app, h('div', { class: 'pf stack lg' }, waitGuide(), h('section', { class: 'card qz-state' }, h('div', { class: 'empty' },
         h('div', { class: 'em-icon' }, icon('target', 'lg')), h('h1', { class: 'qz-h1', text: t('profile.title') }), h('p', { text: t('profile.empty') }),
         h('a', { class: 'btn btn-primary', href: 'baseline.html' }, t('profile.to_baseline'))))));
       return;
     }
     if (S.err && S.err.code === 'not_open') {
-      render(app, h('div', { class: 'pf stack lg' }, h('section', { class: 'card qz-state' }, h('div', { class: 'empty' },
+      render(app, h('div', { class: 'pf stack lg' }, waitGuide(), h('section', { class: 'card qz-state' }, h('div', { class: 'empty' },
         h('div', { class: 'em-icon' }, icon('lock', 'lg')), h('h1', { class: 'qz-h1', text: t('profile.closed_title') }), h('p', { text: t('profile.closed_body') }),
         h('a', { class: 'btn btn-primary', href: 'index.html' }, t('profile.back_home'))))));
       return;
@@ -186,6 +190,7 @@ function draw(keep) {
       h('h1', { text: t('profile.title') }),
       h('p', { class: 'lead muted', text: t('profile.lead') }),
       h('p', { class: 'privacy-chip' }, icon('shield', 'sm'), h('span', { text: t('profile.privacy') }))),
+    guideBox({ id: 'profile', page: t('guide.profile.page'), now: t('guide.profile.now'), next: t('guide.profile.next') }),
     any ? null : h('div', { class: 'callout info' }, icon('info'), h('span', { text: t('profile.empty') })),
     gapsCard(d),
     h('div', { class: 'pf-grid' }, p1Card(d.p1), p2Card(d.p2), p3Card(d.p3), coursesCard(d.courses)),

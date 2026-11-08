@@ -12,7 +12,9 @@ var SCHEMA = {
     'preferred_name', 'lock_count', 'session_ver', 'consent_at', 'certificate', 'lock_history', 'p3_module'],
   Courses: ['code', 'name_en', 'name_vi', 'self_en', 'self_vi',
     'obj1_en', 'obj1_vi', 'obj2_en', 'obj2_vi', 'obj3_en', 'obj3_vi', 'obj4_en', 'obj4_vi', 'obj5_en', 'obj5_vi', 'obj6_en', 'obj6_vi',
-    'cycle', 'blink_url', 'online_from', 'checkpoint_close', 'forum_date', 'field_until', 'open', 'order'],
+    'cycle', 'blink_url', 'online_from', 'checkpoint_close', 'forum_date', 'field_until', 'open', 'order', 'online_to'],
+  // Offline sessions (forums, Pitch Day, War Room): one row each, shown on the Hub's calendar.
+  Sessions: ['date', 'kind', 'courses', 'title_en', 'title_vi', 'start', 'end', 'place', 'note_en', 'note_vi', 'active'],
   Items: ['item_id', 'assessment', 'course', 'form', 'objective', 'case_id', 'stem_en', 'stem_vi',
     'a_en', 'a_vi', 'b_en', 'b_vi', 'c_en', 'c_vi', 'd_en', 'd_vi', 'answer', 'why_en', 'why_vi', 'active'],
   Cases: ['case_id', 'title_en', 'title_vi', 'context_en', 'context_vi'],
@@ -453,6 +455,7 @@ function courses_() {
         n_objectives: courseObjectiveCount(c),
         blink_url: c.blink_url || '',
         online_from: normDate(c.online_from),
+        online_to: normDate(c.online_to),
         checkpoint_close: normDate(c.checkpoint_close),
         forum_date: normDate(c.forum_date),
         field_until: normDate(c.field_until),
@@ -553,6 +556,31 @@ function episodes_() {
     }).filter(function (e) { return e.course && e.ep >= 0; });
     list.sort(function (a, b) { return a.ep - b.ep; });
     cachePutAll_({ episodes: list });
+  }
+  return list;
+}
+
+var SESSION_KINDS_ = { forum: true, kickoff: true, pitch: true, warroom: true, other: true };
+
+/** Offline sessions from the Sessions tab (active rows with a date), oldest first. */
+function sessions_() {
+  var list = cacheGet_('sessions');
+  if (!list) {
+    list = readTableOpt_('Sessions').rows.filter(function (r) {
+      return normDate(r.date) && (String(r.active || '').trim() === '' || toBool(r.active));
+    }).map(function (r) {
+      var kind = String(r.kind || '').trim().toLowerCase();
+      return {
+        date: normDate(r.date),
+        kind: SESSION_KINDS_[kind] ? kind : 'forum',
+        courses: String(r.courses || '').toUpperCase().split(/[^A-Z0-9]+/).filter(function (c) { return c; }),
+        title_en: r.title_en || '', title_vi: r.title_vi || '',
+        start: String(r.start || '').trim(), end: String(r.end || '').trim(),
+        place: r.place || '', note_en: r.note_en || '', note_vi: r.note_vi || ''
+      };
+    });
+    list.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    cachePutAll_({ sessions: list });
   }
   return list;
 }

@@ -26,7 +26,10 @@ The v1 keys `baseline_open_from`, `baseline_open_to`, `baseline_minutes` and `ba
 `employee_code, display_name, role_area (demand|supply|materials|cs), is_manager, manager_code, roles (learner;manager;panel;admin), pin_hash, pin_salt, must_change_pin, failed_logins, locked_until, active, lang`, then `preferred_name, lock_count, session_ver, consent_at, certificate, lock_history` (specs/19) and `p3_module` (optional `DP|SP|RPM|CS`, overrides the Part 3 module from role_area). `manager_code` also decides who rates whom in Baseline Part 2 (Quân is the manager_code of the three managers and of his direct reports).
 
 ## Courses (import from `content-private/Courses.csv`)
-`code, name_en, name_vi, self_en, self_vi, obj1_en, obj1_vi … obj6_en, obj6_vi` plus columns added by hand: `cycle, blink_url, online_from, checkpoint_close, forum_date, field_until, open (TRUE/FALSE)`
+`code, name_en, name_vi, self_en, self_vi, obj1_en, obj1_vi … obj6_en, obj6_vi` plus columns added by hand: `cycle, blink_url, online_from, checkpoint_close, forum_date, field_until, open (TRUE/FALSE), order, online_to`. The Sheet owns the calendar: `order` and `cycle` set the order on My learning; `online_to` ends the "On Blink" window shown on the course page. Defaults come from `docs/data/courses.json` (Seed.gs) and only fill blank cells.
+
+## Sessions (offline sessions; the Hub's calendar of forums, Pitch Day and the War Room)
+`date (YYYY-MM-DD), kind (kickoff|forum|pitch|warroom|other), courses (codes, e.g. "C1 P1"), title_en, title_vi, start (13:30), end (17:30), place, note_en, note_vi, active (TRUE/FALSE)`. Sent in `me.sessions` (active rows, oldest first). A course's forum card uses the session on its `forum_date`; its Teach stage is the first session after its field work (`field_until`). Pitch Day is the `pitch` row. Seeded once with the nine 2027 sessions when the tab is empty.
 
 ## Items (import from `content-private/Items.csv`; never exported to the repo)
 `item_id, assessment (predict|checkpoint), course, form (PR|A|B), objective, case_id, stem_en, stem_vi, a_en, a_vi, b_en, b_vi, c_en, c_vi, d_en, d_vi, answer (a|b|c|d), why_en, why_vi, active`. Old `baseline` rows (v1) are ignored; the baseline lives in **BaselineItems**.

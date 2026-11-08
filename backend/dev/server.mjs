@@ -45,6 +45,12 @@ const day = (n) => L.addDays(today, n);
 fx.loadFixtures(h, {
   roster: fx.devRoster(),
   courseDates: () => ({ online_from: day(-14), checkpoint_close: day(7), forum_date: day(10), field_until: day(40), open: 'TRUE' }),
+  // offline sessions that match those dates: the forum, then Pitch Day after the field work, then the War Room
+  sessions: [
+    { date: day(10), kind: 'forum', courses: '', title_en: 'Dev forum', title_vi: 'Forum thử' },
+    { date: day(45), kind: 'pitch', courses: '', title_en: 'Dev Pitch Day', title_vi: 'Pitch Day thử' },
+    { date: day(80), kind: 'warroom', courses: '', title_en: 'Dev War Room', title_vi: 'War Room thử' },
+  ],
   config: { p1_open: 'TRUE', p2_open: 'TRUE', p3_open: 'TRUE', rating_open: 'TRUE', results_open: 'FALSE' },
   teams: [
     { team_id: 'TEAM1', project_title: 'Fixture project one', members: 'T001;T002;T003', sponsor_code: 'T010', active: 'TRUE' },

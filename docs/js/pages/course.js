@@ -5,8 +5,9 @@
 import { h, render, icon, chip, codeBadge, ring, stepMeter, emptyState, errorState, errorMessage, toast, mountShell, qs } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, serverNow, cachedMe, sameMe, writeMark } from '../api.js';
+import { guideBox, registerTour, maybeStartTour } from '../guide.js';
 import { playerSrc, isYouTube } from '../video.js';
-import { loadCatalog, journey, courseStatus, courseProgress, courseSteps, stepInfo, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
+import { loadCatalog, journey, courseStatus, courseProgress, courseSteps, stepInfo, learnDone, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 
 // Links and embeds come from the Sheet: only https URLs are used (anything else is treated as missing).
 const safeUrl = (u) => (typeof u === 'string' && /^https:\/\/[^\s]+$/i.test(u.trim()) ? u.trim() : '');
@@ -78,6 +79,7 @@ async function show(me) {
   S.sel = (firstUnwatched || S.course.episodes[0] || { ep: null }).ep;
   buildLayout();
   renderAll(false);
+  if (S.course.open) maybeStartTour('course');
   if (location.hash === '#episodes') requestAnimationFrame(() => S.els.player.scrollIntoView({ block: 'start' }));
   return true;
 }
@@ -106,6 +108,7 @@ async function load(meP) {
   S.sel = (firstUnwatched || S.course.episodes[0] || { ep: null }).ep;
   buildLayout();
   renderAll(false);
+  if (S.course.open) maybeStartTour('course');
   document.title = `${S.code} · ${pick(S.course, 'name')} · ${t('brand.name')}`;
   if (location.hash === '#episodes') requestAnimationFrame(() => S.els.player.scrollIntoView({ block: 'start' }));
 }
@@ -137,6 +140,7 @@ function buildLayout() {
   S.els = {
     back: backLink(),
     hero: h('section', { class: `hero fam-hero course-hero ${fam}`, 'aria-labelledby': 'course-title' }),
+    guide: h('div', { class: 'guide-slot' }),
     steps: h('section', { class: 'card steps-card', 'aria-labelledby': 'steps-title' }),
     player: h('section', { id: 'episodes', class: `stack player-sec ${fam}`, 'aria-labelledby': 'player-title' }),
     eps: h('section', { class: 'card eps-card', 'aria-labelledby': 'eps-title' }),
@@ -152,7 +156,7 @@ function buildLayout() {
   const E = S.els;
   E.main = h('div', { class: 'stack lg course-main' });
   E.side = h('aside', { class: 'side stack course-side', 'aria-label': t('course.side_aria') });
-  render(S.app, h('div', { class: 'stack lg course-page' }, E.back, E.hero, E.steps, h('div', { class: 'layout-side' }, E.main, E.side), E.live));
+  render(S.app, h('div', { class: 'stack lg course-page' }, E.back, E.hero, E.guide, E.steps, h('div', { class: 'layout-side' }, E.main, E.side), E.live));
   placeSide();
   WIDE.addEventListener('change', placeSide);
 }
@@ -182,7 +186,7 @@ function renderAll(langChange) {
   const back = backLink();
   S.els.back.replaceWith(back);
   S.els.back = back;
-  renderHero(); renderSteps(); renderPlayer(!langChange); renderEpisodes(); renderAbout(); renderForum(); renderField();
+  renderHero(); renderGuide(); renderSteps(); renderPlayer(!langChange); renderEpisodes(); renderAbout(); renderForum(); renderField();
   renderCheckpoint(); renderPredict(); renderRecall(); renderDates();
   if (S.course) document.title = `${S.code} · ${pick(S.course, 'name')} · ${t('brand.name')}`;
 }
@@ -212,15 +216,60 @@ function renderHero() {
         cta || blink ? h('div', { class: 'row hero-ctas' }, cta ? h('a', { class: 'btn btn-light btn-lg', href: cta.href }, cta.label, icon('arrow-right')) : null, blink) : null))));
 }
 
+// ---------- "What to do here" and the course tour ----------
+const STAGE_DATE = { learn: 'online_to', prove: 'checkpoint_close', apply: 'forum_date', do: 'field_until', teach: 'teach_date' };
+function guideNow(c) {
+  if (!c.open) return t('guide.course.locked', { date: fmtLongDate(c.online_from) });
+  const info = stepInfo(c); const st = courseStatus(c); const p = courseProgress(c);
+  const due = (c.recall || []).find((r) => r.status === 'due');
+  if (due) return t('guide.course.recall', { day: due.day });
+  switch (info.key) {
+    case 'learn': return c.predict && c.predict.done ? t('guide.course.learn_watch', { n: p.watched, total: p.total, date: fmtShortDate(c.checkpoint_close) }) : t('guide.course.learn_predict');
+    case 'prove':
+      if (st.key === 'unlock') return t('guide.course.unlock');
+      if (st.key === 'closed') return t('guide.course.closed');
+      if (st.key === 'retake_wait' || st.key === 'retake') return `${st.label}. ${t('guide.course.retake')}`;
+      if (st.key === 'cp_progress') return t('guide.course.cp_continue');
+      return t('guide.course.prove', { date: fmtLongDate(c.checkpoint_close) });
+    case 'apply': return t('guide.course.apply', { date: fmtLongDate(c.forum_date) });
+    case 'do': return t('guide.course.do', { date: fmtLongDate(c.field_until) });
+    case 'teach': return c.teach_date ? t('guide.course.teach', { date: fmtLongDate(c.teach_date) }) : t('guide.course.done');
+    default: return t('guide.course.done');
+  }
+}
+function guideNext(c) {
+  const info = stepInfo(c);
+  if (!c.open) return t('guide.course.next_open');
+  if (info.all) return '';
+  const keys = ['learn', 'prove', 'apply', 'do', 'teach'];
+  const nk = keys[keys.indexOf(info.key) + 1];
+  if (!nk) return '';
+  const d = c[STAGE_DATE[nk]];
+  return d ? t('guide.course.next', { stage: t(`steps.${nk}`), date: fmtShortDate(d) }) : t(`steps.${nk}`);
+}
+function renderGuide() {
+  render(S.els.guide, guideBox({ id: 'course', tour: 'course', page: t('guide.course.page'), now: guideNow(S.course), next: guideNext(S.course) }));
+}
+registerTour('course', () => {
+  const q = (sel) => S.app.querySelector(sel);
+  return [
+    { el: q('.steps-card'), title: t('tour.course.steps_t'), body: t('tour.course.steps_b') },
+    { el: q('#episodes'), title: t('tour.course.learn_t'), body: t('tour.course.learn_b') },
+    { el: q('.cp-card'), title: t('tour.course.prove_t'), body: t('tour.course.prove_b') },
+    { el: q('section[aria-labelledby="forum-title"]'), title: t('tour.course.apply_t'), body: t('tour.course.apply_b') },
+    { el: q('section[aria-labelledby="field-title"]'), title: t('tour.course.do_t'), body: t('tour.course.do_b') },
+    { el: q('.kd-card'), title: t('tour.course.dates_t'), body: t('tour.course.dates_b') },
+  ];
+});
+
 function renderSteps() {
   const c = S.course; const p = courseProgress(c); const cp = c.checkpoint || {};
   const sub = {
-    predict: c.predict && c.predict.done ? t('course.steps.done') : t('course.steps.q3'),
-    watch: t('common.of', { n: p.watched, total: p.total }),
-    checkpoint: cp.status === 'passed' ? pct(cp.best_pct) : (c.checkpoint_close ? fmtShortDate(c.checkpoint_close) : ''),
-    forum: fmtShortDate(c.forum_date),
-    field: c.field_until ? t('course.steps.until', { date: fmtShortDate(c.field_until) }) : '',
-    recall: t('common.of', { n: p.recallDone, total: 3 }),
+    learn: learnDone(c) ? t('course.steps.done') : t('course.steps.learn_sub', { n: p.watched, total: p.total }),
+    prove: cp.status === 'passed' ? t('course.steps.passed_recall', { pct: pct(cp.best_pct), n: p.recallDone }) : (c.checkpoint_close ? t('course.steps.by', { date: fmtShortDate(c.checkpoint_close) }) : ''),
+    apply: fmtShortDate(c.forum_date),
+    do: c.field_until ? t('course.steps.until', { date: fmtShortDate(c.field_until) }) : '',
+    teach: c.teach_date ? fmtShortDate(c.teach_date) : '',
   };
   render(S.els.steps,
     h('h2', { id: 'steps-title', class: 'sr-only', text: t('course.steps.title') }),
@@ -433,18 +482,27 @@ function renderAbout() {
       pick(c, 'kpi') ? h('div', { class: 'stack sm' }, h('h3', null, icon('trend-up', 'sm'), ' ', t('course.about.kpi')), h('p', { class: 'small', text: pick(c, 'kpi') })) : null)));
 }
 
+/** "13:30–17:30 · Room 5" from a session row (the Sheet's Sessions tab); '' when it has neither. */
+function whenWhere(sess) {
+  if (!sess) return '';
+  const time = sess.start ? (sess.end ? `${sess.start}–${sess.end}` : sess.start) : '';
+  return [time, sess.place || ''].filter(Boolean).join(' · ');
+}
 function renderForum() {
-  const c = S.course; const f = c.forum || {};
+  const c = S.course; const f = c.forum || {}; const sess = c.session;
   const passed = c.checkpoint && c.checkpoint.status === 'passed';
   const today = todayVN();
   const upcoming = c.forum_date && c.forum_date >= today;
+  const ww = whenWhere(sess);
   render(S.els.forum,
     h('div', { class: 'row top' }, tile('users'), h('div', { class: 'grow stack sm' },
       h('p', { class: 'eyebrow', text: t('course.forum.eyebrow') }),
-      h('h2', { id: 'forum-title', class: 'title-sm', text: pick(f, 'title') || t('course.forum.eyebrow') }),
-      c.forum_date ? h('p', { class: 'strong ink' }, fmtLongDate(c.forum_date), h('span', { class: 'muted small', text: upcoming ? ` · ${relDay(c.forum_date)}` : '' })) : null)),
-    h('p', { class: 'small muted', text: t(c.code === 'C1' ? 'course.forum.format_pitch' : 'course.forum.format') }),
+      h('h2', { id: 'forum-title', class: 'title-sm', text: pick(sess, 'title') || pick(f, 'title') || t('course.forum.eyebrow') }),
+      c.forum_date ? h('p', { class: 'strong ink' }, fmtLongDate(c.forum_date), h('span', { class: 'muted small', text: upcoming ? ` · ${relDay(c.forum_date)}` : '' })) : null,
+      ww ? h('p', { class: 'small' }, icon('clock', 'sm'), ' ', ww) : null)),
+    h('p', { class: 'small muted', text: t(sess && sess.kind === 'pitch' ? 'course.forum.format_pitch' : 'course.forum.format') }),
     pick(f, 'summary') ? h('p', { text: pick(f, 'summary') }) : null,
+    pick(sess, 'note') ? h('div', { class: 'callout info' }, icon('info'), h('p', { class: 'small', text: pick(sess, 'note') })) : null,
     upcoming && !passed ? h('div', { class: 'callout info' }, icon('info'), h('p', { class: 'small', text: t('course.forum.gate', { date: fmtShortDate(c.checkpoint_close) }) })) : null);
 }
 
@@ -462,7 +520,10 @@ function renderField() {
     h('div', { class: 'panel stack sm' },
       h('p', { class: 'strong ink' }, icon('check-circle', 'sm'), ' ', t('course.field.signoff')),
       h('ul', { class: 'rubric-mini' }, RUBRIC.map((k) => h('li', null, h('b', { text: t(`course.rubric.${k}`) }), h('span', { text: t(`course.rubric.${k}_meets`) })))),
-      h('p', { class: 'xs muted', text: t('course.field.signoff_note') })));
+      h('p', { class: 'xs muted', text: t('course.field.signoff_note') })),
+    c.teach_date ? h('div', { class: 'callout success teach-note' }, icon('users'),
+      h('p', { class: 'small' }, h('b', { text: `${t('steps.teach')}: ` }),
+        t('course.field.teach', { date: fmtLongDate(c.teach_date), title: pick(c.teach_session, 'title') || t('course.forum.eyebrow') }))) : null);
 }
 
 // ---------- side: checkpoint, predict, recall, key dates ----------
@@ -570,12 +631,12 @@ function renderDates() {
   const c = S.course; const today = todayVN();
   const passed = c.checkpoint && c.checkpoint.status === 'passed';
   const rows = [
-    c.prework_from ? { k: 'prework', d: c.prework_from } : null,
     { k: 'online', d: c.online_from, end: c.online_to, label: fmtRange(c.online_from, c.online_to) },
     { k: 'close', d: c.checkpoint_close },
     { k: 'forum', d: c.forum_date },
     !passed && c.late_until ? { k: 'late', d: c.late_until } : null,
     { k: 'field', d: c.field_until },
+    { k: 'teach', d: c.teach_date },
   ].filter((r) => r && r.d);
   const nextIdx = rows.findIndex((r) => (r.end || r.d) >= today);
   render(S.els.dates,

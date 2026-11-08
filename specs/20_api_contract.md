@@ -39,7 +39,7 @@ New PIN: 6 digits, not all the same digit, not `123456`/`654321`, not equal to t
   profile: Profile,
   baseline: BaselineState,                             // Baseline v2: see "Baseline v2" below (specs/22)
   courses: [ {                                         // calendar order
-    code, order, cycle, open, online_from, checkpoint_close, forum_date, field_until, late_until,
+    code, order, cycle, open, online_from, online_to, checkpoint_close, forum_date, field_until, late_until,   // order/cycle/dates: the Sheet's Courses tab
     blink_url,                                         // course playlist link (may be "")
     episodes: [ { ep, minutes, blink_url, embed_url, watched } ],   // ep 0 = trailer
     predict:    { done, attempts, last_pct },
@@ -49,6 +49,9 @@ New PIN: 6 digits, not all the same digit, not `123456`/`654321`, not equal to t
     recall: [ { day: 2|7|30, due_date, status: "upcoming"|"due"|"done", score_pct, attempt_id } ]
   } ],
   capstone: { team_id, project_title, pitch_submitted_at, capstone_submitted_at, pitch_deadline, capstone_deadline },
+  sessions: [ { date, kind: "kickoff"|"forum"|"pitch"|"warroom"|"other", courses: [code], title_en, title_vi,
+                start, end, place, note_en, note_vi } ],   // Sessions tab, active rows, oldest first (F30)
+  charters: [ { n: 1..5, en, vi } ],                        // charter names from BaselineText p2_charter_1…5 (My path); [] when not set
   streak:   { current_weeks, active_this_week, active_weeks_total, multiplier, weeks_total_program: 52, recent: [bool×12] },
             // multiplier = 1.01^active_weeks_total (2 dp); recent = last 12 weeks, oldest first; Config streak_skip_weeks (e.g. Tết) neither break nor add
   certificates: { level: Profile.certificate, checkpoints_passed, checkpoints_total: 10, pitch_submitted, capstone_submitted }

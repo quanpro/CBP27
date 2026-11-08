@@ -17,7 +17,9 @@
   "about": "Privacy & help",
   "about_short": "Privacy",
   "aria": "Main",
-  "aria_mobile": "Main navigation"
+  "aria_mobile": "Main navigation",
+  "path": "My path",
+  "path_short": "Path"
  },
  "lang": {
   "aria": "Language"
@@ -37,7 +39,8 @@
   "privacy": "Privacy",
   "logout": "Sign out",
   "profile": "My baseline profile",
-  "rate": "Rate my team"
+  "rate": "Rate my team",
+  "tour": "Show me around"
  },
  "role": {
   "demand": "Demand planning",
@@ -170,15 +173,14 @@
   "baseline_body_going": "Your timer is running and your answers are saved."
  },
  "steps": {
-  "predict": "Predict",
-  "watch": "Watch",
-  "checkpoint": "Checkpoint",
-  "forum": "Forum",
-  "field": "Field",
-  "recall": "Recall",
-  "meter": "Step {n} of {total} · {label}",
-  "meter_done": "All {total} steps done",
-  "meter_aria": "Step {n} of {total}: {label}. {done} of {total} steps done."
+  "learn": "Learn",
+  "prove": "Prove",
+  "apply": "Apply",
+  "do": "Do",
+  "teach": "Teach",
+  "meter": "Stage {n} of {total} · {label}",
+  "meter_done": "All {total} stages done",
+  "meter_aria": "Stage {n} of {total}: {label}. {done} of {total} stages done."
  },
  "family": {
   "A": "Analytics & AI",
@@ -218,7 +220,8 @@
   "team": "Team picture",
   "about": "Privacy & help",
   "rate": "Rate my team",
-  "profile": "Baseline profile"
+  "profile": "Baseline profile",
+  "path": "My path"
  },
  "onboard": {
   "step": "Step {n} of {total}",
@@ -342,6 +345,16 @@
    "title": "Learning weeks",
    "of": "of {total} weeks",
    "strip_aria": "Last {total} weeks: {n} with learning, {row} in a row. The last dot is this week."
+  },
+  "path": {
+   "eyebrow": "My path",
+   "title": "Think · Plan · Lead",
+   "passed": "{n} of {total} passed",
+   "part_done": "Part {n} done",
+   "part_todo": "Baseline Part {n}",
+   "short_work": "work",
+   "short_mind": "mindset",
+   "cta": "See my path"
   }
  },
  "streak": {
@@ -409,11 +422,13 @@
   "steps": {
    "title": "Your journey through this course",
    "done": "Done",
-   "q3": "3 questions",
    "until": "Until {date}",
    "state_done": "done",
    "state_current": "current step",
-   "state_todo": "to do"
+   "state_todo": "to do",
+   "learn_sub": "Predict + {n} of {total} episodes",
+   "by": "By {date}",
+   "passed_recall": "{pct} · recall {n} of 3"
   },
   "player": {
    "watch": "Watch on Blink",
@@ -469,7 +484,8 @@
    "evidence": "Evidence",
    "kpi": "KPI",
    "signoff": "Your manager signs this off within a week with the rubric.",
-   "signoff_note": "Signed off when every criterion is at least “Meets”. A 1 on any criterion means one more try within two weeks. Sign-offs are recorded in the HR system."
+   "signoff_note": "Signed off when every criterion is at least “Meets”. A 1 on any criterion means one more try within two weeks. Sign-offs are recorded in the HR system.",
+   "teach": "your team shows its field results to open {title} on {date}. Teaching it is what makes it stick."
   },
   "rubric": {
    "applied": "Applied to real work",
@@ -529,14 +545,14 @@
   },
   "kd": {
    "title": "Key dates",
-   "prework": "Pre-work from",
    "online": "On Blink",
    "close": "Checkpoint closes",
    "forum": "Forum",
    "late": "Finish with your manager by",
    "field": "Field work until",
    "next": "Next",
-   "past": "done"
+   "past": "done",
+   "teach": "Teach: show-and-tell"
   }
  },
  "team": {
@@ -665,30 +681,14 @@
   },
   "how": {
    "title": "How the program works",
-   "intro": "Ten courses in 2027. Each runs as a six-week cycle in four parts, and each channel does one job.",
+   "intro": "Ten courses in 2027, each in the same five stages: online to learn and prove it, offline and on the job to apply it, do it and teach it.",
    "step_n": "Step {n}",
-   "blink": "Learn on Blink",
-   "blink_body": "6–9 short animated episodes of 4–7 minutes, English voice with Vietnamese subtitles, on your phone or laptop.",
-   "hub": "Prove it on the Hub",
-   "hub_body": "Predict before you watch, the checkpoint after, and quick recall on day 2, 7 and 30.",
-   "forum": "Apply it at the forum",
-   "forum_body": "A 4-hour offline session in Vietnamese with the Planning Director: a team case on our own data.",
-   "field": "Use it on live work",
-   "field_body": "The field assignment at the S&OP step the course serves, signed off by your manager within a week.",
-   "rhythm_title": "The six-week rhythm",
-   "r_w1": "Weeks 1–2 · Learn",
-   "r_w1_body": "Do Predict, then watch the episodes on Blink.",
-   "r_w2": "End of week 2–3 · Checkpoint",
-   "r_w2_body": "10 questions; 8 of 10 and you are ready for the forum.",
-   "r_forum": "Week 3–4 · Forum",
-   "r_forum_body": "Show-and-tell, the most-missed ideas, a team case and your field assignment.",
-   "r_w4": "Weeks 4–6 · Field",
-   "r_w4_body": "Use it on live work; your manager signs it off with the rubric.",
-   "r_recall": "Day 2, 7 and 30 · Recall",
-   "r_recall_body": "Three quick questions each time, so it sticks.",
    "sessions_title": "{n} offline sessions in 2027",
-   "sessions_body": "About every six weeks, on a Tuesday afternoon after S&OP sign-off. Pitch Day and the War Room take the place of a forum.",
-   "warroom": "S&OP War Room + graduation"
+   "sessions_body": "About every six weeks, on a Tuesday afternoon after S&OP sign-off. Pitch Day and the War Room take the place of a forum. Dates, times and places come from the program team.",
+   "warroom": "S&OP War Room + graduation",
+   "model_title": "The 1% Planner model",
+   "model_body": "Thirteen skills in four domains. The baseline measures where you start; the ten courses build them.",
+   "model_cta": "See My path"
   },
   "rules": {
    "title": "The rules",
@@ -1171,7 +1171,12 @@
   "next_parts": "Still to do",
   "no_feedback": "No score or question-by-question feedback after a part: that keeps the December 2027 re-test fair.",
   "back_home": "Back to my learning",
-  "error_title": "Something got in the way"
+  "error_title": "Something got in the way",
+  "measures": {
+   "p1": "Measures Think: problem solving with data",
+   "p2": "Measures Lead: the five charters",
+   "p3": "Measures Plan: core planning for your role"
+  }
  },
  "capstone": {
   "title": "Capstone",
@@ -1514,5 +1519,294 @@
    "CS": "Customer service"
   },
   "to_baseline": "Go to the baseline"
+ },
+ "model": {
+  "stages_aria": "The five stages of every course",
+  "d": {
+   "think": {
+    "name": "Think",
+    "area": "Analytical",
+    "built": "Field work on our own data; Copilot and Power Query in your daily work."
+   },
+   "plan": {
+    "name": "Plan",
+    "area": "Core planning & customer service",
+    "built": "One KPI per course, signed off on live S&OP and S&OE work."
+   },
+   "work": {
+    "name": "Lead",
+    "area": "Manage the work",
+    "built": "Mixed-role team cases in every forum; your team pitches at Pitch Day in June and the War Room in December."
+   },
+   "mind": {
+    "name": "Lead",
+    "area": "Mindset & behaviour",
+    "built": "The charter thread runs through every session: the Teach stage closes each cycle, your IDP carries one charter goal, and your manager rates the 23 behaviours again in December 2027.",
+    "no_course": "No single course: it is built in every forum, every Teach stage and your IDP."
+   }
+  },
+  "skill": {
+   "problem": "Problem solving",
+   "data": "Data analytics",
+   "genai": "GenAI and automation",
+   "process": "Processes & tools",
+   "theory": "Planning & CS theory",
+   "e2e": "End-to-end best practice",
+   "acumen": "Business acumen",
+   "comms": "Communication",
+   "team": "Teamwork & high performance",
+   "mastery": "Personal mastery",
+   "customer": "Customer centric",
+   "agility": "Agility",
+   "leadership": "Leadership"
+  },
+  "stage": {
+   "learn": {
+    "when": "Weeks 1–2",
+    "where": "Blink + Hub",
+    "what": "Do the 3-question Predict first, then watch 6–9 episodes of 4–7 minutes, English voice with Vietnamese subtitles.",
+    "hub": "On the course page: Predict, then tick each episode as you watch.",
+    "time": "About 50 min"
+   },
+   "prove": {
+    "when": "Week 3",
+    "where": "Hub checkpoint",
+    "what": "10 questions; 8 of 10 passes. Not yet? Retake with the other form after 24 hours.",
+    "hub": "On the course page: Take the checkpoint. Recall quizzes on day 2, 7 and 30 keep it fresh.",
+    "time": "About 40 min"
+   },
+   "apply": {
+    "when": "Week 4, Tuesday",
+    "where": "Forum with the Planning Director",
+    "what": "4 hours in Vietnamese: a case on our own data, in mixed-role teams.",
+    "hub": "The course page shows the date, time and place.",
+    "time": "4 h"
+   },
+   "do": {
+    "when": "Weeks 4–6",
+    "where": "Your live work",
+    "what": "A field assignment on the work the course serves; your manager signs it off within a week.",
+    "hub": "The course page shows your task, the evidence and the sign-off rubric.",
+    "time": "About 3 h"
+   },
+   "teach": {
+    "when": "Next session",
+    "where": "Show-and-tell",
+    "what": "Your team presents its field results to open the next session; managers coach in the Monday meeting.",
+    "hub": "The course page shows when you present.",
+    "time": "About 1 h"
+   }
+  }
+ },
+ "path": {
+  "eyebrow": "My path",
+  "title": "Your path to a 1% Planner",
+  "lead": "Thirteen skills in four domains make a 1% Planner. In 2027 the ten courses build them. Your baseline shows where you start; the same test in December 2027 shows how far you came.",
+  "model_title": "The 1% Planner model",
+  "model_sub": "Four domains, 13 skills. Each card shows the courses that build it this year, the baseline part that measures it, and where you are.",
+  "skills_aria": "Skills",
+  "built_by": "Built by",
+  "charters": "The five charters",
+  "beyond": "Beyond the videos",
+  "measured": "Measured by Baseline Part {n}",
+  "part": {
+   "done": "Done",
+   "in_progress": "In progress",
+   "open": "Open now",
+   "not_open": "Not open yet"
+  },
+  "passed_of": "{n} of {total} checkpoints passed",
+  "c_passed": "Passed",
+  "c_opens": "Opens {date}",
+  "gap": "Your IDP gap:",
+  "years_title": "Where it leads",
+  "y2027": "2027 · Build",
+  "y2027_body": "This year: the ten courses, your field work and your IDP.",
+  "y2028": "2028 · Deepen",
+  "y2028_body": "Go deeper in each domain.",
+  "y2029": "2029 · Lead & scale",
+  "y2029_body": "Our own planners lead the work and teach the next cohort.",
+  "years_note": "2028 and 2029 are set after the December 2027 re-test.",
+  "stages_title": "How every course runs",
+  "stages_sub": "The same five stages in all ten courses, so you never learn a new routine. Most of the time goes to doing and teaching, because that is what you still remember three months later.",
+  "recall_title": "What people still recall after three months",
+  "recall": {
+   "hear": "Hearing and seeing",
+   "test": "Self-test: quizzes slow forgetting",
+   "test_v": "Self-test",
+   "case": "Doing, on our own case",
+   "live": "Doing, on live work",
+   "teach": "Teaching others"
+  },
+  "recall_src": "Source: Whitmore, Coaching for Performance (2002), as cited by McKinsey & Company (2013).",
+  "load": "About 9.5 hours per cycle, roughly 7 hours a month.",
+  "between": "Between sessions: recall quizzes on day 2, 7 and 30, and a monthly 45-minute Case Clinic on Teams from April.",
+  "legend": "Blue: online (Blink and the Hub). Green: offline and on the job.",
+  "year_title": "Your year",
+  "year_sub": "From the baseline to the re-test, with every offline session in between.",
+  "yr_baseline": "Baseline: three parts, any order",
+  "yr_retest": "Re-test: the same three parts",
+  "here": "You are here",
+  "here_aria": "You are here: {date}",
+  "kind": {
+   "baseline": "Baseline",
+   "retest": "Re-test",
+   "kickoff": "Kick-off",
+   "forum": "Forum",
+   "pitch": "Pitch Day",
+   "warroom": "War Room",
+   "other": "Session"
+  },
+  "grow_title": "How you grow",
+  "grow_sub": "Your IDP turns the program into four goals you agree with your manager. In December 2027 you sit the same three baseline parts again: the gain is what counts.",
+  "goal": {
+   "business_n": "1",
+   "business_k": "business goal",
+   "business": "From your role KPI and your team project: a number, a date and a guard rail.",
+   "capability_n": "2",
+   "capability_k": "capability goals",
+   "capability": "From your two largest gaps across the three baseline parts.",
+   "application_n": "1",
+   "application_k": "application goal",
+   "application": "A charter behaviour others can see in our meetings."
+  },
+  "gaps_wait": "Your two gaps appear here when the baseline results open.",
+  "gaps_wait_profile": "Your two gaps appear here once your profile is ready.",
+  "see_profile": "See my baseline profile"
+ },
+ "guide": {
+  "title": "What to do here",
+  "page": "This page",
+  "now": "Now",
+  "next": "Next",
+  "hide": "Hide",
+  "show": "Show",
+  "tour": "Show me around",
+  "next_session": "{title}, {date}",
+  "path": {
+   "page": "The whole program on one page: the skills you build, how each course runs, your year and how you grow."
+  },
+  "home": {
+   "page": "Your to-do list for the program: your next step at the top, then the baseline, your courses in calendar order and the dates coming up."
+  },
+  "course": {
+   "page": "One course from start to finish, in five stages: Learn, Prove, Apply, Do and Teach. The highlighted stage is where you are.",
+   "locked": "This course opens on {date}. Until then, read 'About this course' at the bottom of the page.",
+   "next_open": "When it opens: do Predict first, then the episodes.",
+   "learn_predict": "Start with Predict: 3 quick questions, not graded. Then watch the episodes and tick each one here.",
+   "learn_watch": "You have watched {n} of {total} episodes. Watch the next one and tick it here, then take the checkpoint by {date}.",
+   "prove": "Take the checkpoint by {date}: 10 questions, 8 of 10 to pass. That makes you ready for the forum.",
+   "retake": "You get the other form, so the questions are new.",
+   "cp_continue": "You have a checkpoint in progress: continue where you left off.",
+   "unlock": "Talk to your manager: after a 15-minute chat, they open another try for you.",
+   "closed": "The checkpoint has closed. Ask your manager to unlock a late attempt.",
+   "recall": "Your day-{day} recall is due: 3 quick questions to keep it fresh.",
+   "apply": "Come to the forum on {date}. The forum card below has the time, place and what you will do.",
+   "do": "Do your field assignment on live work. Your manager signs it off; field work runs until {date}.",
+   "teach": "Prepare your team's show-and-tell for {date}: what you changed and what it moved.",
+   "done": "All five stages are done. Keep up your recall quizzes when they are due.",
+   "next": "{stage} · {date}"
+  },
+  "bl": {
+   "page": "The baseline shows where you start, in three parts you take once each, in any order. No score appears after a part: your results come later as one profile.",
+   "now_going": "Finish Part {n} ({name}): its timer is running.",
+   "now_open": "Start Part {n} ({name}) when you have {min} quiet minutes in one sitting.",
+   "now_all_done": "All three parts are done. Thank you!",
+   "now_wait": "No part is open right now. The program team opens each part; it will show here as 'Not started'.",
+   "next_any": "Take the other open parts in any order. Your profile appears when the results open.",
+   "next_results": "Your profile and your two IDP gaps appear under Profile when the results open.",
+   "intro_now": "Read how it works below, then press Start when you have {min} quiet minutes. The timer starts when you press Start.",
+   "intro_back": "You have {count} minutes left. Press Continue to pick up where you left off.",
+   "p1_page": "Part 1 measures Think: how you solve problems with data, on short cases with tables and charts, plus logic questions.",
+   "p1_next": "Section A (cases) and Section B (logic) share one timer: move freely between them, then review and submit once.",
+   "p2_page": "Part 2 measures Lead: how you would act in work situations, and how often you show the charter behaviours.",
+   "p2_next": "Two steps: first 2A, the 15 situations (pick the most and least effective option), then lock them. After the lock, 2B: rate yourself on 23 behaviours.",
+   "p3_page": "Part 3 measures Plan: core S&OP planning, and the module for your role.",
+   "p3_next": "First rate yourself on the 10 courses, then 10 S&OP core questions and 18 questions for your role."
+  },
+  "profile": {
+   "page": "Your baseline results: Part 1 by problem-solving step, Part 2 by charter, Part 3 by S&OP gate, and your two IDP gaps.",
+   "now": "Read your two gaps and take them to your IDP conversation with your manager.",
+   "next": "December 2027: the same three parts again, to show your gain.",
+   "now_wait": "Nothing to do here yet. Take the baseline parts that are open; your profile appears when the program team opens the results.",
+   "next_wait": "Then: read your two gaps and take them to your IDP conversation with your manager."
+  },
+  "team": {
+   "page": "The team at a glance: averages by course and role group, only for groups of three or more. Nobody is ranked.",
+   "now": "See where the team is strong and where the next forum should focus.",
+   "now_mgr": "Check who has passed each checkpoint. Anyone who needs a 15-minute chat with you is listed above the table.",
+   "next_mgr": "After the chat, press \"I've had the chat\" to open another try. Then sign off their field work within a week."
+  },
+  "rate": {
+   "page": "Your 180° rating: rate each member on 23 behaviours you have seen in the last six months. It counts for half of each charter score.",
+   "now": "Open a member, rate every statement (N/A if you have not seen it), then save.",
+   "next": "Members see only averages by charter, never your single ratings."
+  },
+  "panel": {
+   "page": "Score each team's pitch on the five criteria of the rubric.",
+   "now": "Open a team, score 1–5 on each of the five criteria, then save.",
+   "next": "Your scores are kept for you as a judge, and you can change them later."
+  },
+  "cap": {
+   "page": "Your team project: one submission per team for Pitch Day and one for the War Room. Anyone in the team can save; the panel reads the latest version.",
+   "now_pitch": "Fill in the SOI, the KPI before and after, and the evidence, then save by {date}. Save as often as you like.",
+   "now_capstone": "Update the result, value and lessons from Pitch Day, then save by {date}.",
+   "next_pitch": "The panel scores your pitch on five criteria; communication counts double.",
+   "next_capstone": "The War Room panel scores the capstone; a score of 3.5 or more with a verified result counts towards 1% Expert."
+  },
+  "quiz": {
+   "predict_page": "Predict is part of Learn: 3 questions before you watch. Not graded; guessing first helps you remember.",
+   "checkpoint_page": "The checkpoint is Prove: 10 questions, 8 of 10 to pass. It is your gate to the forum.",
+   "recall_page": "Recall keeps Prove fresh: 3 quick questions on day 2, 7 and 30 after the forum.",
+   "now": "Answer every question, then review your answers and submit.",
+   "predict_next": "Then watch the episodes on the course page and tick each one.",
+   "checkpoint_next": "Passed: you are ready for the forum. Not yet: retake with the other form after 24 hours.",
+   "recall_next": "Your next recall shows on My learning when it is due."
+  }
+ },
+ "tour": {
+  "back": "Back",
+  "next": "Next",
+  "done": "Got it",
+  "skip": "Skip the tour",
+  "count": "{n} of {total}",
+  "home": {
+   "next_t": "Your next step",
+   "next_b": "The one thing to do now. The button takes you straight there.",
+   "bl_t": "Your baseline",
+   "bl_b": "Three parts, once each, in any order, when the program team opens them. No score appears after a part.",
+   "courses_t": "Your courses",
+   "courses_b": "In calendar order. Each card shows your stage: Learn, Prove, Apply, Do or Teach. Open a card to see what to do.",
+   "up_t": "Coming up",
+   "up_b": "Deadlines and sessions for the next weeks. Tap one to open it.",
+   "path_t": "Your path",
+   "path_b": "The 13 skills behind the program and how far you are. Also in the menu as My path.",
+   "menu_t": "Your menu",
+   "menu_b": "Your baseline profile, your PIN, and this tour again: Show me around."
+  },
+  "course": {
+   "steps_t": "Five stages",
+   "steps_b": "Every course runs Learn → Prove → Apply → Do → Teach. The highlighted stage is where you are now.",
+   "learn_t": "Learn",
+   "learn_b": "Do Predict first, then watch the episodes and tick each one here: the video site cannot tell the Hub what you watched.",
+   "prove_t": "Prove",
+   "prove_b": "The checkpoint: 10 questions, 8 to pass, before the forum. Not yet? Retake with the other form after 24 hours.",
+   "apply_t": "Apply",
+   "apply_b": "The 4-hour forum: the date, time and place, and what your team will work on.",
+   "do_t": "Do and Teach",
+   "do_b": "Your field assignment on live work, the evidence your manager signs off, and when your team shows its results.",
+   "dates_t": "Key dates",
+   "dates_b": "Every date for this course in one list; the next one is marked."
+  },
+  "bl": {
+   "parts_t": "Three parts",
+   "parts_b": "Take each part once, in any order, in one sitting. Each part has its own timer.",
+   "open_t": "Open now",
+   "open_b": "Start here when you have quiet time. The timer starts only when you press Start on the next page.",
+   "closed_t": "Not open yet",
+   "closed_b": "The program team opens each part. Until then it shows as not open; nothing is wrong.",
+   "measures_t": "What each part measures",
+   "measures_b": "Part 1 is Think, Part 2 is Lead, Part 3 is Plan: the domains of the 1% Planner model on My path."
+  }
  }
 }

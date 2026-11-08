@@ -217,10 +217,16 @@ section('me: journey shape, calendar order, nobody else\'s data', () => {
   const h = harness('2027-01-05T09:00:00+07:00');
   const tok = h.login('T001');
   const me = h.ok({ action: 'me', token: tok });
-  eq(Object.keys(me).sort(), ['baseline', 'capstone', 'certificates', 'courses', 'ok', 'profile', 'server_now', 'streak']);
+  eq(Object.keys(me).sort(), ['baseline', 'capstone', 'certificates', 'charters', 'courses', 'ok', 'profile', 'server_now', 'sessions', 'streak']);
+  // offline sessions from the Sessions tab (active rows only, oldest first) and the charter names from BaselineText
+  eq(me.sessions.length, fx.FIXTURE_SESSIONS.length);
+  eq(me.sessions[0], { date: '2027-01-26', kind: 'kickoff', courses: ['A2', 'A3'], title_en: 'Fixture kick-off', title_vi: 'Buổi mẫu khởi động', start: '13:30', end: '17:30', place: 'Fixture room', note_en: '', note_vi: '' });
+  eq(me.sessions.map((x) => x.date), fx.FIXTURE_SESSIONS.map((x) => x.date));
+  eq(me.charters.map((c) => [c.n, c.en]), [1, 2, 3, 4, 5].map((n) => [n, 'Mock charter ' + n]));
   eq(me.courses.map((c) => c.code), ['A2', 'A3', 'A1', 'P1', 'C1', 'P2', 'P3', 'P4', 'P5', 'P6']);
   const a2 = me.courses[0];
-  eq(Object.keys(a2).sort(), ['blink_url', 'checkpoint', 'checkpoint_close', 'code', 'cycle', 'episodes', 'field_until', 'forum_date', 'late_until', 'online_from', 'open', 'order', 'predict', 'recall']);
+  eq(Object.keys(a2).sort(), ['blink_url', 'checkpoint', 'checkpoint_close', 'code', 'cycle', 'episodes', 'field_until', 'forum_date', 'late_until', 'online_from', 'online_to', 'open', 'order', 'predict', 'recall']);
+  eq(a2.online_to, '2027-01-22');
   eq(a2.open, true); eq(me.courses[2].open, false, 'A1 opens 2027-02-15');
   eq(a2.late_until, '2027-02-02');
   eq(a2.episodes.length, 8); eq(Object.keys(a2.episodes[0]).sort(), ['blink_url', 'embed_url', 'ep', 'minutes', 'watched']);
@@ -1230,6 +1236,10 @@ section('F5 coercion: setup makes every tab plain text and repairs converted cel
   h.run('setupSheet');
   eq(h.props.get('PIN_PEPPER'), pepper, 'secrets never overwritten');
   eq(h.table('Episodes').length, 76, 'episodes seeded once');
+  const ses = h.table('Sessions');
+  eq(ses.length, 9, 'the nine offline sessions seeded once');
+  eq([ses[0].date, ses[0].kind, ses[0].courses, ses[0].start, ses[0].active], ['2026-12-22', 'kickoff', 'A1', '13:30', 'TRUE']);
+  eq(ses.map((r) => r.kind).filter((k) => k === 'pitch' || k === 'warroom'), ['pitch', 'warroom']);
   eq(h.table('Config').filter((r) => r.key === 'wave').length, 1, 'setup is idempotent');
   // a Courses.csv "Replace current sheet" import drops the hand columns: Validate puts them back
   const cs = h.sheet('Courses');
@@ -1237,7 +1247,7 @@ section('F5 coercion: setup makes every tab plain text and repairs converted cel
   cs.getRange(1, 1, 2, 3).setValues([['code', 'name_en', 'self_en'], ['A2', 'Fixture course A2', 'Fixture self A2']]);
   h.run('validateNow_');
   const a2 = h.table('Courses').find((r) => r.code === 'A2');
-  eq([a2.order, a2.online_from, a2.forum_date, a2.open], ['1', '2027-01-04', '2027-01-26', 'TRUE']);
+  eq([a2.order, a2.online_from, a2.forum_date, a2.open], ['2', '2027-01-04', '2027-02-23', 'TRUE'], 'real calendar from Seed.gs (courses.json)');
   eq(h.table('Courses').length, 10);
 });
 

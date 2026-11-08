@@ -3,6 +3,7 @@
 // checkpoint pass rates, and — for managers — passed / not yet / needs a chat for their own reports
 // (no scores). A manager records the 15-minute chat here (unlock_retake), which reopens the checkpoint.
 import { h, render, icon, chip, emptyState, errorState, errorMessage, modal, toast, mountShell } from '../ui.js';
+import { guideBox } from '../guide.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
 import { loadCatalog, journey, fmtShortDate, fmtDateTime, todayVN } from '../courses.js';
@@ -60,6 +61,7 @@ function draw() {
       h('h1', { text: t('team.title') }),
       h('p', { class: 'lead muted', text: t('team.lead') }),
       h('p', { class: 'privacy-chip' }, icon('shield', 'sm'), h('span', { text: t('team.privacy') }))),
+    guideBox({ id: 'team', page: t('guide.team.page'), now: t(S.profile.is_manager ? 'guide.team.now_mgr' : 'guide.team.now'), next: S.profile.is_manager ? t('guide.team.next_mgr') : '' }),
     heatSection(),
     checkpointSection(),
     S.profile.is_manager ? gateSection() : null));

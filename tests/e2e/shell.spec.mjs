@@ -9,11 +9,11 @@ test.describe('Step 3 · shell', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const view = await hub.signIn(hub.account('shell'));
     expect(view).toBe('dash');
-    expect(await hub.dashboardCourses()).toEqual(ORDER); // every course reachable, calendar order
+    expect(await hub.dashboardCourses()).toEqual(ORDER[hub.mode]); // every course reachable, calendar order
     // the greeting uses the first name from the profile, and the journey came from `me`
     const me = hub.last('me');
     expect(me.ok).toBe(true);
-    expect(me.courses.map((c) => c.code)).toEqual(ORDER);
+    expect(me.courses.map((c) => c.code)).toEqual(ORDER[hub.mode]);
     await expect(page.locator('.dash-head h1')).toContainText(me.profile.first_name);
     // the signed-in shell: primary navigation and footer privacy line
     await expect(page.locator('.app-header .nav-primary a')).not.toHaveCount(0);

@@ -5,6 +5,7 @@
 // connection is back. Leaving with unsaved ratings asks first (as the panel page does).
 // Sheet text (names, statements, anchors, the guide) is inserted as text only; the guide via md.js.
 import { mountShell, h, icon, chip, render, loading, emptyState, errorState, errorMessage, toast, confirmDialog } from '../ui.js';
+import { guideBox } from '../guide.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
 import { fmtDateTime } from '../courses.js';
@@ -196,7 +197,8 @@ function listView() {
     h('p', { class: 'eyebrow', text: L && L.wave ? t('rate.eyebrow', { wave: waveLabel(L.wave) }) : t('rate.eyebrow_plain') }),
     h('h1', { text: t('rate.title') }),
     h('p', { class: 'lead muted', text: t('rate.lead') }),
-    h('p', { class: 'privacy-chip' }, icon('shield', 'sm'), h('span', { text: t('rate.privacy') })));
+    h('p', { class: 'privacy-chip' }, icon('shield', 'sm'), h('span', { text: t('rate.privacy') })),
+    guideBox({ id: 'rate', page: t('guide.rate.page'), now: t('guide.rate.now'), next: t('guide.rate.next') }));
   if (!L) return h('div', { class: 'rt stack lg' }, head, S.listErr && S.listErr.code === 'forbidden' ? h('div', { class: 'callout info' }, icon('lock'), h('p', { text: t('rate.forbidden_body') })) : errorState(S.listErr || {}, async () => { await ensureList(true); draw(); }));
   const reports = L.reports || [];
   const done = reports.filter((r) => r.status === 'complete').length;

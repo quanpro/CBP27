@@ -63,6 +63,11 @@ export class Hub {
   async install() {
     const ctx = this.page.context();
     ctx.on('request', (req) => this.requests.push(req.url()));
+    // First-visit tours (guide.js) would sit over the page in every test: mark them seen, unless a test
+    // asked for them (guide.spec sets window name "tours").
+    await ctx.addInitScript(() => {
+      try { if (window.name !== 'tours') ['home', 'course', 'baseline'].forEach((k) => localStorage.setItem(`hub.tour.${k}`, 'done')); } catch (e) { /* storage blocked */ }
+    });
     await ctx.route((url) => /^https?:$/.test(url.protocol) && !ALLOWED_HOSTS.includes(url.host), (route) => route.abort('blockedbyclient'));
     await ctx.route(FONT_RE, (route) => route.fulfill({ status: 200, contentType: route.request().url().includes('googleapis') ? 'text/css' : 'font/woff2', body: '' }));
     if (this.isMock) {

@@ -5,6 +5,7 @@
 // judge + stage + team (localStorage, try/catch) until Save succeeds; leaving or switching the stage
 // tab with unsaved scores asks first. A judge never scores their own team (`forbidden`).
 import { mountShell, h, icon, chip, render, loading, emptyState, errorState, errorMessage, toast, confirmDialog } from '../ui.js';
+import { guideBox } from '../guide.js';
 import { t, onLangChange } from '../i18n.js';
 import { api } from '../api.js';
 import { fmtDateTime, fmtShortDate } from '../courses.js';
@@ -287,6 +288,7 @@ function renderPage() {
   progressEl = h('p', { class: 'muted', role: 'status' });
   render(app, h('div', { class: 'pn stack lg' },
     h('header', { class: 'stack sm' }, h('p', { class: 'eyebrow', text: t('panel.eyebrow') }), h('h1', { text: t('panel.title') }), h('p', { class: 'lead', text: t('panel.intro') })),
+    guideBox({ id: 'panel', page: t('guide.panel.page'), now: t('guide.panel.now'), next: t('guide.panel.next') }),
     tabs(),
     h('div', { id: 'pn-panel', role: 'tabpanel', 'aria-labelledby': `pn-tab-${stage}`, class: 'stack lg' },
       h('div', { class: 'row between pn-bar' }, progressEl, h('span', { class: 'chip info' }, icon('star'), t(`rubric.weight_${stage}`))),

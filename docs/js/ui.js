@@ -85,6 +85,9 @@ const ICONS = {
   key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/>',
   'trend-up': '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>',
+  bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z"/>',
 };
 export function icon(name, cls = '') {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -287,6 +290,7 @@ onSessionExpired(() => reloginPending || (reloginPending = reloginDialog().final
 // ---------- Page shell ----------
 const NAV = [
   { key: 'home', href: 'index.html', icon: 'home', label: 'nav.home' },
+  { key: 'path', href: 'path.html', icon: 'map', label: 'nav.path' },
   { key: 'team', href: 'team.html', icon: 'grid', label: 'nav.team' },
   { key: 'capstone', href: 'capstone.html', icon: 'trophy', label: 'nav.capstone' },
   { key: 'panel', href: 'panel.html', icon: 'star', label: 'nav.panel', roles: ['panel', 'admin'] },
@@ -351,6 +355,7 @@ function headerEl({ page, focus, session, exitHref }) {
       h('button', { type: 'button', role: 'menuitem', class: 'menu-theme', 'aria-label': t('theme.aria', { mode: t(`theme.${themeNow}`) }),
         onclick: () => { cycleTheme(); rebuildShell(); const b = document.querySelector('.user-btn'); if (b) b.focus(); } },
       icon(themeIcon), h('span', { class: 'grow', text: t('theme.menu') }), h('span', { class: 'menu-val', text: t(`theme.short_${themeNow}`) })),
+      h('button', { type: 'button', role: 'menuitem', onclick: () => { closeMenu(); showMeAround(); } }, icon('compass'), t('menu.tour')),
       h('a', { href: 'about.html', role: 'menuitem' }, icon('shield'), t('menu.privacy')),
       h('button', { type: 'button', role: 'menuitem', onclick: logout }, icon('logout'), t('menu.logout')));
     const closeMenu = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
@@ -377,13 +382,22 @@ function footerEl({ focus, session, page }) {
   frag.append(h('footer', { class: 'app-footer' }, h('div', { class: 'container' }, links, h('span', { class: 'spacer' }), h('span', { class: 'xs', text: t('footer.program') }))));
   if (!focus && session) {
     frag.append(h('nav', { class: 'tabbar', 'aria-label': t('nav.aria_mobile') },
-      navItems(session.profile).map((n) => h('a', { href: n.href, 'aria-current': n.key === page ? 'page' : null }, icon(n.icon), h('span', { text: t(`${n.label}_short`) })))));
+      // Phones: five tabs at most; Privacy & help stays in the user menu and the footer.
+      navItems(session.profile).filter((n, i, all) => all.length <= 5 || n.key !== 'about').map((n) => h('a', { href: n.href, 'aria-current': n.key === page ? 'page' : null }, icon(n.icon), h('span', { text: t(`${n.label}_short`) })))));
     document.body.classList.add('has-tabbar');
   } else document.body.classList.remove('has-tabbar');
   return frag;
 }
 
 let shellOpts = null;
+
+/** "Show me around": the tour of this page, or the home tour when this page has none. */
+async function showMeAround() {
+  const g = await import('./guide.js');
+  const id = g.currentTour();
+  if (id) g.startTour(id, { force: true });
+  else location.href = 'index.html?tour=1';
+}
 function rebuildShell() {
   if (!shellOpts) return;
   const session = getSession();

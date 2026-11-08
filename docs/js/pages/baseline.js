@@ -20,6 +20,7 @@ import { loadCatalog } from '../courses.js';
 import { buildTop, createTimer, timerChip, announce, scrollToEl, createAutosave, createSavePill, readDraft, writeDraft, clearDraft, optionText, LETTERS } from '../quiz.js';
 import { mdBlocks } from '../md.js';
 import { PARTS, partTile, partName, partOf, waveLabel, fmtDuration, usedSeconds, minutesLeft } from '../bl2.js';
+import { guideBox, registerTour, maybeStartTour } from '../guide.js';
 
 const { app } = await mountShell({ page: 'baseline', focus: true, exitHref: 'index.html' });
 app.classList.add('narrow');
@@ -164,6 +165,32 @@ function fatal(err, retry) {
 function closedView() {
   stateCard({ iconName: 'lock', title: t('baseline.closed_title', { name: partName(S.part) }), body: t('baseline.closed_body') });
 }
+// ---------- "What to do here" and the baseline tour ----------
+function chooserGuide(b) {
+  const parts = PARTS.map((n) => ({ n, ...(partOf(b, n) || {}) }));
+  const going = parts.find((p) => p.status === 'in_progress');
+  const open = parts.filter((p) => p.open && p.status !== 'submitted' && p.status !== 'in_progress');
+  const done = parts.filter((p) => p.status === 'submitted').length;
+  let now;
+  if (going) now = t('guide.bl.now_going', { n: going.n, name: partName(going.n) });
+  else if (open.length) now = t('guide.bl.now_open', { n: open[0].n, name: partName(open[0].n), min: open[0].minutes || '' });
+  else if (done === 3) now = t('guide.bl.now_all_done');
+  else now = t('guide.bl.now_wait');
+  const next = done === 3 || (!going && !open.length) ? t('guide.bl.next_results') : t('guide.bl.next_any');
+  return guideBox({ id: 'baseline', tour: 'baseline', page: t('guide.bl.page'), now, next });
+}
+registerTour('baseline', () => {
+  const tiles = [...app.querySelectorAll('.bl2-tile')];
+  const openTile = tiles.find((x) => x.classList.contains('is-not_started') || x.classList.contains('is-in_progress'));
+  const closedTile = tiles.find((x) => x.classList.contains('is-closed'));
+  return [
+    { el: app.querySelector('.bl2-tiles'), title: t('tour.bl.parts_t'), body: t('tour.bl.parts_b') },
+    openTile ? { el: openTile, title: t('tour.bl.open_t'), body: t('tour.bl.open_b') } : null,
+    closedTile ? { el: closedTile, title: t('tour.bl.closed_t'), body: t('tour.bl.closed_b') } : null,
+    { el: app.querySelector('.bl2-tile-measures'), title: t('tour.bl.measures_t'), body: t('tour.bl.measures_b') },
+  ].filter((x) => x && x.el);
+});
+
 /** No (or an unknown) ?part=: the three tiles. */
 function chooserView() {
   const b = S.me.baseline;
@@ -172,8 +199,10 @@ function chooserView() {
       h('p', { class: 'eyebrow', text: t('baseline.eyebrow', { wave: waveLabel(b.wave) }) }),
       h('h1', { id: 'bl-title', class: 'qz-h1', text: t('baseline.chooser_title') }),
       h('p', { class: 'muted', text: t('baseline.chooser_lead') })),
+    chooserGuide(b),
     h('div', { class: 'bl2-tiles' }, PARTS.map((n) => partTile(n, partOf(b, n), { heading: 'h2' }))),
     h('div', { class: 'row qz-actions' }, h('a', { class: 'btn btn-ghost', href: 'index.html' }, icon('chevron-left'), h('span', { text: t('baseline.back_home') })))));
+  maybeStartTour('baseline');
 }
 
 // ---------- intro ----------
@@ -205,6 +234,7 @@ function introView(err) {
         h('h1', { id: 'bl-title', text: partName(n) }),
         h('p', { class: 'lead', text: resuming ? t('baseline.lead_back', { count: left || 0 }) : t(`baseline.p${n}.lead`) }),
         h('p', { class: 'row tight bl2-intro-meta' }, chip(t('baseline.dur_min', { n: p.minutes || '' }), 'info', 'clock'), n === 1 && p.n_items ? chip(t('baseline.n_questions', { count: p.n_items }), '', 'list') : null),
+        guideBox({ id: `baseline-p${n}`, page: t(`guide.bl.p${n}_page`), now: resuming ? t('guide.bl.intro_back', { count: left || 0 }) : t('guide.bl.intro_now', { min: p.minutes || '' }), next: t(`guide.bl.p${n}_next`) }),
         h('div', { class: 'callout info bl-privacy' }, icon('shield'), h('div', { class: 'stack sm' }, h('b', { text: t('baseline.privacy_title') }), h('span', { text: t('baseline.privacy_body') }))),
         h('h2', { class: 'bl-h2', text: t('baseline.structure_title') }),
         h('ol', { class: 'bl-parts bl2-structure' }, structure.map(([k, name, what]) => h('li', { class: 'bl-part' },

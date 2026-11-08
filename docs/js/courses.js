@@ -47,10 +47,42 @@ export function mergeCourse(staticCourse, live) {
   };
 }
 
+/**
+ * The offline sessions (forums, Pitch Day, War Room), oldest first: the Sheet's Sessions tab (sent in
+ * `me`) when it has any, otherwise the catalogue defaults. { date, kind, courses: [codes], title_en, … }
+ */
+export function programSessions(me, cat) {
+  const live = me && Array.isArray(me.sessions) && me.sessions.length ? me.sessions : null;
+  const list = live || (cat && cat.program && cat.program.sessions) || [];
+  return list.filter((x) => x && /^\d{4}-\d{2}-\d{2}$/.test(String(x.date || '')))
+    .map((x) => ({ ...x, kind: x.kind || 'forum', courses: Array.isArray(x.courses) ? x.courses : String(x.courses || '').toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean) }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+/** Date of the first session of a kind (pitch | warroom), falling back to the catalogue's program dates. */
+export function sessionDate(sessions, kind, cat) {
+  const s = (sessions || []).find((x) => x.kind === kind);
+  if (s) return s.date;
+  const p = (cat && cat.program) || {};
+  return (kind === 'pitch' ? p.pitch_day : kind === 'warroom' ? p.capstone_day : '') || '';
+}
+
 export async function journey(me) {
   const cat = await loadCatalog();
   const live = new Map(((me && me.courses) || []).map((c) => [c.code, c]));
-  return cat.courses.slice().sort((a, b) => a.order - b.order).map((c) => mergeCourse(c, live.get(c.code)));
+  const sessions = programSessions(me, cat);
+  // Course order and cycles come from the Sheet when it sends them (Courses.order), else courses.json.
+  const ord = (c) => { const l = live.get(c.code); return l && Number(l.order) > 0 ? Number(l.order) : c.order; };
+  return cat.courses.slice().sort((a, b) => ord(a) - ord(b)).map((c) => {
+    const m = mergeCourse(c, live.get(c.code));
+    // The forum's own session (title, time, place from the Sheet) and Teach: show-and-tell of the field results.
+    m.session = sessions.find((x) => x.date === m.forum_date && (!x.courses.length || x.courses.includes(m.code))) || null;
+    // field results are shown at the first session after the field work ends (after the forum if no field date)
+    const after = [m.forum_date, m.field_until].filter(Boolean).sort().pop();
+    const next = after ? sessions.find((x) => x.date > after) : null;
+    m.teach_date = next ? next.date : '';
+    m.teach_session = next || null;
+    return m;
+  });
 }
 
 const lessonEps = (c) => c.episodes.filter((e) => !e.trailer);
@@ -64,25 +96,36 @@ export function courseProgress(c) {
   return { watched, total: eps.length, recallDone, passed };
 }
 
-/** The six journey steps for the stepper: done | current | todo. */
+/** True when Predict is done and every episode is ticked (the Learn stage, before the checkpoint). */
+export function learnDone(c) {
+  const p = courseProgress(c);
+  return !!(c.predict && c.predict.done) && p.total > 0 && p.watched === p.total;
+}
+
+/**
+ * The five stages of every course (slide "How each course runs"): done | current | todo.
+ * Learn (Predict + episodes) → Prove (checkpoint; recall keeps it fresh) → Apply (forum) →
+ * Do (field work until field_until) → Teach (show-and-tell at the first session after the field work).
+ * Passing the checkpoint counts Learn as done; a stage whose date has passed counts as done.
+ */
 export function courseSteps(c, today = todayVN()) {
   const p = courseProgress(c);
-  const forumPassed = c.forum_date && today > c.forum_date;
-  const fieldPassed = c.field_until && today > c.field_until;
+  const forumPassed = !!c.forum_date && today > c.forum_date;
+  const fieldPassed = !!c.field_until && today > c.field_until;
+  const teachPassed = c.teach_date ? today > c.teach_date : fieldPassed;
   const steps = [
-    { key: 'predict', done: !!(c.predict && c.predict.done) },
-    { key: 'watch', done: p.total > 0 && p.watched === p.total },
-    { key: 'checkpoint', done: p.passed },
-    { key: 'forum', done: !!forumPassed },
-    { key: 'field', done: !!fieldPassed },
-    { key: 'recall', done: p.recallDone === 3 },
+    { key: 'learn', done: learnDone(c) || p.passed },
+    { key: 'prove', done: p.passed },
+    { key: 'apply', done: forumPassed },
+    { key: 'do', done: fieldPassed },
+    { key: 'teach', done: !!teachPassed },
   ];
   const firstTodo = steps.findIndex((s) => !s.done);
   return steps.map((s, i) => ({ ...s, state: s.done ? 'done' : (i === firstTodo && c.open ? 'current' : 'todo') }));
 }
 
 /**
- * Where the learner is in the six steps, for the mini stepper: "Step 3 of 6 · Checkpoint".
+ * Where the learner is in the five stages, for the mini stepper: "Stage 2 of 5 · Prove".
  * { steps, n (1-based, the first step not done), total, key, done: count, all: every step done }
  */
 export function stepInfo(c, today = todayVN()) {

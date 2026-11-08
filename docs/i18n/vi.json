@@ -17,7 +17,9 @@
   "about": "Bảo mật & trợ giúp",
   "about_short": "Bảo mật",
   "aria": "Chính",
-  "aria_mobile": "Điều hướng chính"
+  "aria_mobile": "Điều hướng chính",
+  "path": "Lộ trình",
+  "path_short": "Lộ trình"
  },
  "lang": {
   "aria": "Ngôn ngữ"
@@ -37,7 +39,8 @@
   "privacy": "Bảo mật",
   "logout": "Đăng xuất",
   "profile": "Hồ sơ đầu vào của tôi",
-  "rate": "Chấm cho đội của tôi"
+  "rate": "Chấm cho đội của tôi",
+  "tour": "Hướng dẫn nhanh"
  },
  "role": {
   "demand": "Hoạch định nhu cầu",
@@ -170,15 +173,14 @@
   "baseline_body_going": "Đồng hồ đang chạy và câu trả lời của bạn đã được lưu."
  },
  "steps": {
-  "predict": "Predict",
-  "watch": "Xem",
-  "checkpoint": "Checkpoint",
-  "forum": "Forum",
-  "field": "Thực hành",
-  "recall": "Ôn tập",
-  "meter": "Bước {n}/{total} · {label}",
-  "meter_done": "Đã xong cả {total} bước",
-  "meter_aria": "Bước {n}/{total}: {label}. Đã xong {done}/{total} bước."
+  "learn": "Học",
+  "prove": "Kiểm chứng",
+  "apply": "Áp dụng",
+  "do": "Thực hành",
+  "teach": "Dạy lại",
+  "meter": "Giai đoạn {n}/{total} · {label}",
+  "meter_done": "Đã xong cả {total} giai đoạn",
+  "meter_aria": "Giai đoạn {n}/{total}: {label}. Đã xong {done}/{total} giai đoạn."
  },
  "family": {
   "A": "Phân tích & AI",
@@ -218,7 +220,8 @@
   "team": "Tổng quan đội",
   "about": "Bảo mật & trợ giúp",
   "rate": "Chấm cho đội của tôi",
-  "profile": "Hồ sơ đầu vào"
+  "profile": "Hồ sơ đầu vào",
+  "path": "Lộ trình của tôi"
  },
  "onboard": {
   "step": "Bước {n}/{total}",
@@ -342,6 +345,16 @@
    "title": "Tuần học",
    "of": "/ {total} tuần",
    "strip_aria": "{total} tuần gần nhất: {n} tuần có học, {row} tuần học liên tiếp. Chấm cuối cùng là tuần này."
+  },
+  "path": {
+   "eyebrow": "Lộ trình",
+   "title": "Tư duy · Hoạch định · Dẫn dắt",
+   "passed": "Đã qua {n}/{total}",
+   "part_done": "Xong Phần {n}",
+   "part_todo": "Baseline Phần {n}",
+   "short_work": "công việc",
+   "short_mind": "tư duy",
+   "cta": "Xem lộ trình"
   }
  },
  "streak": {
@@ -409,11 +422,13 @@
   "steps": {
    "title": "Hành trình của bạn trong khoá học",
    "done": "Xong",
-   "q3": "3 câu",
    "until": "Đến {date}",
    "state_done": "đã xong",
    "state_current": "bước hiện tại",
-   "state_todo": "chưa làm"
+   "state_todo": "chưa làm",
+   "learn_sub": "Predict + {n}/{total} tập",
+   "by": "Trước {date}",
+   "passed_recall": "{pct} · ôn tập {n}/3"
   },
   "player": {
    "watch": "Xem trên Blink",
@@ -469,7 +484,8 @@
    "evidence": "Minh chứng",
    "kpi": "KPI",
    "signoff": "Quản lý ký xác nhận trong vòng một tuần theo rubric.",
-   "signoff_note": "Được ký xác nhận khi mọi tiêu chí đạt ít nhất mức “Đạt”. Nếu có tiêu chí bị 1 điểm, bạn có thêm một lần làm lại trong hai tuần. Việc ký xác nhận được ghi trên hệ thống HR."
+   "signoff_note": "Được ký xác nhận khi mọi tiêu chí đạt ít nhất mức “Đạt”. Nếu có tiêu chí bị 1 điểm, bạn có thêm một lần làm lại trong hai tuần. Việc ký xác nhận được ghi trên hệ thống HR.",
+   "teach": "nhóm bạn trình bày kết quả thực hành để mở đầu {title} vào {date}. Dạy lại cho người khác là cách giúp bạn nhớ lâu nhất."
   },
   "rubric": {
    "applied": "Áp dụng vào việc thật",
@@ -529,14 +545,14 @@
   },
   "kd": {
    "title": "Các mốc thời gian",
-   "prework": "Bài chuẩn bị từ",
    "online": "Học trên Blink",
    "close": "Checkpoint đóng",
    "forum": "Forum",
    "late": "Hoàn thành cùng quản lý trước",
    "field": "Thực hành đến",
    "next": "Tiếp theo",
-   "past": "đã qua"
+   "past": "đã qua",
+   "teach": "Dạy lại: chia sẻ kết quả"
   }
  },
  "team": {
@@ -665,30 +681,14 @@
   },
   "how": {
    "title": "Chương trình vận hành thế nào",
-   "intro": "Mười khoá học trong năm 2027. Mỗi khoá chạy theo chu kỳ sáu tuần gồm bốn phần, mỗi kênh làm một việc.",
+   "intro": "Mười khóa học trong năm 2027, khóa nào cũng theo cùng năm giai đoạn: trực tuyến để học và kiểm chứng, trực tiếp và trong công việc để áp dụng, thực hành và dạy lại.",
    "step_n": "Bước {n}",
-   "blink": "Học trên Blink",
-   "blink_body": "6–9 tập hoạt hình ngắn, mỗi tập 4–7 phút, lồng tiếng Anh và phụ đề tiếng Việt, xem trên điện thoại hoặc máy tính.",
-   "hub": "Chứng minh trên Hub",
-   "hub_body": "Predict trước khi xem, checkpoint sau khi xem, và ôn tập nhanh vào ngày 2, 7 và 30.",
-   "forum": "Áp dụng tại forum",
-   "forum_body": "Buổi học trực tiếp 4 giờ bằng tiếng Việt cùng Planning Director: giải tình huống theo nhóm trên dữ liệu của chính chúng ta.",
-   "field": "Dùng vào việc thật",
-   "field_body": "Bài thực hành ở đúng bước S&OP mà khoá học phục vụ, được quản lý ký xác nhận trong vòng một tuần.",
-   "rhythm_title": "Nhịp sáu tuần",
-   "r_w1": "Tuần 1–2 · Học",
-   "r_w1_body": "Làm Predict, rồi xem các tập trên Blink.",
-   "r_w2": "Cuối tuần 2–3 · Checkpoint",
-   "r_w2_body": "10 câu hỏi; đúng 8/10 là bạn sẵn sàng cho forum.",
-   "r_forum": "Tuần 3–4 · Forum",
-   "r_forum_body": "Chia sẻ bài thực hành, các ý hay sai nhất, tình huống nhóm và giao bài thực hành.",
-   "r_w4": "Tuần 4–6 · Thực hành",
-   "r_w4_body": "Áp dụng vào việc thật; quản lý ký xác nhận theo rubric.",
-   "r_recall": "Ngày 2, 7 và 30 · Ôn tập",
-   "r_recall_body": "Mỗi lần ba câu hỏi nhanh, để nhớ lâu.",
    "sessions_title": "{n} buổi học trực tiếp trong năm 2027",
-   "sessions_body": "Khoảng sáu tuần một lần, vào chiều thứ Ba sau khi chốt S&OP. Pitch Day và War Room thay cho forum.",
-   "warroom": "S&OP War Room + lễ tốt nghiệp"
+   "sessions_body": "Khoảng sáu tuần một lần, vào chiều thứ Ba sau khi chốt S&OP. Pitch Day và War Room thay cho một buổi forum. Ngày, giờ và địa điểm do ban chương trình cập nhật.",
+   "warroom": "S&OP War Room + lễ tốt nghiệp",
+   "model_title": "Mô hình 1% Planner",
+   "model_body": "Mười ba kỹ năng trong bốn nhóm. Bài baseline đo điểm xuất phát của bạn; mười khóa học xây dựng các kỹ năng đó.",
+   "model_cta": "Xem Lộ trình"
   },
   "rules": {
    "title": "Quy định",
@@ -1171,7 +1171,12 @@
   "next_parts": "Còn phải làm",
   "no_feedback": "Không có điểm hay phản hồi từng câu sau mỗi phần: để bài đánh giá lại tháng 12/2027 vẫn công bằng.",
   "back_home": "Về trang học tập của tôi",
-  "error_title": "Có trục trặc nhỏ"
+  "error_title": "Có trục trặc nhỏ",
+  "measures": {
+   "p1": "Đo nhóm Tư duy: giải quyết vấn đề với dữ liệu",
+   "p2": "Đo nhóm Dẫn dắt: năm charter",
+   "p3": "Đo nhóm Hoạch định: hoạch định cốt lõi cho vai trò của bạn"
+  }
  },
  "capstone": {
   "title": "Capstone",
@@ -1514,5 +1519,294 @@
    "CS": "Customer service"
   },
   "to_baseline": "Đến bài đánh giá đầu vào"
+ },
+ "model": {
+  "stages_aria": "Năm giai đoạn của mỗi khóa học",
+  "d": {
+   "think": {
+    "name": "Tư duy",
+    "area": "Phân tích",
+    "built": "Thực hành trên dữ liệu của chính chúng ta; dùng Copilot và Power Query trong công việc hằng ngày."
+   },
+   "plan": {
+    "name": "Hoạch định",
+    "area": "Hoạch định cốt lõi & dịch vụ khách hàng",
+    "built": "Mỗi khóa một KPI, được quản lý ký xác nhận trên công việc S&OP và S&OE thực tế."
+   },
+   "work": {
+    "name": "Dẫn dắt",
+    "area": "Quản lý công việc",
+    "built": "Tình huống nhóm đa vai trò ở mọi forum; nhóm bạn trình bày tại Pitch Day vào tháng Sáu và War Room vào tháng Mười Hai."
+   },
+   "mind": {
+    "name": "Dẫn dắt",
+    "area": "Tư duy & hành vi",
+    "built": "Các charter xuyên suốt mọi buổi học: giai đoạn Dạy lại khép lại mỗi chu kỳ, IDP của bạn có một mục tiêu về charter, và quản lý đánh giá lại 23 hành vi vào tháng 12/2027.",
+    "no_course": "Không gói trong một khóa học: được xây dựng ở mọi forum, mọi giai đoạn Dạy lại và trong IDP của bạn."
+   }
+  },
+  "skill": {
+   "problem": "Giải quyết vấn đề",
+   "data": "Phân tích dữ liệu",
+   "genai": "GenAI và tự động hóa",
+   "process": "Quy trình & công cụ",
+   "theory": "Lý thuyết hoạch định & CS",
+   "e2e": "Thực hành tốt nhất xuyên suốt chuỗi",
+   "acumen": "Hiểu biết kinh doanh",
+   "comms": "Giao tiếp",
+   "team": "Làm việc nhóm & hiệu suất cao",
+   "mastery": "Làm chủ bản thân",
+   "customer": "Lấy khách hàng làm trung tâm",
+   "agility": "Linh hoạt",
+   "leadership": "Lãnh đạo"
+  },
+  "stage": {
+   "learn": {
+    "when": "Tuần 1–2",
+    "where": "Blink + Hub",
+    "what": "Làm Predict 3 câu trước, rồi xem 6–9 tập dài 4–7 phút, lồng tiếng Anh, phụ đề tiếng Việt.",
+    "hub": "Trên trang khóa học: làm Predict, rồi đánh dấu từng tập khi bạn xem xong.",
+    "time": "Khoảng 50 phút"
+   },
+   "prove": {
+    "when": "Tuần 3",
+    "where": "Checkpoint trên Hub",
+    "what": "10 câu hỏi; đúng 8/10 là đạt. Chưa đạt? Làm lại bằng đề còn lại sau 24 giờ.",
+    "hub": "Trên trang khóa học: bấm Làm checkpoint. Bài ôn tập vào ngày 2, 7 và 30 giúp bạn nhớ lâu.",
+    "time": "Khoảng 40 phút"
+   },
+   "apply": {
+    "when": "Thứ Ba tuần 4",
+    "where": "Forum với Giám đốc Kế hoạch",
+    "what": "4 giờ bằng tiếng Việt: một tình huống trên dữ liệu của chính chúng ta, theo nhóm đa vai trò.",
+    "hub": "Trang khóa học ghi ngày, giờ và địa điểm.",
+    "time": "4 giờ"
+   },
+   "do": {
+    "when": "Tuần 4–6",
+    "where": "Công việc thực tế",
+    "what": "Một bài thực hành trên chính phần việc mà khóa học phục vụ; quản lý ký xác nhận trong vòng một tuần.",
+    "hub": "Trang khóa học ghi nhiệm vụ, bằng chứng cần có và rubric ký xác nhận.",
+    "time": "Khoảng 3 giờ"
+   },
+   "teach": {
+    "when": "Buổi tiếp theo",
+    "where": "Chia sẻ kết quả",
+    "what": "Nhóm bạn trình bày kết quả thực hành để mở đầu buổi tiếp theo; quản lý kèm cặp trong cuộc họp thứ Hai.",
+    "hub": "Trang khóa học ghi ngày bạn trình bày.",
+    "time": "Khoảng 1 giờ"
+   }
+  }
+ },
+ "path": {
+  "eyebrow": "Lộ trình của tôi",
+  "title": "Lộ trình trở thành 1% Planner",
+  "lead": "Mười ba kỹ năng trong bốn nhóm tạo nên một 1% Planner. Năm 2027, mười khóa học sẽ xây dựng các kỹ năng này. Bài baseline cho biết bạn bắt đầu từ đâu; cùng bài kiểm tra đó vào tháng 12/2027 cho thấy bạn đã tiến xa đến đâu.",
+  "model_title": "Mô hình 1% Planner",
+  "model_sub": "Bốn nhóm, 13 kỹ năng. Mỗi thẻ cho biết các khóa học xây dựng nhóm kỹ năng đó trong năm nay, phần baseline dùng để đo, và bạn đang ở đâu.",
+  "skills_aria": "Kỹ năng",
+  "built_by": "Được xây dựng qua",
+  "charters": "Năm charter",
+  "beyond": "Ngoài video",
+  "measured": "Đo bằng Baseline Phần {n}",
+  "part": {
+   "done": "Đã xong",
+   "in_progress": "Đang làm",
+   "open": "Đang mở",
+   "not_open": "Chưa mở"
+  },
+  "passed_of": "Đã qua {n}/{total} checkpoint",
+  "c_passed": "Đã qua",
+  "c_opens": "Mở {date}",
+  "gap": "Khoảng trống IDP:",
+  "years_title": "Lộ trình ba năm",
+  "y2027": "2027 · Xây dựng",
+  "y2027_body": "Năm nay: mười khóa học, phần thực hành và IDP của bạn.",
+  "y2028": "2028 · Đào sâu",
+  "y2028_body": "Đi sâu hơn trong từng nhóm kỹ năng.",
+  "y2029": "2029 · Dẫn dắt & nhân rộng",
+  "y2029_body": "Chính các planner của chúng ta dẫn dắt công việc và đào tạo khóa sau.",
+  "years_note": "Kế hoạch 2028 và 2029 sẽ được chốt sau bài kiểm tra lại tháng 12/2027.",
+  "stages_title": "Mỗi khóa học diễn ra thế nào",
+  "stages_sub": "Cả mười khóa học đều theo cùng năm giai đoạn, nên bạn không phải làm quen lại mỗi lần. Phần lớn thời gian dành cho thực hành và dạy lại, vì đó là điều bạn vẫn còn nhớ sau ba tháng.",
+  "recall_title": "Người học còn nhớ được bao nhiêu sau ba tháng",
+  "recall": {
+   "hear": "Nghe và nhìn",
+   "test": "Tự kiểm tra: bài trắc nghiệm giúp chậm quên",
+   "test_v": "Tự kiểm tra",
+   "case": "Thực hành trên tình huống của chúng ta",
+   "live": "Thực hành trên công việc thực tế",
+   "teach": "Dạy lại cho người khác"
+  },
+  "recall_src": "Nguồn: Whitmore, Coaching for Performance (2002), được McKinsey & Company trích dẫn (2013).",
+  "load": "Khoảng 9,5 giờ mỗi chu kỳ, tức khoảng 7 giờ mỗi tháng.",
+  "between": "Giữa các buổi: bài ôn tập vào ngày 2, 7 và 30, và Case Clinic 45 phút trên Teams mỗi tháng từ tháng Tư.",
+  "legend": "Xanh dương: trực tuyến (Blink và Hub). Xanh lá: trực tiếp và trong công việc.",
+  "year_title": "Năm học của bạn",
+  "year_sub": "Từ bài baseline đến bài kiểm tra lại, cùng mọi buổi học trực tiếp ở giữa.",
+  "yr_baseline": "Baseline: ba phần, làm theo thứ tự bất kỳ",
+  "yr_retest": "Kiểm tra lại: cùng ba phần",
+  "here": "Bạn đang ở đây",
+  "here_aria": "Bạn đang ở đây: {date}",
+  "kind": {
+   "baseline": "Baseline",
+   "retest": "Kiểm tra lại",
+   "kickoff": "Khởi động",
+   "forum": "Forum",
+   "pitch": "Pitch Day",
+   "warroom": "War Room",
+   "other": "Buổi học"
+  },
+  "grow_title": "Bạn phát triển thế nào",
+  "grow_sub": "IDP biến chương trình thành bốn mục tiêu bạn thống nhất với quản lý. Tháng 12/2027 bạn làm lại cùng ba phần baseline: mức tiến bộ mới là điều quan trọng.",
+  "goal": {
+   "business_n": "1",
+   "business_k": "mục tiêu kinh doanh",
+   "business": "Từ KPI vai trò của bạn và dự án nhóm: một con số, một thời hạn và một giới hạn an toàn.",
+   "capability_n": "2",
+   "capability_k": "mục tiêu năng lực",
+   "capability": "Từ hai khoảng trống lớn nhất trong ba phần baseline.",
+   "application_n": "1",
+   "application_k": "mục tiêu áp dụng",
+   "application": "Một hành vi theo charter mà mọi người thấy được trong các cuộc họp."
+  },
+  "gaps_wait": "Hai khoảng trống của bạn sẽ hiện ở đây khi kết quả baseline được mở.",
+  "gaps_wait_profile": "Hai khoảng trống của bạn sẽ hiện ở đây khi hồ sơ của bạn sẵn sàng.",
+  "see_profile": "Xem hồ sơ baseline"
+ },
+ "guide": {
+  "title": "Bạn cần làm gì ở đây",
+  "page": "Trang này",
+  "now": "Bây giờ",
+  "next": "Tiếp theo",
+  "hide": "Ẩn",
+  "show": "Hiện",
+  "tour": "Hướng dẫn nhanh",
+  "next_session": "{title}, {date}",
+  "path": {
+   "page": "Toàn bộ chương trình trên một trang: các kỹ năng bạn xây dựng, cách mỗi khóa học diễn ra, năm học của bạn và cách bạn phát triển."
+  },
+  "home": {
+   "page": "Danh sách việc cần làm của bạn: bước tiếp theo ở trên cùng, rồi đến baseline, các khóa học theo lịch và những ngày sắp tới."
+  },
+  "course": {
+   "page": "Một khóa học từ đầu đến cuối, qua năm giai đoạn: Học, Kiểm chứng, Áp dụng, Thực hành và Dạy lại. Giai đoạn được tô sáng là nơi bạn đang ở.",
+   "locked": "Khóa học mở vào {date}. Trong lúc chờ, hãy đọc phần 'Giới thiệu khóa học' ở cuối trang.",
+   "next_open": "Khi khóa học mở: làm Predict trước, rồi xem các tập.",
+   "learn_predict": "Bắt đầu với Predict: 3 câu hỏi nhanh, không tính điểm. Sau đó xem các tập và đánh dấu từng tập tại đây.",
+   "learn_watch": "Bạn đã xem {n}/{total} tập. Xem tập tiếp theo và đánh dấu tại đây, rồi làm checkpoint trước {date}.",
+   "prove": "Làm checkpoint trước {date}: 10 câu, đúng 8/10 là đạt. Khi đạt, bạn đã sẵn sàng cho forum.",
+   "retake": "Bạn sẽ làm đề còn lại, nên các câu hỏi đều mới.",
+   "cp_continue": "Bạn đang làm dở checkpoint: hãy tiếp tục từ chỗ đã dừng.",
+   "unlock": "Hãy nói chuyện với quản lý: sau 15 phút trao đổi, quản lý sẽ mở thêm một lượt làm cho bạn.",
+   "closed": "Checkpoint đã đóng. Hãy nhờ quản lý mở một lượt làm muộn.",
+   "recall": "Đến hạn bài ôn tập ngày {day}: 3 câu hỏi nhanh để nhớ lâu hơn.",
+   "apply": "Tham dự forum vào {date}. Thẻ forum bên dưới có giờ, địa điểm và nội dung buổi học.",
+   "do": "Làm bài thực hành trên công việc thực tế. Quản lý sẽ ký xác nhận; phần thực hành kéo dài đến {date}.",
+   "teach": "Chuẩn bị phần chia sẻ của nhóm cho ngày {date}: bạn đã thay đổi gì và kết quả ra sao.",
+   "done": "Đã xong cả năm giai đoạn. Hãy tiếp tục làm bài ôn tập khi đến hạn.",
+   "next": "{stage} · {date}"
+  },
+  "bl": {
+   "page": "Baseline cho biết bạn bắt đầu từ đâu, gồm ba phần, mỗi phần làm một lần, theo thứ tự bất kỳ. Không có điểm sau mỗi phần: kết quả sẽ có sau, trong một hồ sơ duy nhất.",
+   "now_going": "Hoàn thành Phần {n} ({name}): đồng hồ đang chạy.",
+   "now_open": "Bắt đầu Phần {n} ({name}) khi bạn có {min} phút yên tĩnh liền mạch.",
+   "now_all_done": "Bạn đã làm xong cả ba phần. Cảm ơn bạn!",
+   "now_wait": "Hiện chưa có phần nào mở. Ban chương trình sẽ mở từng phần; khi mở, phần đó sẽ hiện ở đây với trạng thái 'Chưa bắt đầu'.",
+   "next_any": "Làm các phần còn lại đang mở theo thứ tự bất kỳ. Hồ sơ của bạn sẽ hiện khi kết quả được mở.",
+   "next_results": "Hồ sơ và hai khoảng trống IDP của bạn sẽ hiện ở mục Hồ sơ khi kết quả được mở.",
+   "intro_now": "Đọc phần cách làm bên dưới, rồi bấm Bắt đầu khi bạn có {min} phút yên tĩnh. Đồng hồ chạy khi bạn bấm Bắt đầu.",
+   "intro_back": "Bạn còn {count} phút. Bấm Tiếp tục để làm tiếp từ chỗ đã dừng.",
+   "p1_page": "Phần 1 đo nhóm Tư duy: cách bạn giải quyết vấn đề với dữ liệu, qua các tình huống ngắn có bảng và biểu đồ, cùng các câu hỏi logic.",
+   "p1_next": "Mục A (tình huống) và Mục B (logic) dùng chung một đồng hồ: chuyển qua lại tùy ý, rồi xem lại và nộp một lần.",
+   "p2_page": "Phần 2 đo nhóm Dẫn dắt: bạn sẽ hành động thế nào trong các tình huống công việc, và bạn thể hiện các hành vi theo charter thường xuyên đến đâu.",
+   "p2_next": "Hai bước: trước tiên là 2A, 15 tình huống (chọn phương án hiệu quả nhất và kém nhất), rồi khóa lại. Sau khi khóa là 2B: tự đánh giá 23 hành vi.",
+   "p3_page": "Phần 3 đo nhóm Hoạch định: hoạch định S&OP cốt lõi, và phần dành riêng cho vai trò của bạn.",
+   "p3_next": "Trước tiên tự đánh giá 10 khóa học, rồi đến 10 câu S&OP cốt lõi và 18 câu cho vai trò của bạn."
+  },
+  "profile": {
+   "page": "Kết quả baseline của bạn: Phần 1 theo từng bước giải quyết vấn đề, Phần 2 theo từng charter, Phần 3 theo từng cổng S&OP, và hai khoảng trống IDP.",
+   "now": "Đọc hai khoảng trống của bạn và mang vào buổi trao đổi IDP với quản lý.",
+   "next": "Tháng 12/2027: làm lại cùng ba phần để thấy mức tiến bộ của bạn.",
+   "now_wait": "Chưa có việc gì ở đây. Hãy làm các phần baseline đang mở; hồ sơ của bạn sẽ hiện khi ban chương trình mở kết quả.",
+   "next_wait": "Sau đó: đọc hai khoảng trống của bạn và mang vào buổi trao đổi IDP với quản lý."
+  },
+  "team": {
+   "page": "Toàn cảnh nhóm: điểm trung bình theo khóa học và nhóm vai trò, chỉ hiện cho nhóm từ ba người trở lên. Không xếp hạng ai.",
+   "now": "Xem nhóm mạnh ở đâu và forum tới nên tập trung vào đâu.",
+   "now_mgr": "Xem ai đã qua từng checkpoint. Ai cần trao đổi 15 phút với bạn sẽ được liệt kê phía trên bảng.",
+   "next_mgr": "Sau khi trao đổi, bấm \"Tôi đã trao đổi\" để mở thêm lượt làm. Sau đó ký xác nhận phần thực hành của họ trong vòng một tuần."
+  },
+  "rate": {
+   "page": "Đánh giá 180° của bạn: chấm từng thành viên trên 23 hành vi bạn đã thấy trong sáu tháng qua. Phần này chiếm một nửa điểm của mỗi charter.",
+   "now": "Mở từng thành viên, chấm mọi câu (chọn N/A nếu bạn chưa thấy), rồi lưu.",
+   "next": "Thành viên chỉ thấy điểm trung bình theo charter, không bao giờ thấy từng điểm bạn chấm."
+  },
+  "panel": {
+   "page": "Chấm phần trình bày của từng nhóm theo năm tiêu chí của rubric.",
+   "now": "Mở từng nhóm, chấm 1–5 cho cả năm tiêu chí, rồi lưu.",
+   "next": "Điểm của bạn được lưu riêng cho bạn với tư cách giám khảo, và bạn có thể sửa sau."
+  },
+  "cap": {
+   "page": "Dự án nhóm của bạn: mỗi nhóm nộp một bài cho Pitch Day và một bài cho War Room. Ai trong nhóm cũng lưu được; hội đồng đọc phiên bản mới nhất.",
+   "now_pitch": "Điền SOI, KPI trước và sau, và bằng chứng, rồi lưu trước {date}. Bạn có thể lưu bao nhiêu lần tùy ý.",
+   "now_capstone": "Cập nhật kết quả, giá trị và bài học từ Pitch Day, rồi lưu trước {date}.",
+   "next_pitch": "Hội đồng chấm phần trình bày theo năm tiêu chí; tiêu chí giao tiếp được tính gấp đôi.",
+   "next_capstone": "Hội đồng War Room chấm capstone; điểm từ 3,5 trở lên kèm kết quả được xác nhận sẽ được tính cho chứng nhận 1% Expert."
+  },
+  "quiz": {
+   "predict_page": "Predict thuộc giai đoạn Học: 3 câu hỏi trước khi xem video. Không tính điểm; đoán trước giúp bạn nhớ lâu hơn.",
+   "checkpoint_page": "Checkpoint là giai đoạn Kiểm chứng: 10 câu, đúng 8/10 là đạt. Đây là điều kiện để vào forum.",
+   "recall_page": "Ôn tập giúp kiến thức của giai đoạn Kiểm chứng không bị quên: 3 câu hỏi nhanh vào ngày 2, 7 và 30 sau forum.",
+   "now": "Trả lời mọi câu hỏi, rồi xem lại và nộp bài.",
+   "predict_next": "Sau đó xem các tập trên trang khóa học và đánh dấu từng tập.",
+   "checkpoint_next": "Đạt: bạn đã sẵn sàng cho forum. Chưa đạt: làm lại bằng đề còn lại sau 24 giờ.",
+   "recall_next": "Bài ôn tập tiếp theo sẽ hiện ở trang Học tập khi đến hạn."
+  }
+ },
+ "tour": {
+  "back": "Quay lại",
+  "next": "Tiếp",
+  "done": "Đã hiểu",
+  "skip": "Bỏ qua",
+  "count": "{n}/{total}",
+  "home": {
+   "next_t": "Bước tiếp theo",
+   "next_b": "Việc duy nhất cần làm ngay bây giờ. Nút bấm sẽ đưa bạn đến đúng chỗ.",
+   "bl_t": "Baseline của bạn",
+   "bl_b": "Ba phần, mỗi phần làm một lần, theo thứ tự bất kỳ, khi ban chương trình mở. Không có điểm sau mỗi phần.",
+   "courses_t": "Các khóa học",
+   "courses_b": "Theo thứ tự lịch học. Mỗi thẻ cho biết bạn đang ở giai đoạn nào: Học, Kiểm chứng, Áp dụng, Thực hành hay Dạy lại. Mở thẻ để xem cần làm gì.",
+   "up_t": "Sắp diễn ra",
+   "up_b": "Các hạn chót và buổi học trong những tuần tới. Bấm vào một mục để mở.",
+   "path_t": "Lộ trình của bạn",
+   "path_b": "13 kỹ năng đằng sau chương trình và bạn đã tiến đến đâu. Cũng có trong menu: Lộ trình.",
+   "menu_t": "Menu của bạn",
+   "menu_b": "Hồ sơ baseline, mã PIN và hướng dẫn này: Hướng dẫn nhanh."
+  },
+  "course": {
+   "steps_t": "Năm giai đoạn",
+   "steps_b": "Mọi khóa học đều theo Học → Kiểm chứng → Áp dụng → Thực hành → Dạy lại. Giai đoạn được tô sáng là nơi bạn đang ở.",
+   "learn_t": "Học",
+   "learn_b": "Làm Predict trước, rồi xem các tập và đánh dấu từng tập tại đây: trang video không báo cho Hub biết bạn đã xem gì.",
+   "prove_t": "Kiểm chứng",
+   "prove_b": "Checkpoint: 10 câu, đúng 8 là đạt, trước buổi forum. Chưa đạt? Làm lại bằng đề còn lại sau 24 giờ.",
+   "apply_t": "Áp dụng",
+   "apply_b": "Buổi forum 4 giờ: ngày, giờ, địa điểm và nội dung nhóm bạn sẽ làm.",
+   "do_t": "Thực hành và Dạy lại",
+   "do_b": "Bài thực hành trên công việc thực tế, bằng chứng để quản lý ký xác nhận, và thời điểm nhóm bạn trình bày kết quả.",
+   "dates_t": "Các mốc thời gian",
+   "dates_b": "Mọi mốc thời gian của khóa học trong một danh sách; mốc tiếp theo được đánh dấu."
+  },
+  "bl": {
+   "parts_t": "Ba phần",
+   "parts_b": "Mỗi phần làm một lần, theo thứ tự bất kỳ, trong một lần ngồi. Mỗi phần có đồng hồ riêng.",
+   "open_t": "Đang mở",
+   "open_b": "Bắt đầu ở đây khi bạn có thời gian yên tĩnh. Đồng hồ chỉ chạy khi bạn bấm Bắt đầu ở trang tiếp theo.",
+   "closed_t": "Chưa mở",
+   "closed_b": "Ban chương trình sẽ mở từng phần. Trước đó, phần này hiện là chưa mở; không có gì sai cả.",
+   "measures_t": "Mỗi phần đo gì",
+   "measures_b": "Phần 1 là Tư duy, Phần 2 là Dẫn dắt, Phần 3 là Hoạch định: các nhóm kỹ năng của mô hình 1% Planner trong mục Lộ trình."
+  }
  }
 }

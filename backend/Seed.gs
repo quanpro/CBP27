@@ -19,6 +19,89 @@ var SEED = {
     "pitch_day": "2027-06-22",
     "capstone_day": "2027-12-21"
   },
+  "sessions": [
+    {
+      "date": "2026-12-22",
+      "kind": "kickoff",
+      "courses": "A1",
+      "title_en": "Kick-off + The Right Question",
+      "title_vi": "Lễ khởi động + Câu hỏi đúng",
+      "start": "13:30",
+      "end": "17:30"
+    },
+    {
+      "date": "2027-02-23",
+      "kind": "forum",
+      "courses": "A2 A3",
+      "title_en": "Data & AI Lab",
+      "title_vi": "Lab Dữ liệu & AI",
+      "start": "13:30",
+      "end": "17:30"
+    },
+    {
+      "date": "2027-04-27",
+      "kind": "forum",
+      "courses": "C1 P1",
+      "title_en": "Storyline clinic + capacity lab",
+      "title_vi": "Clinic storyline + lab năng lực",
+      "start": "13:30",
+      "end": "17:30"
+    },
+    {
+      "date": "2027-06-22",
+      "kind": "pitch",
+      "courses": "",
+      "title_en": "Pitch Day (VPSC panel, project mid-point)",
+      "title_vi": "Pitch Day (hội đồng VPSC, giữa kỳ dự án)",
+      "start": "13:30",
+      "end": "17:30"
+    },
+    {
+      "date": "2027-07-27",
+      "kind": "forum",
+      "courses": "P2 P3",
+      "title_en": "Plan the line, feed the line",
+      "title_vi": "Lập kế hoạch cho line, cấp vật tư cho line",
+      "start": "13:30",
+      "end": "17:30"
+    },
+    {
+      "date": "2027-09-28",
+      "kind": "forum",
+      "courses": "P4",
+      "title_en": "Demand & the Business",
+      "title_vi": "Nhu cầu và hiệu quả kinh doanh",
+      "start": "13:30",
+      "end": "17:30"
+    },
+    {
+      "date": "2027-10-26",
+      "kind": "forum",
+      "courses": "P5",
+      "title_en": "SLOB war game",
+      "title_vi": "Sa bàn SLOB (war game)",
+      "start": "13:30",
+      "end": "17:30"
+    },
+    {
+      "date": "2027-11-23",
+      "kind": "forum",
+      "courses": "P6",
+      "title_en": "Fill-rate loss-tree clinic",
+      "title_vi": "Clinic cây tổn thất tỷ lệ đáp ứng",
+      "start": "13:30",
+      "end": "17:30"
+    },
+    {
+      "date": "2027-12-21",
+      "kind": "warroom",
+      "courses": "",
+      "title_en": "S&OP War Room + graduation",
+      "title_vi": "S&OP War Room + lễ tốt nghiệp",
+      "start": "13:30",
+      "end": "17:30"
+    }
+  ],
   "scale": [
     {
       "level": 0,
@@ -63,53 +146,58 @@ var SEED = {
   ],
   "courses": [
     {
-      "code": "A2",
+      "code": "A1",
       "order": 1,
       "cycle": 1,
-      "online_from": "2027-01-04",
-      "checkpoint_close": "2027-01-22",
-      "forum_date": "2027-01-26",
-      "field_until": "2027-02-26",
-      "objectives": 5
-    },
-    {
-      "code": "A3",
-      "order": 2,
-      "cycle": 1,
-      "online_from": "2027-01-04",
-      "checkpoint_close": "2027-01-22",
-      "forum_date": "2027-01-26",
-      "field_until": "2027-02-26",
-      "objectives": 5
-    },
-    {
-      "code": "A1",
-      "order": 3,
-      "cycle": 2,
-      "online_from": "2027-02-15",
-      "checkpoint_close": "2027-03-19",
-      "forum_date": "2027-03-23",
+      "online_from": "2026-12-07",
+      "online_to": "2026-12-18",
+      "checkpoint_close": "2026-12-18",
+      "forum_date": "2026-12-22",
       "field_until": "2027-04-16",
       "objectives": 6
     },
     {
-      "code": "P1",
-      "order": 4,
-      "cycle": 3,
-      "online_from": "2027-03-29",
-      "checkpoint_close": "2027-04-23",
-      "forum_date": "2027-04-27",
-      "field_until": "2027-05-21",
+      "code": "A2",
+      "order": 2,
+      "cycle": 2,
+      "online_from": "2027-01-04",
+      "online_to": "2027-02-12",
+      "checkpoint_close": "2027-02-19",
+      "forum_date": "2027-02-23",
+      "field_until": "2027-03-19",
+      "objectives": 5
+    },
+    {
+      "code": "A3",
+      "order": 3,
+      "cycle": 2,
+      "online_from": "2027-01-04",
+      "online_to": "2027-02-12",
+      "checkpoint_close": "2027-02-19",
+      "forum_date": "2027-02-23",
+      "field_until": "2027-03-19",
       "objectives": 5
     },
     {
       "code": "C1",
+      "order": 4,
+      "cycle": 3,
+      "online_from": "2027-03-22",
+      "online_to": "2027-04-16",
+      "checkpoint_close": "2027-04-23",
+      "forum_date": "2027-04-27",
+      "field_until": "2027-06-18",
+      "objectives": 5
+    },
+    {
+      "code": "P1",
       "order": 5,
-      "cycle": 4,
-      "online_from": "2027-05-10",
-      "checkpoint_close": "2027-06-04",
-      "forum_date": "2027-06-22",
-      "field_until": "2027-06-30",
+      "cycle": 3,
+      "online_from": "2027-03-22",
+      "online_to": "2027-04-16",
+      "checkpoint_close": "2027-04-23",
+      "forum_date": "2027-04-27",
+      "field_until": "2027-05-21",
       "objectives": 5
     },
     {
@@ -117,6 +205,7 @@ var SEED = {
       "order": 6,
       "cycle": 5,
       "online_from": "2027-06-28",
+      "online_to": "2027-07-16",
       "checkpoint_close": "2027-07-23",
       "forum_date": "2027-07-27",
       "field_until": "2027-09-10",
@@ -127,6 +216,7 @@ var SEED = {
       "order": 7,
       "cycle": 5,
       "online_from": "2027-06-28",
+      "online_to": "2027-07-16",
       "checkpoint_close": "2027-07-23",
       "forum_date": "2027-07-27",
       "field_until": "2027-09-10",
@@ -137,6 +227,7 @@ var SEED = {
       "order": 8,
       "cycle": 6,
       "online_from": "2027-08-16",
+      "online_to": "2027-09-17",
       "checkpoint_close": "2027-09-24",
       "forum_date": "2027-09-28",
       "field_until": "2027-10-22",
@@ -147,6 +238,7 @@ var SEED = {
       "order": 9,
       "cycle": 7,
       "online_from": "2027-09-27",
+      "online_to": "2027-10-15",
       "checkpoint_close": "2027-10-22",
       "forum_date": "2027-10-26",
       "field_until": "2027-11-19",
@@ -157,6 +249,7 @@ var SEED = {
       "order": 10,
       "cycle": 8,
       "online_from": "2027-10-25",
+      "online_to": "2027-11-12",
       "checkpoint_close": "2027-11-19",
       "forum_date": "2027-11-23",
       "field_until": "2027-12-10",
@@ -164,6 +257,56 @@ var SEED = {
     }
   ],
   "episodes": [
+    {
+      "course": "A1",
+      "ep": 0,
+      "title_en": "Trailer"
+    },
+    {
+      "course": "A1",
+      "ep": 1,
+      "title_en": "Forty Charts, Wrong Question"
+    },
+    {
+      "course": "A1",
+      "ep": 2,
+      "title_en": "Spot the Weak Statement"
+    },
+    {
+      "course": "A1",
+      "ep": 3,
+      "title_en": "Ask Why, Then Ask Your Boss"
+    },
+    {
+      "course": "A1",
+      "ep": 4,
+      "title_en": "How Do You Eat an Elephant?"
+    },
+    {
+      "course": "A1",
+      "ep": 5,
+      "title_en": "Five Trees for Five Jobs"
+    },
+    {
+      "course": "A1",
+      "ep": 6,
+      "title_en": "Cut Without Guilt"
+    },
+    {
+      "course": "A1",
+      "ep": 7,
+      "title_en": "The Plan That Survives Monday"
+    },
+    {
+      "course": "A1",
+      "ep": 8,
+      "title_en": "Just Do It, Smartly"
+    },
+    {
+      "course": "A1",
+      "ep": 9,
+      "title_en": "Loop Back Before You Lock In"
+    },
     {
       "course": "A2",
       "ep": 1,
@@ -235,54 +378,44 @@ var SEED = {
       "title_en": "Where People Decide"
     },
     {
-      "course": "A1",
+      "course": "C1",
       "ep": 0,
       "title_en": "Trailer"
     },
     {
-      "course": "A1",
+      "course": "C1",
       "ep": 1,
-      "title_en": "Forty Charts, Wrong Question"
+      "title_en": "So What, Three Times"
     },
     {
-      "course": "A1",
+      "course": "C1",
       "ep": 2,
-      "title_en": "Spot the Weak Statement"
+      "title_en": "The Clapper Board"
     },
     {
-      "course": "A1",
+      "course": "C1",
       "ep": 3,
-      "title_en": "Ask Why, Then Ask Your Boss"
+      "title_en": "Build the Pyramid"
     },
     {
-      "course": "A1",
+      "course": "C1",
       "ep": 4,
-      "title_en": "How Do You Eat an Elephant?"
+      "title_en": "Answer First"
     },
     {
-      "course": "A1",
+      "course": "C1",
       "ep": 5,
-      "title_en": "Five Trees for Five Jobs"
+      "title_en": "Know Your Room"
     },
     {
-      "course": "A1",
+      "course": "C1",
       "ep": 6,
-      "title_en": "Cut Without Guilt"
+      "title_en": "Titles That Tell the Story"
     },
     {
-      "course": "A1",
+      "course": "C1",
       "ep": 7,
-      "title_en": "The Plan That Survives Monday"
-    },
-    {
-      "course": "A1",
-      "ep": 8,
-      "title_en": "Just Do It, Smartly"
-    },
-    {
-      "course": "A1",
-      "ep": 9,
-      "title_en": "Loop Back Before You Lock In"
+      "title_en": "Slides That Survive the Boardroom"
     },
     {
       "course": "P1",
@@ -328,46 +461,6 @@ var SEED = {
       "course": "P1",
       "ep": 8,
       "title_en": "Standards and the Weekly Rhythm"
-    },
-    {
-      "course": "C1",
-      "ep": 0,
-      "title_en": "Trailer"
-    },
-    {
-      "course": "C1",
-      "ep": 1,
-      "title_en": "So What, Three Times"
-    },
-    {
-      "course": "C1",
-      "ep": 2,
-      "title_en": "The Clapper Board"
-    },
-    {
-      "course": "C1",
-      "ep": 3,
-      "title_en": "Build the Pyramid"
-    },
-    {
-      "course": "C1",
-      "ep": 4,
-      "title_en": "Answer First"
-    },
-    {
-      "course": "C1",
-      "ep": 5,
-      "title_en": "Know Your Room"
-    },
-    {
-      "course": "C1",
-      "ep": 6,
-      "title_en": "Titles That Tell the Story"
-    },
-    {
-      "course": "C1",
-      "ep": 7,
-      "title_en": "Slides That Survive the Boardroom"
     },
     {
       "course": "P2",

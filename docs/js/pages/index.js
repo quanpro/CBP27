@@ -3,8 +3,10 @@
 import { h, render, icon, chip, codeBadge, ring, progressBar, stepMeter, emptyState, errorState, errorMessage, changePinForm, mountShell, refreshShell, qs, logout } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
 import { api, getSession, setSession, updateProfile, isDemo, serverNow, cachedMe, sameMe, writeMark, warmUp } from '../api.js';
-import { loadCatalog, journey, courseStatus, courseProgress, stepInfo, nextStep, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
+import { loadCatalog, journey, programSessions, sessionDate, courseStatus, courseProgress, stepInfo, nextStep, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN } from '../courses.js';
 import { PARTS, partTile, partOf, waveLabel as blWave } from '../bl2.js';
+import { DOMAINS } from '../model.js';
+import { guideBox, registerTour, maybeStartTour, startTour } from '../guide.js';
 
 // "A2 + A3" for a pair; more than three courses on one date reads "A2, A3 +3" so the line stays short.
 const codeList = (set) => (set.length <= 3 ? set.map((c) => c.code).join(' + ') : `${set.slice(0, 2).map((c) => c.code).join(', ')} +${set.length - 2}`);
@@ -117,6 +119,7 @@ function draw() {
   render(S.app, v());
   restoreInputs(S.app, kept);
   if (S.animate) { S.animate = false; animateIn(S.app); }
+  tourAfterDraw();
 }
 
 // ---------- sign in ----------
@@ -352,12 +355,13 @@ function viewDash() {
   const ns = nextStep(me, courses);
   const blocks = [
     greeting(me),
+    homeGuide(me, ns),
     heroNext(ns),
     statRow(me, courses),
     h('div', { class: 'dash-grid' },
       h('div', { class: 'dash-up stack' }, me.profile && me.profile.is_manager ? managerCard(courses) : null, comingUp(me, courses)),
       h('div', { class: 'dash-main stack xl' }, baselineCard(me.baseline), coursesSection(courses)),
-      h('div', { class: 'dash-side stack' }, capstoneCard(me.capstone), privacyCard())),
+      h('div', { class: 'dash-side stack' }, pathCard(me, courses), capstoneCard(me.capstone), privacyCard())),
     certPath(me),
   ];
   return h('div', { class: 'stack xl dash' }, blocks.map((b, i) => {
@@ -610,10 +614,9 @@ function comingUp(me, courses) {
     })) : h('div', { class: 'pad' }, emptyState({ iconName: 'calendar', title: t('home.up.empty_title'), body: t('home.up.empty_body') })));
 }
 
-// Pitch Day is the C1 forum (live dates from the Sheet win over courses.json).
+// Pitch Day: the Sheet's Sessions tab (kind = pitch) wins over courses.json.
 function pitchDay() {
-  const c1 = (S.courses || []).find((c) => c.code === 'C1');
-  return (c1 && c1.forum_date) || (S.catalog && S.catalog.program && S.catalog.program.pitch_day) || '';
+  return sessionDate(programSessions(S.me, S.catalog), 'pitch', S.catalog);
 }
 function capstoneCard(cap) {
   const c = cap || {};
@@ -662,6 +665,52 @@ function managerCard(courses) {
   }
   return h('section', { class: 'card pad stack mgr-card', 'aria-labelledby': 'mgr-title' }, head, body, link);
 }
+// ---------- guidance: "What to do here", the path card and the home tour ----------
+function homeGuide(me, ns) {
+  const today = todayVN();
+  const nx = programSessions(me, S.catalog).find((x) => x.date >= today);
+  return guideBox({
+    id: 'home', tour: 'home',
+    page: t('guide.home.page'),
+    now: ns ? `${ns.title}${ns.body ? ` · ${ns.body}` : ''}` : '',
+    next: nx ? t('guide.next_session', { title: pick(nx, 'title') || t(`path.kind.${nx.kind}`), date: fmtLongDate(nx.date) }) : '',
+  });
+}
+
+function pathCard(me, courses) {
+  const parts = (me.baseline && me.baseline.parts) || {};
+  const doneP = (n) => { const p = parts[`p${n}`] || {}; return p.status === 'submitted' || p.status === 'done'; };
+  const val = (d) => {
+    const list = courses.filter((c) => d.courses.includes(c.code));
+    if (!list.length) return doneP(d.part) ? t('home.path.part_done', { n: d.part }) : t('home.path.part_todo', { n: d.part });
+    return t('home.path.passed', { n: list.filter((c) => c.checkpoint && c.checkpoint.status === 'passed').length, total: list.length });
+  };
+  return h('section', { class: 'card pad stack path-card', 'aria-labelledby': 'path-card-title' },
+    h('div', { class: 'row' }, h('span', { class: 'tile-icon' }, icon('map')),
+      h('div', { class: 'grow' }, h('p', { class: 'eyebrow', text: t('home.path.eyebrow') }), h('h2', { id: 'path-card-title', class: 'title-sm', text: t('home.path.title') }))),
+    h('ul', { class: 'pc-domains' }, DOMAINS.map((d) => h('li', { class: `tone-${d.tone}` },
+      h('span', { class: 'pc-k', text: `${t(`model.d.${d.key}.name`)}${d.key === 'work' || d.key === 'mind' ? ` · ${t(`home.path.short_${d.key}`)}` : ''}` }),
+      h('span', { class: 'pc-v', text: val(d) })))),
+    h('a', { class: 'btn btn-secondary btn-block', href: 'path.html' }, t('home.path.cta'), icon('arrow-right')));
+}
+
+registerTour('home', () => {
+  const q = (sel) => S.app.querySelector(sel) || document.querySelector(sel);
+  return [
+    { el: q('.next-hero'), title: t('tour.home.next_t'), body: t('tour.home.next_b') },
+    { el: q('.bl2-home'), title: t('tour.home.bl_t'), body: t('tour.home.bl_b') },
+    { el: q('section[aria-labelledby="courses-title"]'), title: t('tour.home.courses_t'), body: t('tour.home.courses_b') },
+    { el: q('.up-card'), title: t('tour.home.up_t'), body: t('tour.home.up_b') },
+    { el: q('.path-card'), title: t('tour.home.path_t'), body: t('tour.home.path_b') },
+    { el: document.querySelector('.user-btn'), title: t('tour.home.menu_t'), body: t('tour.home.menu_b') },
+  ];
+});
+function tourAfterDraw() {
+  if (S.view !== 'dash' || !S.me) return;
+  if (qs('tour') === '1' && !S.tourForced) { S.tourForced = true; setTimeout(() => startTour('home', { force: true }), 500); return; }
+  maybeStartTour('home');
+}
+
 function privacyCard() {
   return h('aside', { class: 'panel privacy-note' }, icon('lock', 'sm'),
     h('p', { class: 'small' }, t('home.privacy_note'), ' ', h('a', { href: 'about.html#privacy', text: t('home.privacy_link') })));

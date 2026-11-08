@@ -16,7 +16,107 @@
    "open_to": "2027-12-10"
   },
   "pitch_day": "2027-06-22",
-  "capstone_day": "2027-12-21"
+  "capstone_day": "2027-12-21",
+  "sessions": [
+   {
+    "date": "2026-12-22",
+    "kind": "kickoff",
+    "courses": [
+     "A1"
+    ],
+    "title_en": "Kick-off + The Right Question",
+    "title_vi": "Lễ khởi động + Câu hỏi đúng",
+    "start": "13:30",
+    "end": "17:30"
+   },
+   {
+    "date": "2027-02-23",
+    "kind": "forum",
+    "courses": [
+     "A2",
+     "A3"
+    ],
+    "title_en": "Data & AI Lab",
+    "title_vi": "Lab Dữ liệu & AI",
+    "start": "13:30",
+    "end": "17:30"
+   },
+   {
+    "date": "2027-04-27",
+    "kind": "forum",
+    "courses": [
+     "C1",
+     "P1"
+    ],
+    "title_en": "Storyline clinic + capacity lab",
+    "title_vi": "Clinic storyline + lab năng lực",
+    "start": "13:30",
+    "end": "17:30"
+   },
+   {
+    "date": "2027-06-22",
+    "kind": "pitch",
+    "courses": [],
+    "title_en": "Pitch Day (VPSC panel, project mid-point)",
+    "title_vi": "Pitch Day (hội đồng VPSC, giữa kỳ dự án)",
+    "start": "13:30",
+    "end": "17:30"
+   },
+   {
+    "date": "2027-07-27",
+    "kind": "forum",
+    "courses": [
+     "P2",
+     "P3"
+    ],
+    "title_en": "Plan the line, feed the line",
+    "title_vi": "Lập kế hoạch cho line, cấp vật tư cho line",
+    "start": "13:30",
+    "end": "17:30"
+   },
+   {
+    "date": "2027-09-28",
+    "kind": "forum",
+    "courses": [
+     "P4"
+    ],
+    "title_en": "Demand & the Business",
+    "title_vi": "Nhu cầu và hiệu quả kinh doanh",
+    "start": "13:30",
+    "end": "17:30"
+   },
+   {
+    "date": "2027-10-26",
+    "kind": "forum",
+    "courses": [
+     "P5"
+    ],
+    "title_en": "SLOB war game",
+    "title_vi": "Sa bàn SLOB (war game)",
+    "start": "13:30",
+    "end": "17:30"
+   },
+   {
+    "date": "2027-11-23",
+    "kind": "forum",
+    "courses": [
+     "P6"
+    ],
+    "title_en": "Fill-rate loss-tree clinic",
+    "title_vi": "Clinic cây tổn thất tỷ lệ đáp ứng",
+    "start": "13:30",
+    "end": "17:30"
+   },
+   {
+    "date": "2027-12-21",
+    "kind": "warroom",
+    "courses": [],
+    "title_en": "S&OP War Room + graduation",
+    "title_vi": "S&OP War Room + lễ tốt nghiệp",
+    "start": "13:30",
+    "end": "17:30"
+   }
+  ]
  },
  "scale": [
   {
@@ -61,298 +161,6 @@
   }
  ],
  "courses": [
-  {
-   "code": "A2",
-   "family": "A",
-   "priority": 1,
-   "name_en": "Data to Decisions",
-   "name_vi": "Từ dữ liệu đến quyết định",
-   "promise_en": "From a raw SAP extract to a report that refreshes itself.",
-   "promise_vi": "Từ file SAP xuất thô đến báo cáo tự làm mới.",
-   "problem_en": "Planners spend hours each week copying SAP extracts into Excel by hand; reports break, versions multiply and numbers disagree in S&OP meetings.",
-   "problem_vi": "Mỗi tuần planner mất hàng giờ copy tay dữ liệu xuất từ SAP sang Excel; báo cáo hay lỗi, phiên bản ngày càng nhiều và số liệu vênh nhau ngay trong buổi họp S&OP.",
-   "used_at_en": "Weekly reports; S&OE and DSR packs (every gate that uses a report).",
-   "used_at_vi": "Báo cáo hằng tuần; pack S&OE và DSR (mọi gate có dùng đến báo cáo).",
-   "self_en": "I turn raw SAP or Excel extracts into clean tables and reports that refresh themselves (Power Query, PivotTable, Power BI).",
-   "self_vi": "Tôi biến dữ liệu thô từ SAP hoặc Excel thành bảng sạch và báo cáo tự làm mới (Power Query, PivotTable, Power BI).",
-   "objectives": [
-    {
-     "n": 1,
-     "en": "Shape data as a clean table: one row per record, one column per field, no merged cells or subtotals",
-     "vi": "Tổ chức dữ liệu thành bảng sạch: mỗi dòng một bản ghi, mỗi cột một trường, không gộp ô, không dòng tổng phụ",
-     "episodes": [
-      1,
-      2
-     ]
-    },
-    {
-     "n": 2,
-     "en": "Look up and summarise with XLOOKUP, SUMIFS/COUNTIFS and a PivotTable",
-     "vi": "Tra cứu và tổng hợp bằng XLOOKUP, SUMIFS/COUNTIFS và PivotTable",
-     "episodes": [
-      3,
-      4
-     ]
-    },
-    {
-     "n": 3,
-     "en": "Build a Power Query that imports, cleans, merges or appends, unpivots and refreshes",
-     "vi": "Xây Power Query để nhập, làm sạch, ghép (merge/append), unpivot và làm mới dữ liệu",
-     "episodes": [
-      5,
-      6
-     ]
-    },
-    {
-     "n": 4,
-     "en": "Choose the chart that answers the question and avoid misleading axes",
-     "vi": "Chọn biểu đồ trả lời đúng câu hỏi và tránh trục gây hiểu nhầm",
-     "episodes": [
-      7
-     ]
-    },
-    {
-     "n": 5,
-     "en": "Read a Power BI page: slicers, filters and measures",
-     "vi": "Đọc một trang Power BI: slicer, bộ lọc và measure",
-     "episodes": [
-      8
-     ]
-    }
-   ],
-   "has_trailer": false,
-   "episodes": [
-    {
-     "ep": 1,
-     "title_en": "The Monday Copy-Paste",
-     "title_vi": "Thứ Hai, lại copy-paste",
-     "ideas_en": "Cold open: Linh's Monday starts at 7:30 with the same SAP extract and 12 manual steps; at 10:15 Anh Minh asks for the number. Misconception: 'Excel skill = more formulas'. Idea: the clean-table rule.",
-     "ideas_vi": "Mở đầu: thứ Hai của Linh bắt đầu lúc 7:30 với đúng file SAP quen thuộc và 12 bước làm tay; 10:15 Anh Minh hỏi số. Hiểu lầm: 'Giỏi Excel = biết nhiều công thức'. Ý chính: quy tắc bảng sạch.",
-     "try_en": "Spot three rule-breakers in a real-looking extract.",
-     "try_vi": "Tìm ba chỗ phạm quy trong một file dữ liệu trông như thật."
-    },
-    {
-     "ep": 2,
-     "title_en": "One Row, One Truth",
-     "title_vi": "Một dòng, một sự thật",
-     "ideas_en": "Data types, dates stored as text, merged headers, totals inside data; why Power BI and PivotTables need tidy data.",
-     "ideas_vi": "Kiểu dữ liệu, ngày tháng lưu dạng text, tiêu đề gộp ô, dòng tổng nằm lẫn trong dữ liệu; vì sao Power BI và PivotTable cần dữ liệu gọn gàng.",
-     "try_en": "Fix a table in four moves.",
-     "try_vi": "Sửa một bảng trong bốn bước."
-    },
-    {
-     "ep": 3,
-     "title_en": "Find It Fast",
-     "title_vi": "Tìm nhanh, tìm trúng",
-     "ideas_en": "XLOOKUP, SUMIFS, COUNTIFS; the #N/A trailing-space trap; lookup keys.",
-     "ideas_vi": "XLOOKUP, SUMIFS, COUNTIFS; bẫy #N/A do dấu cách thừa ở cuối; khóa tra cứu (lookup key).",
-     "try_en": "Which formula answers which question?",
-     "try_vi": "Công thức nào trả lời câu hỏi nào?"
-    },
-    {
-     "ep": 4,
-     "title_en": "The Pivot That Answers",
-     "title_vi": "PivotTable biết trả lời",
-     "ideas_en": "PivotTables for share, mix and trend; percent vs percentage points; error % of actual.",
-     "ideas_vi": "Dùng PivotTable để xem tỷ trọng, cơ cấu và xu hướng; phần trăm khác điểm phần trăm; sai số tính theo % của số thực tế.",
-     "try_en": "Is 60% → 66% a 6% or a 10% rise?",
-     "try_vi": "Từ 60% lên 66% là tăng 6% hay 10%?"
-    },
-    {
-     "ep": 5,
-     "title_en": "Record Once, Refresh Forever",
-     "title_vi": "Làm một lần, làm mới mãi mãi",
-     "ideas_en": "Power Query: import, clean, refresh; the applied-steps list as a recipe.",
-     "ideas_vi": "Power Query: nhập, làm sạch, làm mới; danh sách Applied Steps như một công thức nấu ăn.",
-     "try_en": "Order the steps of a weekly clean-up.",
-     "try_vi": "Sắp xếp thứ tự các bước dọn dữ liệu hằng tuần."
-    },
-    {
-     "ep": 6,
-     "title_en": "Stack, Join, Unpivot",
-     "title_vi": "Chồng, ghép, unpivot",
-     "ideas_en": "Append vs Merge vs Unpivot with SKU, customer and week data.",
-     "ideas_vi": "Append, Merge hay Unpivot với dữ liệu SKU, khách hàng và tuần.",
-     "try_en": "Pick the operation for three data puzzles.",
-     "try_vi": "Chọn thao tác đúng cho ba câu đố dữ liệu."
-    },
-    {
-     "ep": 7,
-     "title_en": "Charts That Tell the Truth",
-     "title_vi": "Biểu đồ nói thật",
-     "ideas_en": "Chart choice by comparison type; truncated axes; one message per chart (link to C1).",
-     "ideas_vi": "Chọn biểu đồ theo loại so sánh; trục bị cắt; mỗi biểu đồ một thông điệp (liên kết với C1).",
-     "try_en": "Redraw a misleading bar chart.",
-     "try_vi": "Vẽ lại một biểu đồ cột gây hiểu nhầm."
-    },
-    {
-     "ep": 8,
-     "title_en": "Your First Power BI Page",
-     "title_vi": "Trang Power BI đầu tay",
-     "ideas_en": "Slicers, filters, one measure, one page for S&OE; refresh from the Power Query.",
-     "ideas_vi": "Slicer, bộ lọc, một measure, một trang cho S&OE; làm mới từ Power Query.",
-     "try_en": "What happens when you click this slicer?",
-     "try_vi": "Bấm vào slicer này thì chuyện gì xảy ra?"
-    }
-   ],
-   "forum": {
-    "title_en": "Kick-off + Data & AI Lab",
-    "title_vi": "Lễ khởi động + Data & AI Lab",
-    "summary_en": "You open the program at the kick-off, then join the Data & AI Lab with A3: in teams you rebuild a messy weekly report from a raw extract with Power Query and race to make it refresh in five minutes. Then Copilot drafts the commentary and your team checks every fact before you present.",
-    "summary_vi": "Bạn mở màn chương trình tại buổi kick-off, rồi tham gia Data & AI Lab cùng A3: theo nhóm, bạn dựng lại một báo cáo tuần lộn xộn từ dữ liệu thô bằng Power Query và thi xem nhóm nào làm mới được báo cáo trong năm phút. Sau đó Copilot viết nháp phần nhận xét, và cả nhóm kiểm tra lại từng dữ kiện trước khi trình bày."
-   },
-   "field": {
-    "en": "Rebuild one weekly report you own in Power Query; prove it refreshes in under 5 minutes; log hours saved.",
-    "vi": "Dựng lại bằng Power Query một báo cáo tuần do bạn phụ trách; chứng minh báo cáo làm mới được trong dưới 5 phút; ghi lại số giờ tiết kiệm được.",
-    "evidence_en": "Before/after screenshots, refresh time, hours saved a week, manager sign-off with the rubric.",
-    "evidence_vi": "Ảnh chụp màn hình trước/sau, thời gian làm mới, số giờ tiết kiệm mỗi tuần, quản lý ký xác nhận theo rubric."
-   },
-   "kpi_en": "Hours saved per week (team target ≥ 10 h/week by Dec 2027); report refresh errors.",
-   "kpi_vi": "Số giờ tiết kiệm mỗi tuần (mục tiêu cả nhóm ≥ 10 giờ/tuần đến tháng 12/2027); số lỗi khi làm mới báo cáo.",
-   "order": 1,
-   "cycle": 1,
-   "online_from": "2027-01-04",
-   "online_to": "2027-01-22",
-   "checkpoint_close": "2027-01-22",
-   "forum_date": "2027-01-26",
-   "field_until": "2027-02-26"
-  },
-  {
-   "code": "A3",
-   "family": "A",
-   "priority": 1,
-   "name_en": "AI at Work",
-   "name_vi": "AI trong công việc",
-   "promise_en": "Copilot as your planning analyst, inside the guardrails.",
-   "promise_vi": "Biến Copilot thành chuyên viên phân tích cho công việc hoạch định, trong giới hạn an toàn.",
-   "problem_en": "Microsoft 365 Copilot is available but used rarely or unsafely; people do not know what it is good for in planning, and some paste company data into public tools.",
-   "problem_vi": "Microsoft 365 Copilot đã có sẵn nhưng ít được dùng hoặc dùng chưa an toàn; mọi người chưa biết nó giúp được gì trong công việc hoạch định, và có người còn dán dữ liệu công ty vào công cụ AI công cộng.",
-   "used_at_en": "Daily work around every gate: S&OE emails and actions, Demand Review narrative, DSR gap notes, packs.",
-   "used_at_vi": "Công việc hằng ngày quanh mọi gate: email và hành động S&OE, phần diễn giải cho Demand Review, ghi chú gap cho DSR, các pack.",
-   "self_en": "I use Microsoft 365 Copilot safely every week to save time, and I check everything it produces.",
-   "self_vi": "Tôi dùng Microsoft 365 Copilot an toàn mỗi tuần để tiết kiệm thời gian, và tôi kiểm tra mọi thứ nó tạo ra.",
-   "objectives": [
-    {
-     "n": 1,
-     "en": "Use AI inside the company guideline: Microsoft 365 Copilot with the Marico account; no sensitive data in prompts unless IT confirms; never paste company data into public tools",
-     "vi": "Dùng AI đúng hướng dẫn công ty: Microsoft 365 Copilot với tài khoản Marico; không đưa dữ liệu nhạy cảm vào prompt khi IT chưa xác nhận; không dán dữ liệu công ty vào công cụ công cộng",
-     "episodes": [
-      2
-     ]
-    },
-    {
-     "n": 2,
-     "en": "Write prompts with role, task, context and format",
-     "vi": "Viết prompt có vai trò, nhiệm vụ, bối cảnh và định dạng",
-     "episodes": [
-      3
-     ]
-    },
-    {
-     "n": 3,
-     "en": "Use Copilot in Outlook, Teams, Excel and PowerPoint for three or more own tasks",
-     "vi": "Dùng Copilot trong Outlook, Teams, Excel và PowerPoint cho từ ba việc của mình",
-     "episodes": [
-      4
-     ]
-    },
-    {
-     "n": 4,
-     "en": "Verify every number and fact AI produces against the source",
-     "vi": "Kiểm chứng mọi con số và dữ kiện AI đưa ra với nguồn gốc",
-     "episodes": [
-      5,
-      1
-     ]
-    },
-    {
-     "n": 5,
-     "en": "Know when not to use AI: decisions, approvals, anything you cannot check",
-     "vi": "Biết khi nào không dùng AI: quyết định, phê duyệt, điều bạn không kiểm chứng được",
-     "episodes": [
-      6
-     ]
-    }
-   ],
-   "has_trailer": false,
-   "episodes": [
-    {
-     "ep": 1,
-     "title_en": "The Intern Who Never Sleeps",
-     "title_vi": "Cậu thực tập sinh không bao giờ ngủ",
-     "ideas_en": "Cold open: Copilot writes a perfect customer email in 20 seconds, with one wrong number. What Copilot is and is not.",
-     "ideas_vi": "Mở đầu: Copilot viết một email gửi khách hàng hoàn hảo trong 20 giây, chỉ sai đúng một con số. Copilot là gì và không phải là gì.",
-     "try_en": "Find the wrong number.",
-     "try_vi": "Tìm con số sai."
-    },
-    {
-     "ep": 2,
-     "title_en": "The Guardrails",
-     "title_vi": "Hàng rào an toàn",
-     "ideas_en": "Our guideline: Microsoft 365 Copilot with the Marico account only; what never goes in a prompt; why public tools are out.",
-     "ideas_vi": "Hướng dẫn của chúng ta: chỉ dùng Microsoft 365 Copilot với tài khoản Marico; những gì không bao giờ được đưa vào prompt; vì sao không dùng công cụ AI công cộng.",
-     "try_en": "Allowed or not? Five fast cases.",
-     "try_vi": "Được hay không? Năm tình huống nhanh."
-    },
-    {
-     "ep": 3,
-     "title_en": "Prompt Like a Planner",
-     "title_vi": "Viết prompt như một planner",
-     "ideas_en": "Role, task, context, format; before/after prompts for S&OE, DSR and Demand Review.",
-     "ideas_vi": "Vai trò, nhiệm vụ, bối cảnh, định dạng; prompt trước và sau khi sửa cho S&OE, DSR và Demand Review.",
-     "try_en": "Rewrite a weak prompt.",
-     "try_vi": "Viết lại một prompt yếu."
-    },
-    {
-     "ep": 4,
-     "title_en": "Copilot Across Your Week",
-     "title_vi": "Một tuần làm việc cùng Copilot",
-     "ideas_en": "Outlook, Teams, Excel, PowerPoint: ten planner use cases from the team playbook.",
-     "ideas_vi": "Outlook, Teams, Excel, PowerPoint: mười tình huống dùng cho planner từ cẩm nang (playbook) của nhóm.",
-     "try_en": "Match the task to the app.",
-     "try_vi": "Ghép việc với ứng dụng phù hợp."
-    },
-    {
-     "ep": 5,
-     "title_en": "Trust, but Verify",
-     "title_vi": "Tin, nhưng phải kiểm",
-     "ideas_en": "Confident wrong answers; tracing numbers to the source; saying when AI drafted.",
-     "ideas_vi": "Câu trả lời sai mà rất tự tin; truy từng con số về nguồn; nói rõ phần nào do AI viết nháp.",
-     "try_en": "Check this summary against the table.",
-     "try_vi": "Đối chiếu bản tóm tắt này với bảng số liệu."
-    },
-    {
-     "ep": 6,
-     "title_en": "Where People Decide",
-     "title_vi": "Nơi con người quyết định",
-     "ideas_en": "Decisions, approvals and allocations stay with people; how this differs from the ML forecast (teaser for P4).",
-     "ideas_vi": "Quyết định, phê duyệt và phân bổ vẫn do con người đảm nhận; điều này khác dự báo ML ở chỗ nào (hé lộ trước cho P4).",
-     "try_en": "Human or AI? Sort six tasks.",
-     "try_vi": "Người hay AI? Phân loại sáu việc."
-    }
-   ],
-   "forum": {
-    "title_en": "Kick-off + Data & AI Lab",
-    "title_vi": "Lễ khởi động + Data & AI Lab",
-    "summary_en": "You share the Data & AI Lab with A2: once your team has rebuilt the weekly report, Copilot drafts the commentary for it. You check every number it wrote, fix what is wrong, then present the result.",
-    "summary_vi": "Bạn học chung Data & AI Lab với A2: khi nhóm đã dựng lại báo cáo tuần, Copilot sẽ viết nháp phần nhận xét. Bạn kiểm tra từng con số Copilot đưa ra, sửa chỗ sai, rồi mới trình bày kết quả."
-   },
-   "field": {
-    "en": "Three Copilot use cases in your own job; save your best prompt to the team library; log minutes saved for 4 weeks.",
-    "vi": "Ba tình huống dùng Copilot trong chính công việc của bạn; lưu prompt tốt nhất vào thư viện chung của nhóm; ghi lại số phút tiết kiệm được trong 4 tuần.",
-    "evidence_en": "Prompt library entries, time log, one before/after example, manager sign-off.",
-    "evidence_vi": "Các prompt đã lưu vào thư viện, nhật ký thời gian, một ví dụ trước/sau, quản lý ký xác nhận."
-   },
-   "kpi_en": "100% weekly Copilot users; hours saved; zero guideline breaches.",
-   "kpi_vi": "100% thành viên dùng Copilot hằng tuần; số giờ tiết kiệm; không vi phạm hướng dẫn lần nào.",
-   "order": 2,
-   "cycle": 1,
-   "online_from": "2027-01-04",
-   "online_to": "2027-01-22",
-   "checkpoint_close": "2027-01-22",
-   "forum_date": "2027-01-26",
-   "field_until": "2027-02-26"
-  },
   {
    "code": "A1",
    "family": "A",
@@ -506,10 +314,10 @@
     }
    ],
    "forum": {
-    "title_en": "The Right Question",
-    "title_vi": "Câu hỏi đúng",
-    "summary_en": "In a four-hour session you crack the Plant B cold case, work a second live problem, race to build a MECE issue tree against the clock and size the petrol-station estimate. Before you leave, your team charters its own project as a one-day answer (SOI) with an issue tree.",
-    "summary_vi": "Trong buổi học bốn giờ, bạn giải cold case Plant B, xử lý thêm một vấn đề thực tế nữa, thi dựng cây vấn đề MECE tính giờ và làm bài ước tính trạm xăng. Trước khi ra về, nhóm bạn lập charter cho dự án của mình dưới dạng câu trả lời một ngày (SOI) kèm cây vấn đề."
+    "title_en": "Kick-off + The Right Question",
+    "title_vi": "Lễ khởi động + Câu hỏi đúng",
+    "summary_en": "You open the program at the kick-off, then in four hours you crack the Plant B cold case, work a second live problem, race to build a MECE issue tree against the clock and size the petrol-station estimate. Before you leave, your team charters its own project as a one-day answer (SOI) with an issue tree.",
+    "summary_vi": "Bạn mở màn chương trình tại buổi kick-off, rồi trong bốn giờ bạn giải cold case Plant B, xử lý thêm một vấn đề thực tế nữa, thi dựng cây vấn đề MECE tính giờ và làm bài ước tính trạm xăng. Trước khi ra về, nhóm bạn lập charter cho dự án của mình dưới dạng câu trả lời một ngày (SOI) kèm cây vấn đề."
    },
    "field": {
     "en": "Charter your team project: problem statement passing the six characteristics, issue tree, prioritised branches, 2–4-week work plan; play it back to the sponsor manager within 24 h.",
@@ -519,14 +327,451 @@
    },
    "kpi_en": "% of issues at S&OE/DSR/S&OP that arrive with a one-page problem statement (from Apr 2027); charters signed by 16 Apr.",
    "kpi_vi": "% vấn đề đưa lên S&OE/DSR/S&OP có kèm phát biểu vấn đề một trang (từ tháng 4/2027); charter được ký trước ngày 16/4.",
+   "order": 1,
+   "cycle": 1,
+   "online_from": "2026-12-07",
+   "online_to": "2026-12-18",
+   "checkpoint_close": "2026-12-18",
+   "forum_date": "2026-12-22",
+   "field_until": "2027-04-16"
+  },
+  {
+   "code": "A2",
+   "family": "A",
+   "priority": 1,
+   "name_en": "Data to Decisions",
+   "name_vi": "Từ dữ liệu đến quyết định",
+   "promise_en": "From a raw SAP extract to a report that refreshes itself.",
+   "promise_vi": "Từ file SAP xuất thô đến báo cáo tự làm mới.",
+   "problem_en": "Planners spend hours each week copying SAP extracts into Excel by hand; reports break, versions multiply and numbers disagree in S&OP meetings.",
+   "problem_vi": "Mỗi tuần planner mất hàng giờ copy tay dữ liệu xuất từ SAP sang Excel; báo cáo hay lỗi, phiên bản ngày càng nhiều và số liệu vênh nhau ngay trong buổi họp S&OP.",
+   "used_at_en": "Weekly reports; S&OE and DSR packs (every gate that uses a report).",
+   "used_at_vi": "Báo cáo hằng tuần; pack S&OE và DSR (mọi gate có dùng đến báo cáo).",
+   "self_en": "I turn raw SAP or Excel extracts into clean tables and reports that refresh themselves (Power Query, PivotTable, Power BI).",
+   "self_vi": "Tôi biến dữ liệu thô từ SAP hoặc Excel thành bảng sạch và báo cáo tự làm mới (Power Query, PivotTable, Power BI).",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Shape data as a clean table: one row per record, one column per field, no merged cells or subtotals",
+     "vi": "Tổ chức dữ liệu thành bảng sạch: mỗi dòng một bản ghi, mỗi cột một trường, không gộp ô, không dòng tổng phụ",
+     "episodes": [
+      1,
+      2
+     ]
+    },
+    {
+     "n": 2,
+     "en": "Look up and summarise with XLOOKUP, SUMIFS/COUNTIFS and a PivotTable",
+     "vi": "Tra cứu và tổng hợp bằng XLOOKUP, SUMIFS/COUNTIFS và PivotTable",
+     "episodes": [
+      3,
+      4
+     ]
+    },
+    {
+     "n": 3,
+     "en": "Build a Power Query that imports, cleans, merges or appends, unpivots and refreshes",
+     "vi": "Xây Power Query để nhập, làm sạch, ghép (merge/append), unpivot và làm mới dữ liệu",
+     "episodes": [
+      5,
+      6
+     ]
+    },
+    {
+     "n": 4,
+     "en": "Choose the chart that answers the question and avoid misleading axes",
+     "vi": "Chọn biểu đồ trả lời đúng câu hỏi và tránh trục gây hiểu nhầm",
+     "episodes": [
+      7
+     ]
+    },
+    {
+     "n": 5,
+     "en": "Read a Power BI page: slicers, filters and measures",
+     "vi": "Đọc một trang Power BI: slicer, bộ lọc và measure",
+     "episodes": [
+      8
+     ]
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "The Monday Copy-Paste",
+     "title_vi": "Thứ Hai, lại copy-paste",
+     "ideas_en": "Cold open: Linh's Monday starts at 7:30 with the same SAP extract and 12 manual steps; at 10:15 Anh Minh asks for the number. Misconception: 'Excel skill = more formulas'. Idea: the clean-table rule.",
+     "ideas_vi": "Mở đầu: thứ Hai của Linh bắt đầu lúc 7:30 với đúng file SAP quen thuộc và 12 bước làm tay; 10:15 Anh Minh hỏi số. Hiểu lầm: 'Giỏi Excel = biết nhiều công thức'. Ý chính: quy tắc bảng sạch.",
+     "try_en": "Spot three rule-breakers in a real-looking extract.",
+     "try_vi": "Tìm ba chỗ phạm quy trong một file dữ liệu trông như thật."
+    },
+    {
+     "ep": 2,
+     "title_en": "One Row, One Truth",
+     "title_vi": "Một dòng, một sự thật",
+     "ideas_en": "Data types, dates stored as text, merged headers, totals inside data; why Power BI and PivotTables need tidy data.",
+     "ideas_vi": "Kiểu dữ liệu, ngày tháng lưu dạng text, tiêu đề gộp ô, dòng tổng nằm lẫn trong dữ liệu; vì sao Power BI và PivotTable cần dữ liệu gọn gàng.",
+     "try_en": "Fix a table in four moves.",
+     "try_vi": "Sửa một bảng trong bốn bước."
+    },
+    {
+     "ep": 3,
+     "title_en": "Find It Fast",
+     "title_vi": "Tìm nhanh, tìm trúng",
+     "ideas_en": "XLOOKUP, SUMIFS, COUNTIFS; the #N/A trailing-space trap; lookup keys.",
+     "ideas_vi": "XLOOKUP, SUMIFS, COUNTIFS; bẫy #N/A do dấu cách thừa ở cuối; khóa tra cứu (lookup key).",
+     "try_en": "Which formula answers which question?",
+     "try_vi": "Công thức nào trả lời câu hỏi nào?"
+    },
+    {
+     "ep": 4,
+     "title_en": "The Pivot That Answers",
+     "title_vi": "PivotTable biết trả lời",
+     "ideas_en": "PivotTables for share, mix and trend; percent vs percentage points; error % of actual.",
+     "ideas_vi": "Dùng PivotTable để xem tỷ trọng, cơ cấu và xu hướng; phần trăm khác điểm phần trăm; sai số tính theo % của số thực tế.",
+     "try_en": "Is 60% → 66% a 6% or a 10% rise?",
+     "try_vi": "Từ 60% lên 66% là tăng 6% hay 10%?"
+    },
+    {
+     "ep": 5,
+     "title_en": "Record Once, Refresh Forever",
+     "title_vi": "Làm một lần, làm mới mãi mãi",
+     "ideas_en": "Power Query: import, clean, refresh; the applied-steps list as a recipe.",
+     "ideas_vi": "Power Query: nhập, làm sạch, làm mới; danh sách Applied Steps như một công thức nấu ăn.",
+     "try_en": "Order the steps of a weekly clean-up.",
+     "try_vi": "Sắp xếp thứ tự các bước dọn dữ liệu hằng tuần."
+    },
+    {
+     "ep": 6,
+     "title_en": "Stack, Join, Unpivot",
+     "title_vi": "Chồng, ghép, unpivot",
+     "ideas_en": "Append vs Merge vs Unpivot with SKU, customer and week data.",
+     "ideas_vi": "Append, Merge hay Unpivot với dữ liệu SKU, khách hàng và tuần.",
+     "try_en": "Pick the operation for three data puzzles.",
+     "try_vi": "Chọn thao tác đúng cho ba câu đố dữ liệu."
+    },
+    {
+     "ep": 7,
+     "title_en": "Charts That Tell the Truth",
+     "title_vi": "Biểu đồ nói thật",
+     "ideas_en": "Chart choice by comparison type; truncated axes; one message per chart (link to C1).",
+     "ideas_vi": "Chọn biểu đồ theo loại so sánh; trục bị cắt; mỗi biểu đồ một thông điệp (liên kết với C1).",
+     "try_en": "Redraw a misleading bar chart.",
+     "try_vi": "Vẽ lại một biểu đồ cột gây hiểu nhầm."
+    },
+    {
+     "ep": 8,
+     "title_en": "Your First Power BI Page",
+     "title_vi": "Trang Power BI đầu tay",
+     "ideas_en": "Slicers, filters, one measure, one page for S&OE; refresh from the Power Query.",
+     "ideas_vi": "Slicer, bộ lọc, một measure, một trang cho S&OE; làm mới từ Power Query.",
+     "try_en": "What happens when you click this slicer?",
+     "try_vi": "Bấm vào slicer này thì chuyện gì xảy ra?"
+    }
+   ],
+   "forum": {
+    "title_en": "Data & AI Lab",
+    "title_vi": "Lab Dữ liệu & AI",
+    "summary_en": "You join the Data & AI Lab with A3: in teams you rebuild a messy weekly report from a raw extract with Power Query and race to make it refresh in five minutes. Then Copilot drafts the commentary and your team checks every fact before you present.",
+    "summary_vi": "Bạn tham gia Data & AI Lab cùng A3: theo nhóm, bạn dựng lại một báo cáo tuần lộn xộn từ dữ liệu thô bằng Power Query và thi xem nhóm nào làm mới được báo cáo trong năm phút. Sau đó Copilot viết nháp phần nhận xét, và cả nhóm kiểm tra lại từng dữ kiện trước khi trình bày."
+   },
+   "field": {
+    "en": "Rebuild one weekly report you own in Power Query; prove it refreshes in under 5 minutes; log hours saved.",
+    "vi": "Dựng lại bằng Power Query một báo cáo tuần do bạn phụ trách; chứng minh báo cáo làm mới được trong dưới 5 phút; ghi lại số giờ tiết kiệm được.",
+    "evidence_en": "Before/after screenshots, refresh time, hours saved a week, manager sign-off with the rubric.",
+    "evidence_vi": "Ảnh chụp màn hình trước/sau, thời gian làm mới, số giờ tiết kiệm mỗi tuần, quản lý ký xác nhận theo rubric."
+   },
+   "kpi_en": "Hours saved per week (team target ≥ 10 h/week by Dec 2027); report refresh errors.",
+   "kpi_vi": "Số giờ tiết kiệm mỗi tuần (mục tiêu cả nhóm ≥ 10 giờ/tuần đến tháng 12/2027); số lỗi khi làm mới báo cáo.",
+   "order": 2,
+   "cycle": 2,
+   "online_from": "2027-01-04",
+   "online_to": "2027-02-12",
+   "checkpoint_close": "2027-02-19",
+   "forum_date": "2027-02-23",
+   "field_until": "2027-03-19"
+  },
+  {
+   "code": "A3",
+   "family": "A",
+   "priority": 1,
+   "name_en": "AI at Work",
+   "name_vi": "AI trong công việc",
+   "promise_en": "Copilot as your planning analyst, inside the guardrails.",
+   "promise_vi": "Biến Copilot thành chuyên viên phân tích cho công việc hoạch định, trong giới hạn an toàn.",
+   "problem_en": "Microsoft 365 Copilot is available but used rarely or unsafely; people do not know what it is good for in planning, and some paste company data into public tools.",
+   "problem_vi": "Microsoft 365 Copilot đã có sẵn nhưng ít được dùng hoặc dùng chưa an toàn; mọi người chưa biết nó giúp được gì trong công việc hoạch định, và có người còn dán dữ liệu công ty vào công cụ AI công cộng.",
+   "used_at_en": "Daily work around every gate: S&OE emails and actions, Demand Review narrative, DSR gap notes, packs.",
+   "used_at_vi": "Công việc hằng ngày quanh mọi gate: email và hành động S&OE, phần diễn giải cho Demand Review, ghi chú gap cho DSR, các pack.",
+   "self_en": "I use Microsoft 365 Copilot safely every week to save time, and I check everything it produces.",
+   "self_vi": "Tôi dùng Microsoft 365 Copilot an toàn mỗi tuần để tiết kiệm thời gian, và tôi kiểm tra mọi thứ nó tạo ra.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Use AI inside the company guideline: Microsoft 365 Copilot with the Marico account; no sensitive data in prompts unless IT confirms; never paste company data into public tools",
+     "vi": "Dùng AI đúng hướng dẫn công ty: Microsoft 365 Copilot với tài khoản Marico; không đưa dữ liệu nhạy cảm vào prompt khi IT chưa xác nhận; không dán dữ liệu công ty vào công cụ công cộng",
+     "episodes": [
+      2
+     ]
+    },
+    {
+     "n": 2,
+     "en": "Write prompts with role, task, context and format",
+     "vi": "Viết prompt có vai trò, nhiệm vụ, bối cảnh và định dạng",
+     "episodes": [
+      3
+     ]
+    },
+    {
+     "n": 3,
+     "en": "Use Copilot in Outlook, Teams, Excel and PowerPoint for three or more own tasks",
+     "vi": "Dùng Copilot trong Outlook, Teams, Excel và PowerPoint cho từ ba việc của mình",
+     "episodes": [
+      4
+     ]
+    },
+    {
+     "n": 4,
+     "en": "Verify every number and fact AI produces against the source",
+     "vi": "Kiểm chứng mọi con số và dữ kiện AI đưa ra với nguồn gốc",
+     "episodes": [
+      5,
+      1
+     ]
+    },
+    {
+     "n": 5,
+     "en": "Know when not to use AI: decisions, approvals, anything you cannot check",
+     "vi": "Biết khi nào không dùng AI: quyết định, phê duyệt, điều bạn không kiểm chứng được",
+     "episodes": [
+      6
+     ]
+    }
+   ],
+   "has_trailer": false,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "The Intern Who Never Sleeps",
+     "title_vi": "Cậu thực tập sinh không bao giờ ngủ",
+     "ideas_en": "Cold open: Copilot writes a perfect customer email in 20 seconds, with one wrong number. What Copilot is and is not.",
+     "ideas_vi": "Mở đầu: Copilot viết một email gửi khách hàng hoàn hảo trong 20 giây, chỉ sai đúng một con số. Copilot là gì và không phải là gì.",
+     "try_en": "Find the wrong number.",
+     "try_vi": "Tìm con số sai."
+    },
+    {
+     "ep": 2,
+     "title_en": "The Guardrails",
+     "title_vi": "Hàng rào an toàn",
+     "ideas_en": "Our guideline: Microsoft 365 Copilot with the Marico account only; what never goes in a prompt; why public tools are out.",
+     "ideas_vi": "Hướng dẫn của chúng ta: chỉ dùng Microsoft 365 Copilot với tài khoản Marico; những gì không bao giờ được đưa vào prompt; vì sao không dùng công cụ AI công cộng.",
+     "try_en": "Allowed or not? Five fast cases.",
+     "try_vi": "Được hay không? Năm tình huống nhanh."
+    },
+    {
+     "ep": 3,
+     "title_en": "Prompt Like a Planner",
+     "title_vi": "Viết prompt như một planner",
+     "ideas_en": "Role, task, context, format; before/after prompts for S&OE, DSR and Demand Review.",
+     "ideas_vi": "Vai trò, nhiệm vụ, bối cảnh, định dạng; prompt trước và sau khi sửa cho S&OE, DSR và Demand Review.",
+     "try_en": "Rewrite a weak prompt.",
+     "try_vi": "Viết lại một prompt yếu."
+    },
+    {
+     "ep": 4,
+     "title_en": "Copilot Across Your Week",
+     "title_vi": "Một tuần làm việc cùng Copilot",
+     "ideas_en": "Outlook, Teams, Excel, PowerPoint: ten planner use cases from the team playbook.",
+     "ideas_vi": "Outlook, Teams, Excel, PowerPoint: mười tình huống dùng cho planner từ cẩm nang (playbook) của nhóm.",
+     "try_en": "Match the task to the app.",
+     "try_vi": "Ghép việc với ứng dụng phù hợp."
+    },
+    {
+     "ep": 5,
+     "title_en": "Trust, but Verify",
+     "title_vi": "Tin, nhưng phải kiểm",
+     "ideas_en": "Confident wrong answers; tracing numbers to the source; saying when AI drafted.",
+     "ideas_vi": "Câu trả lời sai mà rất tự tin; truy từng con số về nguồn; nói rõ phần nào do AI viết nháp.",
+     "try_en": "Check this summary against the table.",
+     "try_vi": "Đối chiếu bản tóm tắt này với bảng số liệu."
+    },
+    {
+     "ep": 6,
+     "title_en": "Where People Decide",
+     "title_vi": "Nơi con người quyết định",
+     "ideas_en": "Decisions, approvals and allocations stay with people; how this differs from the ML forecast (teaser for P4).",
+     "ideas_vi": "Quyết định, phê duyệt và phân bổ vẫn do con người đảm nhận; điều này khác dự báo ML ở chỗ nào (hé lộ trước cho P4).",
+     "try_en": "Human or AI? Sort six tasks.",
+     "try_vi": "Người hay AI? Phân loại sáu việc."
+    }
+   ],
+   "forum": {
+    "title_en": "Data & AI Lab",
+    "title_vi": "Lab Dữ liệu & AI",
+    "summary_en": "You share the Data & AI Lab with A2: once your team has rebuilt the weekly report, Copilot drafts the commentary for it. You check every number it wrote, fix what is wrong, then present the result.",
+    "summary_vi": "Bạn học chung Data & AI Lab với A2: khi nhóm đã dựng lại báo cáo tuần, Copilot sẽ viết nháp phần nhận xét. Bạn kiểm tra từng con số Copilot đưa ra, sửa chỗ sai, rồi mới trình bày kết quả."
+   },
+   "field": {
+    "en": "Three Copilot use cases in your own job; save your best prompt to the team library; log minutes saved for 4 weeks.",
+    "vi": "Ba tình huống dùng Copilot trong chính công việc của bạn; lưu prompt tốt nhất vào thư viện chung của nhóm; ghi lại số phút tiết kiệm được trong 4 tuần.",
+    "evidence_en": "Prompt library entries, time log, one before/after example, manager sign-off.",
+    "evidence_vi": "Các prompt đã lưu vào thư viện, nhật ký thời gian, một ví dụ trước/sau, quản lý ký xác nhận."
+   },
+   "kpi_en": "100% weekly Copilot users; hours saved; zero guideline breaches.",
+   "kpi_vi": "100% thành viên dùng Copilot hằng tuần; số giờ tiết kiệm; không vi phạm hướng dẫn lần nào.",
    "order": 3,
    "cycle": 2,
-   "prework_from": "2027-02-01",
-   "online_from": "2027-02-15",
-   "online_to": "2027-03-12",
-   "checkpoint_close": "2027-03-19",
-   "forum_date": "2027-03-23",
-   "field_until": "2027-04-16"
+   "online_from": "2027-01-04",
+   "online_to": "2027-02-12",
+   "checkpoint_close": "2027-02-19",
+   "forum_date": "2027-02-23",
+   "field_until": "2027-03-19"
+  },
+  {
+   "code": "C1",
+   "family": "C",
+   "priority": 2,
+   "name_en": "Effective Communication",
+   "name_vi": "Giao tiếp hiệu quả",
+   "promise_en": "Answer first.",
+   "promise_vi": "Nói kết luận trước.",
+   "problem_en": "Packs and emails are bottom-up: data first, message last; senior readers cannot find the answer or the ask.",
+   "problem_vi": "Pack và email đang viết theo lối bottom-up: dữ liệu trước, thông điệp để cuối; lãnh đạo đọc mà không tìm ra kết luận hay đề nghị nằm ở đâu.",
+   "used_at_en": "S&OP and DSR packs; escalation emails; the Pitch Day itself.",
+   "used_at_vi": "Pack S&OP và DSR; email escalation; và chính Pitch Day.",
+   "self_en": "I lead with the answer: my emails and packs open with the conclusion and the ask, with action titles on every slide.",
+   "self_vi": "Tôi nói kết luận trước: email và tài liệu của tôi mở đầu bằng kết luận và đề nghị, mỗi slide có tiêu đề hành động.",
+   "objectives": [
+    {
+     "n": 1,
+     "en": "Synthesise: ask \"so what\" three times to move from finding to meaning to action",
+     "vi": "Tổng hợp: hỏi \"thì sao\" ba lần để đi từ phát hiện đến ý nghĩa đến hành động",
+     "episodes": [
+      1
+     ]
+    },
+    {
+     "n": 2,
+     "en": "Write the one-day answer as SOI: Situation, Observation (complication and question), Implication",
+     "vi": "Viết câu trả lời một ngày theo SOI: Tình huống, Quan sát (vấn đề và câu hỏi), Hàm ý",
+     "episodes": [
+      2
+     ]
+    },
+    {
+     "n": 3,
+     "en": "Build a pyramid with vertical and horizontal logic",
+     "vi": "Xây kim tự tháp với logic dọc và logic ngang",
+     "episodes": [
+      3
+     ]
+    },
+    {
+     "n": 4,
+     "en": "Write top-down emails and action titles",
+     "vi": "Viết email theo lối kết luận trước và tiêu đề hành động",
+     "episodes": [
+      4,
+      6,
+      5
+     ]
+    },
+    {
+     "n": 5,
+     "en": "Choose the chart for the comparison: component, item, time series, frequency, correlation",
+     "vi": "Chọn biểu đồ theo loại so sánh: thành phần, hạng mục, chuỗi thời gian, tần suất, tương quan",
+     "episodes": [
+      7
+     ]
+    }
+   ],
+   "has_trailer": true,
+   "episodes": [
+    {
+     "ep": 1,
+     "title_en": "So What, Three Times",
+     "title_vi": "Thì sao? Hỏi ba lần",
+     "ideas_en": "Synthesis: from forty charts to one message.",
+     "ideas_vi": "Tổng hợp: từ bốn mươi biểu đồ đến một thông điệp.",
+     "try_en": "Ask so what three times.",
+     "try_vi": "Hỏi 'thì sao' ba lần."
+    },
+    {
+     "ep": 2,
+     "title_en": "The Clapper Board",
+     "title_vi": "Chiếc bảng clapper",
+     "ideas_en": "One-day answer SOI; seven complication types.",
+     "ideas_vi": "Câu trả lời một ngày theo SOI; bảy dạng complication (vấn đề phát sinh).",
+     "try_en": "Write the S, O and I.",
+     "try_vi": "Viết S, O và I."
+    },
+    {
+     "ep": 3,
+     "title_en": "Build the Pyramid",
+     "title_vi": "Xây kim tự tháp",
+     "ideas_en": "Pyramid with question and hypothesis trees; vertical and horizontal logic.",
+     "ideas_vi": "Kim tự tháp với cây câu hỏi và cây giả thuyết; logic dọc và logic ngang.",
+     "try_en": "Fix a broken pyramid.",
+     "try_vi": "Sửa một kim tự tháp bị lỗi."
+    },
+    {
+     "ep": 4,
+     "title_en": "Answer First",
+     "title_vi": "Kết luận lên đầu",
+     "ideas_en": "Top-down vs bottom-up; CEO in the lift; polite top-down in Vietnamese.",
+     "ideas_vi": "Top-down hay bottom-up; gặp CEO trong thang máy; nói kết luận trước mà vẫn lịch sự trong tiếng Việt.",
+     "try_en": "Rewrite an email top-down.",
+     "try_vi": "Viết lại một email theo lối kết luận trước."
+    },
+    {
+     "ep": 5,
+     "title_en": "Know Your Room",
+     "title_vi": "Đọc vị người nghe",
+     "ideas_en": "Communication triangle; document types; presentation styles.",
+     "ideas_vi": "Tam giác giao tiếp; các loại tài liệu; các phong cách thuyết trình.",
+     "try_en": "Pick the format for the reader.",
+     "try_vi": "Chọn hình thức phù hợp với người đọc."
+    },
+    {
+     "ep": 6,
+     "title_en": "Titles That Tell the Story",
+     "title_vi": "Tiêu đề tự kể câu chuyện",
+     "ideas_en": "Action titles; storylining; storyboards.",
+     "ideas_vi": "Tiêu đề hành động; dựng mạch câu chuyện (storyline); storyboard.",
+     "try_en": "Turn five labels into action titles.",
+     "try_vi": "Biến năm tiêu đề dạng nhãn thành tiêu đề hành động."
+    },
+    {
+     "ep": 7,
+     "title_en": "Slides That Survive the Boardroom",
+     "title_vi": "Slide trụ vững trước ban lãnh đạo",
+     "ideas_en": "Five elements of a consulting slide; chart choice; presenting set-up.",
+     "ideas_vi": "Năm thành phần của một slide kiểu tư vấn; chọn biểu đồ; chuẩn bị trước khi trình bày.",
+     "try_en": "Choose the chart for the comparison.",
+     "try_vi": "Chọn biểu đồ cho phép so sánh này."
+    }
+   ],
+   "forum": {
+    "title_en": "Storyline clinic (with P1)",
+    "title_vi": "Clinic storyline (cùng P1)",
+    "summary_en": "You share the day with P1. In the storyline clinic your team turns its A1 project charter into a pyramid with action titles: the deck of eight slides or fewer that you pitch to the VP Supply Chain and managers at Pitch Day in June.",
+    "summary_vi": "Bạn học chung buổi này với P1. Trong clinic storyline, nhóm bạn biến charter dự án A1 thành kim tự tháp thông điệp với tiêu đề hành động: bộ tối đa tám slide mà nhóm sẽ trình bày trước VP Supply Chain và các quản lý tại Pitch Day vào tháng Sáu."
+   },
+   "field": {
+    "en": "Three real emails rewritten top-down; one recurring pack with a one-page executive summary and action titles; charter deck ≤ 8 slides.",
+    "vi": "Viết lại ba email thật theo lối kết luận trước; một pack định kỳ có tóm tắt điều hành một trang và tiêu đề hành động; deck charter tối đa 8 slide.",
+    "evidence_en": "Before/after emails and pack; manager sign-off; Pitch Day scores.",
+    "evidence_vi": "Email và pack trước/sau khi sửa; quản lý ký xác nhận; điểm Pitch Day."
+   },
+   "kpi_en": "VPSC/S&OP chair pack-clarity rating ≥ 4/5 by Dec; ≥ 90% of S&OP/DSR slides with action titles from Aug; rule from Jul 2027: every pack opens with a one-page executive summary.",
+   "kpi_vi": "Điểm độ rõ ràng của pack do VPSC/chủ trì S&OP chấm ≥ 4/5 đến tháng 12; ≥ 90% slide S&OP/DSR có tiêu đề hành động từ tháng 8; quy định từ tháng 7/2027: mọi pack mở đầu bằng một trang tóm tắt điều hành.",
+   "order": 4,
+   "cycle": 3,
+   "online_from": "2027-03-22",
+   "online_to": "2027-04-16",
+   "checkpoint_close": "2027-04-23",
+   "forum_date": "2027-04-27",
+   "field_until": "2027-06-18"
   },
   {
    "code": "P1",
@@ -664,10 +909,10 @@
     }
    ],
    "forum": {
-    "title_en": "Capacity lab + charter clinic",
-    "title_vi": "Lab năng lực + clinic charter",
-    "summary_en": "You start with a 45-minute clinic on your team's A1 charter, then walk the factory floor (or follow the video walk). In the capacity lab you re-sequence a real, anonymised week with the changeover matrix, run a rough-cut capacity check (RCCP) for next month and put a cost on the gap.",
-    "summary_vi": "Bạn bắt đầu bằng 45 phút clinic về charter A1 của nhóm, rồi đi thực tế nhà máy (hoặc xem video đi nhà máy). Trong lab năng lực, bạn sắp xếp lại trình tự sản xuất của một tuần thật đã ẩn danh bằng ma trận chuyển đổi, chạy RCCP cho tháng tới và tính chi phí cho phần thiếu hụt."
+    "title_en": "Capacity lab + factory walk (with C1)",
+    "title_vi": "Lab năng lực + đi thực tế nhà máy (cùng C1)",
+    "summary_en": "You share the day with C1. You walk the factory floor (or follow the video walk), then in the capacity lab you re-sequence a real, anonymised week with the changeover matrix, run a rough-cut capacity check (RCCP) for next month and put a cost on the gap.",
+    "summary_vi": "Bạn học chung buổi này với C1. Bạn đi thực tế nhà máy (hoặc xem video đi nhà máy), rồi trong lab năng lực, bạn sắp xếp lại trình tự sản xuất của một tuần thật đã ẩn danh bằng ma trận chuyển đổi, chạy RCCP cho tháng tới và tính chi phí cho phần thiếu hụt."
    },
    "field": {
     "en": "Re-sequence one real week for your line or category with the changeover matrix; RCCP for next month; cost one supply gap for the DSR.",
@@ -677,159 +922,13 @@
    },
    "kpi_en": "Output reliability; changeover minutes per week; DSR supply gaps costed.",
    "kpi_vi": "Độ tin cậy sản lượng; số phút chuyển đổi mỗi tuần; số supply gap trong DSR đã được tính chi phí.",
-   "order": 4,
+   "order": 5,
    "cycle": 3,
-   "online_from": "2027-03-29",
+   "online_from": "2027-03-22",
    "online_to": "2027-04-16",
    "checkpoint_close": "2027-04-23",
    "forum_date": "2027-04-27",
    "field_until": "2027-05-21"
-  },
-  {
-   "code": "C1",
-   "family": "C",
-   "priority": 2,
-   "name_en": "Effective Communication",
-   "name_vi": "Giao tiếp hiệu quả",
-   "promise_en": "Answer first.",
-   "promise_vi": "Nói kết luận trước.",
-   "problem_en": "Packs and emails are bottom-up: data first, message last; senior readers cannot find the answer or the ask.",
-   "problem_vi": "Pack và email đang viết theo lối bottom-up: dữ liệu trước, thông điệp để cuối; lãnh đạo đọc mà không tìm ra kết luận hay đề nghị nằm ở đâu.",
-   "used_at_en": "S&OP and DSR packs; escalation emails; the Pitch Day itself.",
-   "used_at_vi": "Pack S&OP và DSR; email escalation; và chính Pitch Day.",
-   "self_en": "I lead with the answer: my emails and packs open with the conclusion and the ask, with action titles on every slide.",
-   "self_vi": "Tôi nói kết luận trước: email và tài liệu của tôi mở đầu bằng kết luận và đề nghị, mỗi slide có tiêu đề hành động.",
-   "objectives": [
-    {
-     "n": 1,
-     "en": "Synthesise: ask \"so what\" three times to move from finding to meaning to action",
-     "vi": "Tổng hợp: hỏi \"thì sao\" ba lần để đi từ phát hiện đến ý nghĩa đến hành động",
-     "episodes": [
-      1
-     ]
-    },
-    {
-     "n": 2,
-     "en": "Write the one-day answer as SOI: Situation, Observation (complication and question), Implication",
-     "vi": "Viết câu trả lời một ngày theo SOI: Tình huống, Quan sát (vấn đề và câu hỏi), Hàm ý",
-     "episodes": [
-      2
-     ]
-    },
-    {
-     "n": 3,
-     "en": "Build a pyramid with vertical and horizontal logic",
-     "vi": "Xây kim tự tháp với logic dọc và logic ngang",
-     "episodes": [
-      3
-     ]
-    },
-    {
-     "n": 4,
-     "en": "Write top-down emails and action titles",
-     "vi": "Viết email theo lối kết luận trước và tiêu đề hành động",
-     "episodes": [
-      4,
-      6,
-      5
-     ]
-    },
-    {
-     "n": 5,
-     "en": "Choose the chart for the comparison: component, item, time series, frequency, correlation",
-     "vi": "Chọn biểu đồ theo loại so sánh: thành phần, hạng mục, chuỗi thời gian, tần suất, tương quan",
-     "episodes": [
-      7
-     ]
-    }
-   ],
-   "has_trailer": true,
-   "episodes": [
-    {
-     "ep": 1,
-     "title_en": "So What, Three Times",
-     "title_vi": "Thì sao? Hỏi ba lần",
-     "ideas_en": "Synthesis: from forty charts to one message.",
-     "ideas_vi": "Tổng hợp: từ bốn mươi biểu đồ đến một thông điệp.",
-     "try_en": "Ask so what three times.",
-     "try_vi": "Hỏi 'thì sao' ba lần."
-    },
-    {
-     "ep": 2,
-     "title_en": "The Clapper Board",
-     "title_vi": "Chiếc bảng clapper",
-     "ideas_en": "One-day answer SOI; seven complication types.",
-     "ideas_vi": "Câu trả lời một ngày theo SOI; bảy dạng complication (vấn đề phát sinh).",
-     "try_en": "Write the S, O and I.",
-     "try_vi": "Viết S, O và I."
-    },
-    {
-     "ep": 3,
-     "title_en": "Build the Pyramid",
-     "title_vi": "Xây kim tự tháp",
-     "ideas_en": "Pyramid with question and hypothesis trees; vertical and horizontal logic.",
-     "ideas_vi": "Kim tự tháp với cây câu hỏi và cây giả thuyết; logic dọc và logic ngang.",
-     "try_en": "Fix a broken pyramid.",
-     "try_vi": "Sửa một kim tự tháp bị lỗi."
-    },
-    {
-     "ep": 4,
-     "title_en": "Answer First",
-     "title_vi": "Kết luận lên đầu",
-     "ideas_en": "Top-down vs bottom-up; CEO in the lift; polite top-down in Vietnamese.",
-     "ideas_vi": "Top-down hay bottom-up; gặp CEO trong thang máy; nói kết luận trước mà vẫn lịch sự trong tiếng Việt.",
-     "try_en": "Rewrite an email top-down.",
-     "try_vi": "Viết lại một email theo lối kết luận trước."
-    },
-    {
-     "ep": 5,
-     "title_en": "Know Your Room",
-     "title_vi": "Đọc vị người nghe",
-     "ideas_en": "Communication triangle; document types; presentation styles.",
-     "ideas_vi": "Tam giác giao tiếp; các loại tài liệu; các phong cách thuyết trình.",
-     "try_en": "Pick the format for the reader.",
-     "try_vi": "Chọn hình thức phù hợp với người đọc."
-    },
-    {
-     "ep": 6,
-     "title_en": "Titles That Tell the Story",
-     "title_vi": "Tiêu đề tự kể câu chuyện",
-     "ideas_en": "Action titles; storylining; storyboards.",
-     "ideas_vi": "Tiêu đề hành động; dựng mạch câu chuyện (storyline); storyboard.",
-     "try_en": "Turn five labels into action titles.",
-     "try_vi": "Biến năm tiêu đề dạng nhãn thành tiêu đề hành động."
-    },
-    {
-     "ep": 7,
-     "title_en": "Slides That Survive the Boardroom",
-     "title_vi": "Slide trụ vững trước ban lãnh đạo",
-     "ideas_en": "Five elements of a consulting slide; chart choice; presenting set-up.",
-     "ideas_vi": "Năm thành phần của một slide kiểu tư vấn; chọn biểu đồ; chuẩn bị trước khi trình bày.",
-     "try_en": "Choose the chart for the comparison.",
-     "try_vi": "Chọn biểu đồ cho phép so sánh này."
-    }
-   ],
-   "forum": {
-    "title_en": "Pitch Day (VPSC panel, project mid-point)",
-    "title_vi": "Pitch Day (hội đồng VPSC, giữa kỳ dự án)",
-    "summary_en": "Pitch Day takes the place of the cycle forum, and its first hour is a storyline clinic where your team shapes its pyramid. Then you pitch your project charter and mid-point results in eight slides or fewer with action titles to a panel of the VP Supply Chain and managers, who score it with the capstone rubric weighted towards communication.",
-    "summary_vi": "Pitch Day thay cho buổi forum của chu kỳ, và giờ đầu tiên là buổi clinic dựng storyline để nhóm bạn hoàn thiện kim tự tháp thông điệp. Sau đó nhóm trình bày charter dự án và kết quả giữa kỳ trong tối đa tám slide có tiêu đề hành động trước hội đồng gồm VP Supply Chain và các quản lý, chấm theo rubric capstone nghiêng về kỹ năng giao tiếp."
-   },
-   "field": {
-    "en": "Three real emails rewritten top-down; one recurring pack with a one-page executive summary and action titles; charter deck ≤ 8 slides.",
-    "vi": "Viết lại ba email thật theo lối kết luận trước; một pack định kỳ có tóm tắt điều hành một trang và tiêu đề hành động; deck charter tối đa 8 slide.",
-    "evidence_en": "Before/after emails and pack; manager sign-off; Pitch Day scores.",
-    "evidence_vi": "Email và pack trước/sau khi sửa; quản lý ký xác nhận; điểm Pitch Day."
-   },
-   "kpi_en": "VPSC/S&OP chair pack-clarity rating ≥ 4/5 by Dec; ≥ 90% of S&OP/DSR slides with action titles from Aug; rule from Jul 2027: every pack opens with a one-page executive summary.",
-   "kpi_vi": "Điểm độ rõ ràng của pack do VPSC/chủ trì S&OP chấm ≥ 4/5 đến tháng 12; ≥ 90% slide S&OP/DSR có tiêu đề hành động từ tháng 8; quy định từ tháng 7/2027: mọi pack mở đầu bằng một trang tóm tắt điều hành.",
-   "order": 5,
-   "cycle": 4,
-   "online_from": "2027-05-10",
-   "online_to": "2027-05-28",
-   "checkpoint_close": "2027-06-04",
-   "forum_date": "2027-06-22",
-   "field_until": "2027-06-30"
   },
   {
    "code": "P2",

@@ -2,17 +2,16 @@
 import { h, render, icon, mountShell, openChangePinDialog } from '../ui.js';
 import { t, pick, onLangChange } from '../i18n.js';
 import { api, isDemo, getSession } from '../api.js';
-import { loadCatalog, journey, fmtShortDate } from '../courses.js';
+import { loadCatalog, programSessions, fmtShortDate } from '../courses.js';
 
 const SECTIONS = ['privacy', 'leaderboards', 'how', 'rules', 'certificates', 'pin', 'data', 'demo', 'faq'];
 const SEC_ICON = { privacy: 'shield', leaderboards: 'users', how: 'book', rules: 'flag', certificates: 'award', pin: 'key', data: 'file', demo: 'zap', faq: 'help' };
 const WHO = [['eye', 'you'], ['shield', 'director'], ['users', 'manager'], ['grid', 'team'], ['lock', 'nobody']];
-const FLOW = [['video', 'blink'], ['check-circle', 'hub'], ['users', 'forum'], ['edit', 'field']];
-const RHYTHM = ['w1', 'w2', 'forum', 'w4', 'recall'];
+import { STAGES, DOMAINS } from '../model.js';
 const RULES = [['zap', 'predict'], ['flag', 'checkpoint'], ['refresh', 'retake'], ['users', 'third'], ['clock', 'late'], ['eye', 'answers'], ['refresh', 'recall'], ['target', 'baseline'], ['trophy', 'pitch']];
 const FAQ = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9'];
 
-const S = { app: null, catalog: null, live: null, open: new Set() };
+const S = { app: null, catalog: null, me: null, open: new Set() };
 
 (async function main() {
   const { app } = await mountShell({ page: 'about', auth: false });
@@ -20,8 +19,8 @@ const S = { app: null, catalog: null, live: null, open: new Set() };
   onLangChange(() => draw());
   draw();
   try { S.catalog = await loadCatalog(); draw(); } catch (e) { /* the session list stays generic */ }
-  // Demo: the mock moves the calendar, so show its forum dates (the live Hub uses the program dates).
-  if (isDemo() && getSession()) api.me().then((me) => journey(me)).then((list) => { S.live = list; draw(); }).catch(() => { /* catalogue dates stay */ });
+  // Signed in: the sessions come from the Sheet's Sessions tab (the demo moves them with its calendar).
+  if (getSession()) api.me().then((me) => { S.me = me; draw(); }).catch(() => { /* catalogue sessions stay */ });
   if (location.hash) { const el = document.getElementById(location.hash.slice(1)); if (el) requestAnimationFrame(() => el.scrollIntoView()); }
 }());
 
@@ -66,30 +65,21 @@ function leaderboards() {
     h('div', { class: 'card pad prose' }, p('about.leaderboards.p1'), p('about.leaderboards.p2'), p('about.leaderboards.p3')));
 }
 function how() {
-  const cat = S.catalog;
-  let sessions = [];
-  if (cat) {
-    const byDate = new Map();
-    (S.live || cat.courses.slice().sort((a, b) => a.order - b.order)).forEach((c) => {
-      if (!c.forum_date) return;
-      const s = byDate.get(c.forum_date) || { date: c.forum_date, codes: [], title: pick(c.forum || {}, 'title') };
-      s.codes.push(c.code); byDate.set(c.forum_date, s);
-    });
-    sessions = [...byDate.values()];
-    if (cat.program && cat.program.capstone_day) sessions.push({ date: cat.program.capstone_day, codes: [], title: t('about.how.warroom') });
-    sessions.sort((a, b) => (a.date < b.date ? -1 : 1));
-  }
+  const sessions = S.catalog ? programSessions(S.me, S.catalog).map((x) => ({ date: x.date, codes: x.courses, title: pick(x, 'title') || t('about.how.warroom') })) : [];
   return sec('how',
     p('about.how.intro'),
-    h('ol', { class: 'flow' }, FLOW.map(([ic, k], i) => h('li', { class: 'flow-step' },
-      h('span', { class: 'flow-n', 'aria-hidden': 'true' }, icon(ic)),
-      h('div', null, h('p', { class: 'xs strong muted', text: t('about.how.step_n', { n: i + 1 }) }), h('h3', { text: t(`about.how.${k}`) }), h('p', { class: 'small muted', text: t(`about.how.${k}_body`) }))))),
+    h('ol', { class: 'flow flow-5' }, STAGES.map((st, i) => h('li', { class: `flow-step ${st.online ? 'online' : 'offline'}` },
+      h('span', { class: 'flow-n', 'aria-hidden': 'true' }, icon(st.icon)),
+      h('div', null, h('p', { class: 'xs strong muted', text: `${t('about.how.step_n', { n: i + 1 })} · ${t(`model.stage.${st.key}.when`)}` }), h('h3', { text: t(`steps.${st.key}`) }),
+        h('p', { class: 'small strong ink', text: t(`model.stage.${st.key}.where`) }), h('p', { class: 'small muted', text: t(`model.stage.${st.key}.what`) }))))),
     h('div', { class: 'grid cols-2 how-grid' },
       h('div', { class: 'card pad stack' },
-        h('h3', { text: t('about.how.rhythm_title') }),
-        h('ol', { class: 'timeline rhythm' }, RHYTHM.map((k, i) => h('li', null,
-          h('span', { class: 'tl-dot', 'aria-hidden': 'true' }, String(i + 1)),
-          h('p', { class: 'strong ink small', text: t(`about.how.r_${k}`) }), h('p', { class: 'small muted', text: t(`about.how.r_${k}_body`) }))))),
+        h('h3', { text: t('about.how.model_title') }),
+        p('about.how.model_body', null, 'small'),
+        h('ul', { class: 'how-domains' }, DOMAINS.map((d) => h('li', { class: `tone-${d.tone}` },
+          h('b', { text: `${t(`model.d.${d.key}.name`)} · ${t(`model.d.${d.key}.area`)}` }),
+          h('span', { class: 'small muted', text: d.skills.map((k) => t(`model.skill.${k}`)).join(' · ') })))),
+        h('a', { class: 'btn btn-secondary', href: 'path.html' }, t('about.how.model_cta'), icon('arrow-right'))),
       h('div', { class: 'card pad stack' },
         h('h3', { text: t('about.how.sessions_title', { n: sessions.length || 9 }) }),
         p('about.how.sessions_body', null, 'small muted'),

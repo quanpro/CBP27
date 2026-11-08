@@ -27,6 +27,7 @@ function setupSheet() {
     seedConfig_(report);
     seedCourses_(report);
     seedEpisodes_(report);
+    seedSessions_(report);
     ensureSecrets_(report);
     removeDefaultSheet_(ss, report);
     clearCaches_();
@@ -119,12 +120,12 @@ function seedCourses_(report) {
   var t = readTable_('Courses');
   var byCode = {};
   t.rows.forEach(function (r) { byCode[normCode(r.code)] = r; });
-  var fill = ['order', 'cycle', 'online_from', 'checkpoint_close', 'forum_date', 'field_until'];
+  var fill = ['order', 'cycle', 'online_from', 'online_to', 'checkpoint_close', 'forum_date', 'field_until'];
   var added = [], filled = 0;
   SEED.courses.forEach(function (sc) {
     var r = byCode[sc.code];
     if (!r) {
-      added.push({ code: sc.code, order: sc.order, cycle: sc.cycle, online_from: sc.online_from, checkpoint_close: sc.checkpoint_close,
+      added.push({ code: sc.code, order: sc.order, cycle: sc.cycle, online_from: sc.online_from, online_to: sc.online_to, checkpoint_close: sc.checkpoint_close,
         forum_date: sc.forum_date, field_until: sc.field_until, open: 'TRUE' });
       return;
     }
@@ -147,6 +148,16 @@ function seedEpisodes_(report) {
     report.push('Episodes: added ' + add.length + ' row(s); paste the Blink links into blink_url / embed_url.');
   }
   return add.length;
+}
+
+/** An empty Sessions tab gets the program's offline sessions from Seed.gs (rows you add or edit are never touched). */
+function seedSessions_(report) {
+  if (readTable_('Sessions').rows.length || !SEED.sessions || !SEED.sessions.length) return;
+  appendRows_('Sessions', SEED.sessions.map(function (x) {
+    return { date: x.date, kind: x.kind, courses: x.courses, title_en: x.title_en, title_vi: x.title_vi,
+      start: x.start, end: x.end, place: '', note_en: '', note_vi: '', active: 'TRUE' };
+  }));
+  report.push('Sessions: added ' + SEED.sessions.length + ' offline sessions; add the place and edit dates or titles there.');
 }
 
 function ensureSecrets_(report) {

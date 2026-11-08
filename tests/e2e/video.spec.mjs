@@ -71,7 +71,7 @@ test.describe('YouTube episodes', () => {
     await page.route(`https://${YT_HOST}/**`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>player</title>' }));
 
     await hub.signIn(hub.account('shell'));
-    await hub.goto('course.html?c=A1');
+    await hub.goto('course.html?c=P1');
     const frame = page.locator('.player iframe');
     await expect(frame).toHaveCount(1);
     await expect(frame).toHaveAttribute('src', /^https:\/\/www\.youtube-nocookie\.com\/embed\/AbCdEfGhIj\d\?start=75&rel=0&playsinline=1$/);

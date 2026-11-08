@@ -255,7 +255,7 @@ function apiMe_(body) {
     var today = date7(now);
     return {
       code: c.code, order: c.order, cycle: c.cycle, open: courseIsOpen_(c, now),
-      online_from: c.online_from, checkpoint_close: c.checkpoint_close, forum_date: c.forum_date,
+      online_from: c.online_from, online_to: c.online_to || null, checkpoint_close: c.checkpoint_close, forum_date: c.forum_date,
       field_until: c.field_until, late_until: st.late_until, blink_url: c.blink_url,
       episodes: eps.filter(function (e) { return e.course === c.code; }).map(function (e) {
         return { ep: e.ep, minutes: e.minutes, blink_url: e.blink_url, embed_url: e.embed_url, watched: !!watched[c.code + ':' + e.ep] };
@@ -302,12 +302,24 @@ function apiMe_(body) {
     baseline: baseline,
     courses: courses,
     capstone: capstone,
+    sessions: sessions_(),
+    charters: charterNames_(),
     streak: streak(activity, now, cfg.streak_skip_weeks),
     certificates: {
       level: s.user.certificate, checkpoints_passed: passedCount, checkpoints_total: courses.length,
       pitch_submitted: !!pitch, capstone_submitted: !!cap
     }
   };
+}
+
+/** The five MAP charter names (BaselineText p2_charter_1 … 5) for My path; only those with a name. */
+function charterNames_() {
+  var text = blText_(), out = [];
+  ['1', '2', '3', '4', '5'].forEach(function (n) {
+    var t = text['p2_charter_' + n];
+    if (t && (t.en || t.vi)) out.push({ n: Number(n), en: t.en || t.vi, vi: t.vi || t.en });
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------- watch

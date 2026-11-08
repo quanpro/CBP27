@@ -21,6 +21,7 @@ export function buildSeed(data) {
       pitch_day: p.pitch_day || '',
       capstone_day: p.capstone_day || ''
     },
+    sessions: (p.sessions || []).map((x) => ({ date: x.date, kind: x.kind, courses: (x.courses || []).join(' '), title_en: x.title_en, title_vi: x.title_vi, start: x.start || '', end: x.end || '' })),
     scale: (data.scale || []).map((s) => ({ level: s.level, en: s.en, vi: s.vi, abbr: s.abbr || '', desc_en: s.desc_en, desc_vi: s.desc_vi })),
     courses: [],
     episodes: []
@@ -32,6 +33,7 @@ export function buildSeed(data) {
       order: c.order,
       cycle: c.cycle,
       online_from: c.online_from || '',
+      online_to: c.online_to || '',
       checkpoint_close: c.checkpoint_close || '',
       forum_date: c.forum_date || '',
       field_until: c.field_until || '',
