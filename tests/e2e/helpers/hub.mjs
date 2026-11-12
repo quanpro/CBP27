@@ -92,7 +92,12 @@ export class Hub {
         } catch (e) { await route.abort().catch(() => {}); return undefined; } // the page navigated away mid-request
         let action = '?';
         try { action = JSON.parse(req.postData() || '{}').action; } catch (e) { /* recorded as "?" */ }
-        try { this.records.push({ action, data: JSON.parse(body) }); } catch (e) { this.records.push({ action, data: null, raw: body }); }
+        try {
+          const data = JSON.parse(body);
+          this.records.push({ action, data });
+          // A sign-in carries the person's `me` (F31): the page asks for no separate one, so tests find it here.
+          if (action === 'login' && data && data.ok && data.me) this.records.push({ action: 'me', data: { ok: true, server_now: data.server_now, ...data.me }, viaLogin: true });
+        } catch (e) { this.records.push({ action, data: null, raw: body }); }
         return route.fulfill({ response: resp, body }).catch(() => {});
       });
     }

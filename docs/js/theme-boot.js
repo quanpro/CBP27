@@ -5,3 +5,13 @@ if (window.top !== window.self) {
 }
 // 2. Apply the saved light/dark choice so it does not flash.
 try { var m = localStorage.getItem('hub.theme'); if (m === 'light' || m === 'dark') document.documentElement.setAttribute('data-theme', m); } catch (e) { /* ignore */ }
+// 3. Ask for the strings of the saved language and the course list now, alongside the scripts (they
+//    are needed before anything can be drawn; without this they wait until the scripts have run).
+try {
+  var lang = localStorage.getItem('hub.lang') === 'vi' ? 'vi' : 'en';
+  ['i18n/' + lang + '.json', 'data/courses.json'].forEach(function (href) {
+    var l = document.createElement('link');
+    l.rel = 'preload'; l.as = 'fetch'; l.crossOrigin = 'anonymous'; l.href = href;
+    document.head.appendChild(l);
+  });
+} catch (e) { /* the page fetches them itself */ }

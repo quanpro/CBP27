@@ -7,7 +7,7 @@
 - [ ] `start` responses contain no `answer` or `why` field (automated test + manual check in the browser network tab).
 - [ ] PINs are hashed with a per-person salt; 5 failures lock for 15 minutes; first login forces a PIN change.
 - [ ] Session tokens expire after 6 hours; logout clears `sessionStorage`.
-- [ ] The tab's copy of the person's own `me` (F29) lives only in `sessionStorage`, is tied to the session token, expires after 15 minutes and is removed on sign-out; it holds no answers or keys.
+- [ ] The tab's copy of the person's own `me` (F29) lives only in `sessionStorage`, is tied to the session token, expires after 15 minutes and is removed on sign-out; it holds no answers or keys. The `me` that comes with `login` (F31) is kept the same way and never in the stored session.
 - [ ] Team views suppress groups with n < 3 and always exclude managers.
 - [ ] Managers' own results are visible only to themselves, Quân and HR.
 - [ ] No third-party scripts on the Hub (only Google Fonts CSS).

@@ -17,6 +17,10 @@ const READ_ONLY = new Set(['me', 'review', 'team_summary', 'team_status', 'capst
 const NOT_A_CHANGE = new Set([...READ_ONLY, 'login']);
 const ME_KEY = 'hub.me';
 const ME_MAX_AGE_MS = 15 * 60 * 1000;
+// The `me` that came with the sign-in is used as it is, once, within a few seconds (the dashboard right
+// after signing in makes no second call). Any other copy only draws the page while the fresh one is fetched.
+const ME_FRESH_MS = 10 * 1000;
+const isReload = (() => { try { const n = performance.getEntriesByType('navigation')[0]; return !!n && n.type === 'reload'; } catch (e) { return false; } })();
 
 function ss(op, key, val) {
   try {
@@ -69,13 +73,16 @@ export function getSession() {
     return s;
   } catch (e) { clearSession(); return null; }
 }
-export function setSession({ token, expires_at, profile }, { remember } = {}) {
+export function setSession({ token, expires_at, profile, me }, { remember } = {}) {
   const prev = getSession();
   const keep = remember !== undefined ? remember : !!(prev && prev.remember);
   const value = JSON.stringify({ token, expires_at, profile, remember: keep });
   if (!prev || prev.token !== token) ss('del', ME_KEY); // another sign-in: the last `me` is not theirs
   ss('del', SESSION_KEY); ls('del', SESSION_KEY);
   if (keep) ls('set', SESSION_KEY, value); else ss('set', SESSION_KEY, value);
+  // A sign-in answers with the person's `me` as well (one server call instead of two): keep it like
+  // any other `me`, so the dashboard draws at once.
+  if (me && typeof me === 'object' && me.profile) storeMe({ ok: true, server_now: new Date(serverNow()).toISOString(), ...me }, 'login');
 }
 export function updateProfile(patch) {
   const s = getSession();
@@ -91,10 +98,10 @@ const tokenTag = (tok) => String(tok || '').slice(-24);
 let writes = 0;
 /** Counts data-changing calls started in this page; a `me` that began before one may be out of date. */
 export const writeMark = () => writes;
-function storeMe(data) {
+function storeMe(data, via) {
   const s = getSession();
   if (!s || isDemo()) return;
-  ss('set', ME_KEY, JSON.stringify({ tag: tokenTag(s.token), at: Date.now(), data }));
+  ss('set', ME_KEY, JSON.stringify({ tag: tokenTag(s.token), at: Date.now(), data, ...(via ? { via } : {}) }));
 }
 /** The last `me` of this tab for the current session, or null. */
 export function cachedMe() {
@@ -116,6 +123,21 @@ function patchWatched(course, watched) {
     crs.episodes.forEach((e) => { e.watched = set.has(Number(e.ep)); });
     ss('set', ME_KEY, JSON.stringify(c));
   } catch (e) { ss('del', ME_KEY); }
+}
+/** The `me` of the sign-in a few seconds ago (and the page was not reloaded), else null. */
+function recentMe() {
+  if (isReload || isDemo()) return null;
+  const s = getSession();
+  if (!s) return null;
+  try {
+    const c = JSON.parse(ss('get', ME_KEY) || 'null');
+    if (c && c.via === 'login' && c.tag === tokenTag(s.token) && Date.now() - c.at < ME_FRESH_MS && c.data && c.data.ok) {
+      delete c.via; // once: the first screen after the sign-in; every later page asks the server again
+      ss('set', ME_KEY, JSON.stringify(c));
+      return c.data;
+    }
+  } catch (e) { /* unreadable: ask the server */ }
+  return null;
 }
 /** Same data apart from the server clock (so a page redraws only when something changed). */
 export const sameMe = (a, b) => {
@@ -224,7 +246,8 @@ export const api = {
   consent: () => call('consent'),
   logout: () => call('logout', {}, { retries: 1 }),
   setLang: (lang) => call('set_lang', { lang }),
-  me: () => call('me'),
+  /** `me`; right after a sign-in the copy that came with it is used instead of asking again ({fresh: true} always asks). */
+  me: ({ fresh = false } = {}) => { const c = fresh ? null : recentMe(); return c ? Promise.resolve(c) : call('me'); },
   watch: (course, ep, watched) => call('watch', { course, ep, watched }),
   start: (assessment, course, day) => call('start', { assessment, ...(course ? { course } : {}), ...(day ? { day } : {}) }),
   save: (attempt_id, answers, self_ratings) => call('save', { attempt_id, answers, ...(self_ratings ? { self_ratings } : {}) }),

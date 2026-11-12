@@ -56,12 +56,12 @@ Alternative: **1% Planner ▸ Import items from CSV…** lets you paste the CSV 
 2. **BaselineItems**: same steps with the bank's `Items.csv`. The column order does not matter (the Hub reads by header). The bank has no `allow_nr` column: run **Set up / repair tabs** once to add it back at the end, then type `TRUE` in `allow_nr` for the three "not my role" statements (rating statements R03, R10 and R13 of Part 2).
 3. **BaselineText**: one row per key (`key`, `en`, `vi`): section titles and intros, case titles, the 1–4 scale labels, `p2_scale_na` (manager form), `p2_scale_nr` (self form), the charter names, the rater guide, the Part 3 glossary lines. The key list is in `specs/11_sheet_schema.md`.
 4. **Validate items / courses** also checks the baseline: unique ids, each live Part 1 form has 32 items, every SJT has two different keys, every mcq key is a–d, every rating statement has self and manager wording, and every exhibit an item points to exists. You want "✔ No problems" (if you import BaselineItems before Exhibits, every exhibit is reported missing until Exhibits is in).
-5. **Refresh cache**.
+5. **Refresh the Hub now**.
 
 Instead of File ▸ Import you can paste the CSV text into **Import items from CSV…** and choose BaselineItems, Exhibits or BaselineText (the tab is replaced).
 
 ## 7 · Check Courses, Episodes and Config
-- **Courses** (the course timeline lives here): `order` and `cycle` set the order on My learning; `online_from` / `online_to` the "On Blink" window; `checkpoint_close`, `forum_date` and `field_until` the other dates. The defaults come from the program calendar and only fill blank cells: change any date here, then **Refresh cache**. Paste each course's Blink playlist link into `blink_url` when HR has it. `open = TRUE` means the course opens by itself on `online_from`; set `FALSE` to hold a course back.
+- **Courses** (the course timeline lives here): `order` and `cycle` set the order on My learning; `online_from` / `online_to` the "On Blink" window; `checkpoint_close`, `forum_date` and `field_until` the other dates. The defaults come from the program calendar and only fill blank cells: change any date here, then **Refresh the Hub now**. Paste each course's Blink playlist link into `blink_url` when HR has it. `open = TRUE` means the course opens by itself on `online_from`; set `FALSE` to hold a course back.
 - **Sessions** (the offline sessions): one row per forum, Pitch Day and the War Room: `date`, `kind` (`kickoff`, `forum`, `pitch` or `warroom`), `courses` (codes, e.g. `C1 P1`), `title_en`, `title_vi`, `start`, `end` (e.g. `13:30`, `17:30`), `place`, optional `note_en` / `note_vi` (shown on the course page under the forum), `active`. The forum card of a course shows the session on its `forum_date`; its Teach stage is the first session after its field work. My path and the help page list them all. Keep each course's `forum_date` equal to the date of its session. Setup fills the tab once with the nine 2027 sessions; after that it never touches it.
 - **Episodes**: one row per episode (ep 0 = trailer). Paste the Blink link into `blink_url`, and an embeddable player link into `embed_url` if Blink allows it (otherwise leave it empty: the Hub shows a "Watch on Blink" card). `minutes` is optional.
   - **YouTube instead of Blink:** paste the normal YouTube link (`https://youtu.be/…` or `https://www.youtube.com/watch?v=…`, as copied from **Share**) into `blink_url`; leave `embed_url` empty. The episode then plays inside the course page (YouTube's privacy-enhanced player, no YouTube cookies until the learner presses play). A `&t=75` or `?t=1m15s` start time is kept. In YouTube Studio set each video to **Unlisted** (Private videos cannot be embedded) and leave **Allow embedding** ticked (Details ▸ Show more ▸ License). When Blink is ready, replace the link; nothing else changes.
@@ -92,7 +92,7 @@ Instead of File ▸ Import you can paste the CSV text into **Import items from C
 
 The old keys `baseline_open_from`, `baseline_open_to`, `baseline_minutes` and `baseline_grace_minutes` are no longer used (you may delete those rows).
 
-After editing Items, Courses, Episodes or Config, run **1% Planner ▸ Refresh cache** (otherwise the Hub picks the change up within 10 minutes).
+The Hub keeps Config, Courses, Sessions, Episodes, Teams and the item tabs in a cache for up to 6 hours, so it does not re-read them on every page. When you edit one of these tabs by hand the Hub notices and shows the change on the next page load. After a change made another way (a CSV pasted through another tool, another script, the Sheets API) run **1% Planner ▸ Refresh the Hub now**.
 
 ## 8 · Add people
 **Roster** tab, one row per person (paste values only: Ctrl+Shift+V):
@@ -131,7 +131,7 @@ Leave every other column empty: the script fills them.
 "Anyone" is correct: learners do not need a Google account. Security comes from the code + PIN, the signed session token and the script itself.
 
 ## 11 · Test it (specs/17 step 2)
-Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learner;test`) and issue their PINs. Course A2 only opens on 4 Jan 2027, so for this test set A2's `online_from` to today and run **Refresh cache**.
+Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learner;test`) and issue their PINs. Course A2 only opens on 4 Jan 2027, so for this test set A2's `online_from` to today and run **Refresh the Hub now**.
 
 1. Open the `/exec` URL in a browser: you should see `{"ok":true,"server_now":"…+07:00",…}`.
 2. Open the Hub (or any web page), press F12 ▸ **Console**, and paste (replace the URL and the PIN):
@@ -149,7 +149,7 @@ Use three test rows in Roster (for example codes `TEST1`–`TEST3`, roles `learn
    From a terminal the same works with curl (`-L` follows Google's redirect):
    `curl -sL -H 'Content-Type: text/plain;charset=utf-8' -d '{"action":"login","code":"TEST1","pin":"…"}' 'https://script.google.com/macros/s/…/exec'`
 3. In the Sheet: **Attempts** has the row (status `submitted`, score); **Log** shows login / change_pin / start / submit with no PIN and no answers.
-4. Put A2's `online_from` back to `2027-01-04`, run **Refresh cache**, and void the test attempts (**Void an attempt…** with the `attempt_id` from column A of Attempts).
+4. Put A2's `online_from` back to `2027-01-04`, run **Refresh the Hub now**, and void the test attempts (**Void an attempt…** with the `attempt_id` from column A of Attempts).
 
 ## 11b · Running the baseline (Baseline v2)
 Everything is opened by hand, for everyone at once. No dates are involved.
@@ -193,7 +193,7 @@ Everything is opened by hand, for everyone at once. No dates are involved.
 | Import items from CSV… | paste Items / Courses / Cases / BaselineItems / Exhibits / BaselineText CSV text; then validates |
 | Validate items / courses | repairs Items / Courses / Cases and the baseline tabs and lists problems (4 options, answer a–d, objective range, duplicates, counts; baseline: 32 items per live Part 1 form, two different SJT keys, rating wording, exhibits exist) |
 | Seed episodes | adds missing Episodes rows from the course list |
-| Refresh cache | the Hub reads Items, Courses, Config, Episodes and the baseline tabs fresh |
+| Refresh the Hub now | the Hub reads Config, Courses, Sessions, Episodes, Teams and the item tabs fresh (needed only after a change that was not typed in by hand) |
 | Issue PINs for new roster rows | new PINs, shown once |
 | Reset a PIN… | new PIN shown once, lock cleared, signed out everywhere |
 | Clear a lock… | lifts a lock (including the 3-locks-in-7-days lock); the PIN stays the same |
@@ -212,10 +212,11 @@ Everything is opened by hand, for everyone at once. No dates are involved.
 
 ## Troubleshooting
 - **"Missing tab …"** in the Log or the Hub shows a server error: run **Set up / repair tabs**.
-- **A change in Items/Courses/Config does not show**: **Refresh cache**.
+- **A change in Items/Courses/Config/Sessions does not show**: **Refresh the Hub now**. If hand edits never show by themselves, run **Set up / repair tabs** once (it installs the change trigger).
 - **"This part has no questions yet"** or **"No Part 3 module is set for you yet"**: BaselineItems is empty or inactive for that part, or the person has neither `role_area` nor `p3_module`.
 - **Someone is locked out**: a first or second lock ends by itself (15 / 30 min). After 3 locks in 7 days the code stays locked: use **Clear a lock…** (PIN known) or **Reset a PIN…** (PIN forgotten).
 - **"busy"** in the Hub: many people saved at the same moment; the Hub retries automatically.
+- **A whole room starts a test together**: reading pages works for everyone at once; starting and submitting are handled one person at a time (about a second each), so with 20 people the last ones wait up to half a minute for their first question. Their timer starts only when the questions arrive. Ask people to press Start when they are ready rather than on a count of three, or start row by row.
 - **Permission error mentioning `getActiveSpreadsheet`** after deploying: in `appsscript.json` replace `spreadsheets.currentonly` with `https://www.googleapis.com/auth/spreadsheets`, save, run `setupSheet` once to re-authorise, then redeploy (step 13).
 - **The Hub feels slow**: every page asks the web app for the person's data, and Apps Script takes 1–3 s per call (up to ~8 s when nobody has used it for a while). Keep the code current (step 13), and keep the data tabs lean: no formulas, conditional formatting, filters or extra blank columns in Roster, Attempts, Watched, Recall, Teams or Capstone (each page reads them whole), and never paste images or long notes into them. To see a call's time, open the `/exec` URL: it answers in well under a second once the script is awake.
 

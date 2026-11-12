@@ -358,12 +358,13 @@ function blResult_(att) {
 
 function blPartItemCount_(assessment, user, att) {
   var cfg = config_();
-  var count = function (list) { return list.filter(function (i) { return i.active; }).length; };
   if (att) return att.served.length;
-  if (assessment === 'baseline_p1') return count(blGroup_('baseline_p1', cfg.p1_live[0] || 'B', ''));
-  if (assessment === 'baseline_p2') return count(blGroup_('baseline_p2', '', ''));
+  // counts from the small cached summary (F31): `me` never loads the item bank itself
+  var n = blMeta_().n, count = function (k) { return toInt(n[k], 0); };
+  if (assessment === 'baseline_p1') return count(blGroupKey_('baseline_p1', cfg.p1_live[0] || 'B', ''));
+  if (assessment === 'baseline_p2') return count(blGroupKey_('baseline_p2', '', 'SJT')) + count(blGroupKey_('baseline_p2', '', 'RATE'));
   var m = p3ModuleFor(user.p3_module, user.role_area);
-  return count(blItemsForAttempt_({ assessment: 'baseline_p3', module: m }));
+  return count(blGroupKey_('baseline_p3', '', '')) + (m ? count(blGroupKey_('baseline_p3', '', m)) : 0);
 }
 
 function canRate_(user) { return user.is_manager || user.roles.indexOf('admin') >= 0; }
@@ -457,11 +458,13 @@ function managerValues_(rows, ratee, rater) {
 }
 
 function rateList_(raterCode, cfg) {
-  var items = rateItems_(), rows = ratingRows_(cfg.wave);
-  return ratees_(raterCode).map(function (u) {
+  var people = ratees_(raterCode);
+  if (!people.length) return []; // nobody to rate: neither the statements nor the Ratings tab is needed
+  var ids = blMeta_().rate, rows = ratingRows_(cfg.wave);
+  return people.map(function (u) {
     var mv = managerValues_(rows, u.code, raterCode);
-    var n = items.filter(function (it) { return mv.values[it.item_id] !== undefined; }).length;
-    return { code: u.code, first_name: u.first_name, role_area: u.role_area, status: !n ? 'not_started' : n >= items.length && items.length ? 'complete' : 'in_progress', saved_at: mv.saved_at };
+    var n = ids.filter(function (id) { return mv.values[id] !== undefined; }).length;
+    return { code: u.code, first_name: u.first_name, role_area: u.role_area, status: !n ? 'not_started' : n >= ids.length && ids.length ? 'complete' : 'in_progress', saved_at: mv.saved_at };
   });
 }
 

@@ -46,6 +46,38 @@ test.describe('load speed', () => {
     await expect.poll(() => hub.payloads('me').length, { timeout: 10_000 }).toBeGreaterThan(before2);
   });
 
+  test('signing in is one server call: the dashboard draws from the `me` that came with it', async ({ page, hub }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    expect(await hub.signIn(hub.account('shell'))).toBe('dash');
+    await expect(page.locator('#courses-title')).toBeVisible();
+    await page.waitForTimeout(800);
+    const login = hub.records.filter((r) => r.action === 'login' && r.data && r.data.ok).pop();
+    expect(login.data.me.profile.code).toBe(hub.account('shell'));
+    expect(hub.records.filter((r) => r.action === 'me' && !r.viaLogin), 'no separate `me` call after the sign-in').toHaveLength(0);
+    // the next page asks the server again (the sign-in copy is used once)
+    await hub.goto('path.html');
+    await expect.poll(() => hub.records.filter((r) => r.action === 'me' && !r.viaLogin).length).toBe(1);
+    // a reload always asks
+    await page.reload();
+    await expect.poll(() => hub.records.filter((r) => r.action === 'me' && !r.viaLogin).length).toBe(2);
+  });
+
+  test('My path, the baseline chooser and a quiz intro draw from the last data at once too', async ({ page, hub }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    expect(await hub.signIn(hub.account('shell'))).toBe('dash');
+    const me = hub.last('me');
+    const course = me.courses.find((c) => c.open && !c.predict.done) || me.courses.find((c) => c.open);
+    await slowMe(page, 4000);
+    for (const [path, ready] of [['path.html', '#model-h'], ['baseline.html', '#bl-title'], [`quiz.html?type=predict&c=${course.code}`, '.qz-intro, .qz-state']]) {
+      const before = hub.payloads('me').length;
+      await hub.goto(path);
+      await expect(page.locator(ready).first(), path).toBeVisible({ timeout: 2500 });
+      await expect(page.locator('#app .skeleton, #app .loading-screen')).toHaveCount(0);
+      expect(hub.payloads('me').length, `${path} drew before the slow me came back`).toBe(before);
+      await expect.poll(() => hub.payloads('me').length, { timeout: 10_000 }).toBeGreaterThan(before);
+    }
+  });
+
   test('a ticked episode is kept in the copy; another change drops it; signing out removes it', async ({ page, hub }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     expect(await hub.signIn(hub.account('shell'))).toBe('dash');

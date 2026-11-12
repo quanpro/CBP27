@@ -15,7 +15,7 @@
 // Items never carry answer keys and this file never looks for them.
 import { mountShell, h, icon, chip, codeBadge, render, loading, errorState, errorMessage, toast, confirmDialog, modal, qs } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
-import { api, serverNow } from '../api.js';
+import { api, serverNow, cachedMe, sameMe } from '../api.js';
 import { loadCatalog } from '../courses.js';
 import { buildTop, createTimer, timerChip, announce, scrollToEl, createAutosave, createSavePill, readDraft, writeDraft, clearDraft, optionText, LETTERS } from '../quiz.js';
 import { mdBlocks } from '../md.js';
@@ -247,15 +247,16 @@ function introView(err) {
 }
 
 async function begin(btn, resuming) {
+  S.began = true; // from here a late `me` no longer re-draws the screen
   if (!resuming) {
     const p = ps() || {};
     const ok = await confirmDialog({ title: t('baseline.confirm_title', { n: p.minutes || '' }), body: t('baseline.confirm_body', { n: p.minutes || '' }), confirm: t('baseline.confirm_yes'), cancel: t('baseline.confirm_no') });
-    if (!ok) return;
+    if (!ok) { S.began = false; return; }
   }
   btn.disabled = true;
   let st;
   try { st = await api.baselineStart(S.part); } catch (e) {
-    btn.disabled = false;
+    btn.disabled = false; S.began = false;
     if (e.code === 'already_submitted') { await boot(); return; }
     if (e.code === 'not_open') { show(closedView); return; }
     if (e.code === 'not_found' && S.part === 3) { show(() => stateCard({ iconName: 'users', title: t('baseline.p3.no_module_title'), body: t('baseline.p3.no_module_body') })); return; }
@@ -951,13 +952,26 @@ function doneView(usedS) {
 
 // ---------- boot ----------
 async function boot() {
-  render(app, loading());
   S.view = null;
   S.part = [1, 2, 3].includes(Number(qs('part'))) ? Number(qs('part')) : null;
+  // The last `me` of this tab draws the screen before a part at once (chooser, intro, closed, done);
+  // the fresh one re-draws it only if something changed and the person has not pressed Start yet.
+  const cached = cachedMe();
+  let shown = null;
+  if (cached) {
+    try { S.cat = await loadCatalog(); S.me = cached; shown = cached; routeBoot(); } catch (e) { shown = null; }
+  }
+  if (!shown) render(app, loading());
+  const drawn = S.view;
   try {
     const [c, m] = await Promise.all([loadCatalog(), api.me()]);
+    if (shown && (sameMe(m, shown) || S.view !== drawn || S.start || S.began)) { if (!S.start && !S.began) S.me = m; return; }
     S.cat = c; S.me = m;
-  } catch (e) { show(() => fatal(e, () => boot())); return; }
+  } catch (e) { if (shown) return; show(() => fatal(e, () => boot())); return; }
+  routeBoot();
+}
+
+function routeBoot() {
   const b = S.me.baseline;
   if (!b || !b.parts) { show(() => stateCard({ iconName: 'lock', title: t('baseline.unavailable_title'), body: t('baseline.unavailable_body') })); return; }
   if (!S.part) { show(chooserView); return; }

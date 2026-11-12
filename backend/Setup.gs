@@ -30,6 +30,7 @@ function setupSheet() {
     seedSessions_(report);
     ensureSecrets_(report);
     removeDefaultSheet_(ss, report);
+    installChangeTrigger_(report);
     clearCaches_();
   });
   if (!report.length) report.push('Everything was already in place.');
@@ -58,7 +59,7 @@ function ensureTab_(ss, name, headers, report) {
   }
   sh.getRange(1, 1, 1, totalCols).setFontWeight('bold');
   if (sh.getFrozenRows() !== 1) sh.setFrozenRows(1);
-  invalidate_(name);
+  forgetHeaders_(name);
   return sh;
 }
 

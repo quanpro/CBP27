@@ -15,11 +15,12 @@ const REVIEW_ROW = /^(missed|review)\[\d+\]$/;
 const OBJECTIVE_COUNT = /^by_objective\.[^.[\]]+$/;
 // Known places where a key called "level" is not an item's level:
 //   scale[i].level        the 0–4 course self-rating scale (Part 3 opener)
-//   certificates.level    the certificate path (me)
+//   certificates.level    the certificate path (me, and the me that comes with login)
 //   p3.level              the indicative level in the learner's own profile (after results open)
 const LEVEL_OK = [
   { key: 'level', parent: /^scale\[\d+\]$/ },
   { key: 'level', parent: /^certificates$/, actions: ['me'] },
+  { key: 'level', parent: /^me\.certificates$/, actions: ['login'] },
   { key: 'level', parent: /^p3$/, actions: ['profile'] },
 ];
 

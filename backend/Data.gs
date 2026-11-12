@@ -99,7 +99,7 @@ var REQ_ = null;
 var LOCK_DEPTH_ = 0;
 
 function resetRequest_() {
-  REQ_ = { now: Date.now(), tables: {}, ss: null, sheets: {}, cfg: null, courses: null, gen: null, secrets: {}, logAction: '', logged: false, loggable: false, logCode: '', logMsg: '' };
+  REQ_ = { now: Date.now(), tables: {}, ss: null, sheets: {}, cfg: null, courses: null, gen: null, secrets: {}, cacheRaw: {}, headers: {}, logPrep: null, logAction: '', logged: false, loggable: false, logCode: '', logMsg: '' };
   LOCK_DEPTH_ = 0;
   return REQ_;
 }
@@ -136,15 +136,21 @@ function sheet_(name) {
 
 // ---------------------------------------------------------------- lock
 
+var LOCK_WAIT_MS_ = 20000;
+
 function withLock_(fn) {
   if (LOCK_DEPTH_ > 0) {
     LOCK_DEPTH_++;
     try { return fn(); } finally { LOCK_DEPTH_--; }
   }
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) throw apiError_('busy', 'The server is busy. Please try again.');
+  // Writes run one at a time. When a whole room presses Start together the queue can be 20 deep, so a
+  // request waits up to 20 s for its turn before it answers `busy` (the Hub then retries by itself).
+  if (!lock.tryLock(LOCK_WAIT_MS_)) throw apiError_('busy', 'The server is busy. Please try again.');
   LOCK_DEPTH_ = 1;
+  req_().now = Date.now(); // the wait for the lock is not charged to anyone: a test's timer starts when its turn comes
   req_().tables = {}; // fresh reads inside the lock
+  try { prepLogRow_(); } catch (e0) { /* logging never breaks a request */ }
   var outcome = { ok: true, code: '' };
   try {
     return fn();
@@ -185,6 +191,7 @@ function readTable_(name) {
   var t = { name: name, headers: [], col: {}, rows: [] };
   // One call (the used area of the tab) instead of getLastRow + getLastColumn + getRange().getValues().
   var values = sh.getDataRange().getValues();
+  t.last = values.length; // last row with content (what getLastRow would say), for appends inside the lock
   if (values.length && values[0].length) {
     t.headers = values[0].map(headerKey_);
     t.headers.forEach(function (h, i) { if (h && !(h in t.col)) t.col[h] = i; });
@@ -212,13 +219,31 @@ function readTableOpt_(name) {
 
 function invalidate_(name) { delete req_().tables[name]; }
 
+/** After a change to row 1 of a tab (setupSheet, CSV import). */
+function forgetHeaders_(name) { delete req_().headers[name]; invalidate_(name); }
+
+/** Row 1 of a tab, read once per request and in one call (the whole row, trailing blanks dropped). */
 function headersOf_(name) {
-  var memo = req_().tables[name];
+  var r = req_();
+  var memo = r.tables[name];
   if (memo && memo.headers.length) return memo.headers;
-  var sh = sheet_(name);
-  var lastCol = sh.getLastColumn();
-  if (lastCol < 1) return [];
-  return sh.getRange(1, 1, 1, lastCol).getValues()[0].map(headerKey_);
+  if (r.headers[name]) return r.headers[name];
+  var sh = sheet_(name), row;
+  try {
+    row = sh.getRange('1:1').getValues()[0].map(headerKey_);
+    while (row.length && !row[row.length - 1]) row.pop();
+  } catch (e) {
+    var lastCol = sh.getLastColumn();
+    row = lastCol < 1 ? [] : sh.getRange(1, 1, 1, lastCol).getValues()[0].map(headerKey_);
+  }
+  if (row.length) r.headers[name] = row;
+  return row;
+}
+
+function colLetter_(n) {
+  var s = '';
+  while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; }
+  return s;
 }
 
 /** Appends rows (objects keyed by header) in one write, as plain text. Lock required. */
@@ -235,14 +260,22 @@ function appendRows_(name, objs) {
   var rows = objs.map(function (o) {
     return headers.map(function (h) { return h && Object.prototype.hasOwnProperty.call(o, h) ? toCell_(o[h]) : ''; });
   });
-  var start = sh.getLastRow() + 1;
-  var need = start + rows.length - 1;
-  if (need > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), need - sh.getMaxRows() + 50);
-  var range = sh.getRange(start, 1, rows.length, headers.length);
-  range.setNumberFormat('@');
-  range.setValues(rows);
+  // The last used row is known when the tab was read inside this lock (nobody else can append
+  // meanwhile): one Sheet round trip less while the lock is held.
+  var memo = req_().tables[name];
+  var start = (memo && memo.last ? memo.last : sh.getLastRow()) + 1;
+  writeRowsAt_(sh, start, rows, headers.length, sh.getMaxRows());
   invalidate_(name);
   return start;
+}
+
+/** Writes rows as plain text at `start`, growing the grid first when they do not fit (maxRows = the grid's rows now). */
+function writeRowsAt_(sh, start, rows, nCols, maxRows) {
+  var need = start + rows.length - 1;
+  if (need > maxRows) sh.insertRowsAfter(maxRows, need - maxRows + 50);
+  var range = sh.getRange(start, 1, rows.length, nCols);
+  range.setNumberFormat('@');
+  range.setValues(rows);
 }
 
 /** Writes only the given columns of one row (contiguous runs in one call each). */
@@ -283,9 +316,16 @@ function findRowNumber_(name, header, value) {
   var sh = sheet_(name);
   var headers = headersOf_(name);
   var c = headers.indexOf(header);
-  var last = sh.getLastRow();
-  if (c < 0 || last < 2) return -1;
-  var vals = sh.getRange(2, c + 1, last - 1, 1).getValues();
+  if (c < 0) return -1;
+  var vals;
+  try {
+    var L = colLetter_(c + 1);
+    vals = sh.getRange(L + '2:' + L).getValues(); // the whole column in one call (no getLastRow first)
+  } catch (e) {
+    var last = sh.getLastRow();
+    if (last < 2) return -1;
+    vals = sh.getRange(2, c + 1, last - 1, 1).getValues();
+  }
   for (var i = 0; i < vals.length; i++) if (cellToString(vals[i][0]) === value) return i + 2;
   return -1;
 }
@@ -316,20 +356,65 @@ function replaceBody_(name, headers, rows) {
   invalidate_(name);
 }
 
-// ---------------------------------------------------------------- cache (F6)
+// ---------------------------------------------------------------- cache (F6, F31)
 
-var CACHE_TTL_S_ = 600;
+/**
+ * Config, Courses, Sessions, Episodes, the item banks and the other tabs only an admin edits stay in
+ * CacheService for 6 hours (its maximum). They are dropped at once (a new cache generation) when
+ * someone edits one of those tabs by hand (onEdit / onSheetChange in Admin.gs), after every admin menu
+ * action that writes them, and by "Refresh cache" in the menu. A change made by another script or
+ * through the Sheets API fires no trigger: use the menu after it.
+ */
+var CACHE_TTL_S_ = 21600;
+
+/** Tabs whose content is cached under the generation: a hand edit of one of them starts a new generation. */
+var CACHED_TABS_ = { Config: 1, Courses: 1, Sessions: 1, Episodes: 1, Items: 1, Cases: 1, Teams: 1, BaselineItems: 1, Exhibits: 1, BaselineText: 1 };
+
+/**
+ * Raw cache values by full key, looked up once per request. Every CacheService call is a round trip,
+ * so callers ask for all the keys they will need in one getAll (cacheWarm_).
+ */
+function cacheFetch_(fullKeys) {
+  var memo = req_().cacheRaw;
+  var need = fullKeys.filter(function (k, i) { return !Object.prototype.hasOwnProperty.call(memo, k) && fullKeys.indexOf(k) === i; });
+  if (need.length) {
+    var got = {};
+    try { got = (need.length === 1 ? singleGet_(need[0]) : CacheService.getScriptCache().getAll(need)) || {}; } catch (e) { got = {}; }
+    need.forEach(function (k) { memo[k] = got[k] === undefined || got[k] === null ? null : got[k]; });
+  }
+  return memo;
+}
+
+function singleGet_(k) { var o = {}; o[k] = CacheService.getScriptCache().get(k); return o; }
+
+function cacheRawGet_(fullKey) { return cacheFetch_([fullKey])[fullKey]; }
+
+function cacheRawPut_(fullKey, value, ttl) {
+  try { CacheService.getScriptCache().put(fullKey, value, ttl); } catch (e) { /* cache is optional */ }
+  req_().cacheRaw[fullKey] = value;
+}
+
+/** First round trip of a request: the cache generation and the secrets, together. */
+function cacheWarmMeta_(withPepper) {
+  var keys = ['meta:cache_gen', 'sec:TOKEN_SECRET'];
+  if (withPepper) keys.push('sec:PIN_PEPPER');
+  cacheFetch_(keys);
+}
+
+/** Second round trip: every cached value the action will read (keys without the generation prefix). */
+function cacheWarm_(keys) {
+  if (keys && keys.length) cacheFetch_(keys.map(cacheKey_));
+}
 
 /** Cache generation: CacheService first, Script Properties as the fallback (keeps the Properties quota for real work). */
 function cacheGen_() {
   var r = req_();
   if (r.gen === null) {
-    var g = null;
-    try { g = CacheService.getScriptCache().get('meta:cache_gen'); } catch (e) { g = null; }
+    var g = cacheRawGet_('meta:cache_gen');
     if (!g) {
       try { g = PropertiesService.getScriptProperties().getProperty('CACHE_GEN'); } catch (e2) { g = null; }
       g = g || '1';
-      try { CacheService.getScriptCache().put('meta:cache_gen', g, 21600); } catch (e3) { /* optional */ }
+      cacheRawPut_('meta:cache_gen', g, 21600);
     }
     r.gen = g;
   }
@@ -340,7 +425,7 @@ function cacheKey_(k) { return 'g' + cacheGen_() + ':' + k; }
 
 function cacheGet_(k) {
   try {
-    var v = CacheService.getScriptCache().get(cacheKey_(k));
+    var v = cacheRawGet_(cacheKey_(k));
     return v ? JSON.parse(v) : null;
   } catch (e) { return null; }
 }
@@ -349,7 +434,7 @@ function cacheGetAll_(keys) {
   var out = {};
   try {
     var full = keys.map(cacheKey_);
-    var got = CacheService.getScriptCache().getAll(full) || {};
+    var got = cacheFetch_(full);
     keys.forEach(function (k, i) { if (got[full[i]]) out[k] = JSON.parse(got[full[i]]); });
   } catch (e) { /* treat as a miss */ }
   return out;
@@ -357,23 +442,30 @@ function cacheGetAll_(keys) {
 
 /** Stores JSON values under 90 KB each (CacheService limit is 100 KB); bigger ones are skipped. */
 function cachePutAll_(map) {
-  var put = {};
+  var put = {}, memo = req_().cacheRaw, n = 0;
   Object.keys(map).forEach(function (k) {
     var s = JSON.stringify(map[k]);
-    if (utf8Length(s) < 90000) put[cacheKey_(k)] = s;
+    if (utf8Length(s) < 90000) { put[cacheKey_(k)] = s; n++; }
   });
+  if (!n) return;
   try { CacheService.getScriptCache().putAll(put, CACHE_TTL_S_); } catch (e) { /* cache is optional */ }
+  Object.keys(put).forEach(function (k) { memo[k] = put[k]; });
 }
 
-/** Invalidates every cached Items/Courses/Config/Episodes value (new generation). */
+/**
+ * Invalidates every cached value (a new generation). The generation is a fresh random id, written
+ * without reading the old one, so it also works from the onEdit simple trigger. If Script Properties
+ * cannot be written there, the cache copy alone is enough: it outlives every value of older generations.
+ */
 function clearCaches_() {
-  var p = PropertiesService.getScriptProperties();
-  var g = parseInt(p.getProperty('CACHE_GEN') || '1', 10) || 1;
-  p.setProperty('CACHE_GEN', String(g + 1));
-  try { CacheService.getScriptCache().put('meta:cache_gen', String(g + 1), 21600); } catch (e) { /* optional */ }
-  req_().gen = null;
-  req_().cfg = null;
-  req_().courses = null;
+  var g = Utilities.getUuid().replace(/-/g, '').slice(0, 10);
+  try { PropertiesService.getScriptProperties().setProperty('CACHE_GEN', g); } catch (e0) { /* cache copy below */ }
+  try { CacheService.getScriptCache().put('meta:cache_gen', g, 21600); } catch (e) { /* optional */ }
+  var r = req_();
+  r.gen = null;
+  r.cfg = null;
+  r.courses = null;
+  r.cacheRaw = {};
 }
 
 // ---------------------------------------------------------------- Config
@@ -626,8 +718,26 @@ function loadBlGroups_() {
     var k = blItemGroupKeyOf_(it);
     if (groups[k]) groups[k].push(it);
   });
-  cachePutAll_(groups);
+  var put = {};
+  Object.keys(groups).forEach(function (k) { put[k] = groups[k]; });
+  put.bl_meta = blMetaOf_(groups);
+  cachePutAll_(put);
   return groups;
+}
+
+/** What `me` needs from the baseline bank, without the bank: active items per group and the ids of the rating statements. */
+function blMetaOf_(groups) {
+  var n = {};
+  Object.keys(groups).forEach(function (k) { n[k] = groups[k].filter(function (i) { return i.active; }).length; });
+  var rate = (groups[blGroupKey_('baseline_p2', '', 'RATE')] || [])
+    .filter(function (i) { return i.active && i.section === 'RATE'; }).map(function (i) { return i.item_id; });
+  return { n: n, rate: rate };
+}
+
+function blMeta_() {
+  var m = cacheGet_('bl_meta');
+  if (!m || !m.n) m = blMetaOf_(loadBlGroups_());
+  return m;
 }
 
 /** Baseline items of the given groups (inactive ones included, for grading). */
@@ -767,10 +877,28 @@ function writeLogRow_(outcome) {
   var r = req_();
   if (!r.logAction || r.logged || !r.loggable || LOCK_DEPTH_ < 1) return;
   r.logged = true;
-  appendRows_('Log', [{
+  var row = {
     ts: iso7(Date.now()), action: r.logAction, employee_code: r.logCode || '',
     ok: !!outcome.ok, message: scrubLog_(outcome.ok ? r.logMsg : (outcome.code + (r.logMsg ? ' ' + r.logMsg : '')))
-  }]);
+  };
+  var prep = r.logPrep;
+  r.logPrep = null;
+  if (!prep) { appendRows_('Log', [row]); return; }
+  writeRowsAt_(prep.sh, prep.last + 1, [prep.headers.map(function (h) { return h && Object.prototype.hasOwnProperty.call(row, h) ? toCell_(row[h]) : ''; })], prep.headers.length, prep.max);
+}
+
+/**
+ * At the start of a lock, before anything is written: where the Log row will go. Reading it later
+ * would force the Sheet to save the pending writes first and then save again for the Log row; this
+ * way the lock ends with one save. Safe because every Log row is written under this same lock.
+ */
+function prepLogRow_() {
+  var r = req_();
+  r.logPrep = null;
+  if (!r.logAction || r.logged || !r.loggable) return;
+  var sh = sheet_('Log'), headers = headersOf_('Log');
+  if (!headers.length) return;
+  r.logPrep = { sh: sh, headers: headers, last: sh.getLastRow(), max: sh.getMaxRows() };
 }
 
 /** For requests that never took the lock: a short separate lock just for the Log row. */

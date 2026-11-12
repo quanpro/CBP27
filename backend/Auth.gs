@@ -21,14 +21,13 @@ var FAIL_TTL_S_ = 21600; // CacheService maximum (6 h)
 function secret_(name, create) {
   var r = req_();
   if (r.secrets[name]) return r.secrets[name];
-  var key = 'sec:' + name, s = null;
-  try { s = CacheService.getScriptCache().get(key); } catch (e) { s = null; }
+  var key = 'sec:' + name, s = cacheRawGet_(key);
   if (!s) {
     var p = PropertiesService.getScriptProperties();
     s = p.getProperty(name);
     if (!s && create) { s = randomSecret_(); p.setProperty(name, s); }
     if (!s) throw new Error(name + ' is missing: run setupSheet once from the editor');
-    try { CacheService.getScriptCache().put(key, s, 21600); } catch (e2) { /* optional */ }
+    cacheRawPut_(key, s, 21600);
   }
   r.secrets[name] = s;
   return s;
@@ -87,7 +86,7 @@ function failKey_(code) {
 /** {f: wrong PINs since the last lock, h: lock start times (ms), u: locked until ms (-1 = until an admin clears it)} */
 function failState_(code) {
   try {
-    var v = CacheService.getScriptCache().get(failKey_(code));
+    var v = cacheRawGet_(failKey_(code));
     var st = v ? JSON.parse(v) : null;
     if (st && typeof st === 'object') return { f: toInt(st.f, 0), h: Array.isArray(st.h) ? st.h : [], u: toNum(st.u, 0) };
   } catch (e) { /* treat as empty */ }
@@ -95,11 +94,12 @@ function failState_(code) {
 }
 
 function putFailState_(code, st) {
-  try { CacheService.getScriptCache().put(failKey_(code), JSON.stringify(st), FAIL_TTL_S_); } catch (e) { /* best effort */ }
+  cacheRawPut_(failKey_(code), JSON.stringify(st), FAIL_TTL_S_);
 }
 
 function clearFailState_(code) {
   try { CacheService.getScriptCache().remove(failKey_(code)); } catch (e) { /* best effort */ }
+  req_().cacheRaw[failKey_(code)] = null;
 }
 
 /** Current lock from the cache, and for a real person also from Roster. → {locked, until: ms | -1} */
@@ -197,12 +197,13 @@ function profile_(user) {
 // ---------------------------------------------------------------- actions
 
 /**
- * login {code, pin} → {token, expires_at, profile}. No script lock: the failure counter lives
+ * login {code, pin} → {token, expires_at, profile, me?}. No script lock: the failure counter lives
  * in CacheService; unknown, inactive and PIN-less codes take exactly the same path.
  */
 function apiLogin_(body) {
   var code = normCode(body.code).slice(0, 64);
   var pin = body.pin === null || body.pin === undefined ? '' : String(body.pin).trim().slice(0, 32);
+  cacheFetch_(['meta:cache_gen', 'sec:TOKEN_SECRET', 'sec:PIN_PEPPER', failKey_(code)]);
   var found = isValidCode(code) ? findRosterRow_(code) : null;
   var row = found && toBool(found.active) && found.pin_hash ? found : null;
   var st = failState_(code);
@@ -210,11 +211,20 @@ function apiLogin_(body) {
   if (lock.locked) throw lockedError_(lock.until);
   if (!pinMatches_(row, pin)) recordFailure_(code, row, st);
   if (st.f || st.u) putFailState_(code, { f: 0, h: st.h || [], u: 0 });
+  try { cacheWarm_(ME_CACHE_KEYS_); } catch (e0) { /* the cache is optional */ }
   var user = userView_(row);
   setLoggable_();
   setLogInfo_(user.code, null);
   var t = issueToken_(user);
-  return { token: t.token, expires_at: t.expires_at, profile: profile_(user) };
+  var out = { token: t.token, expires_at: t.expires_at, profile: profile_(user) };
+  // The dashboard's data rides along (F31): signing in costs one Apps Script call, not two. Never
+  // lets a problem in `me` fail the sign-in; the Hub then asks for `me` as before.
+  try {
+    out.me = meData_({ code: user.code, row: row, user: user });
+  } catch (e) {
+    try { console.error('login me: ' + scrubLog_(e && e.stack ? e.stack : e)); } catch (x) { /* ignore */ }
+  }
+  return out;
 }
 
 /** change_pin {token, old_pin, new_pin} → {token, expires_at, profile}; bumps session_ver. */

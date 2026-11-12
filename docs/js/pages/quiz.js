@@ -5,7 +5,7 @@
 import { mountShell, h, icon, chip, codeBadge, render, qs, loading, emptyState, errorState, errorMessage, toast, confirmDialog } from '../ui.js';
 import { guideBox } from '../guide.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
-import { api, serverNow } from '../api.js';
+import { api, serverNow, cachedMe, sameMe } from '../api.js';
 import { loadCatalog, objectiveEpisodes, familyClass, fmtShortDate, fmtLongDate, fmtDateTime, daysUntil, todayVN, journey, learnDone } from '../courses.js';
 import { QuizRunner, buildTop, answerLine, announce, fmtTime } from '../quiz.js';
 
@@ -170,7 +170,9 @@ function introView(err) {
         h('div', { class: 'row qz-actions' }, startBtn, backToCourse())))));
 }
 
+let began = false; // Start pressed: a late `me` no longer re-draws the first screen
 async function begin(btn) {
+  began = true;
   btn.disabled = true;
   const label = btn.querySelector('span');
   const prev = label.textContent;
@@ -518,16 +520,36 @@ async function init() {
   render(app, loading());
   if (reviewId) { await openReview(reviewId); return; }
   if (!TYPES.includes(type) || !code) { show(() => stateView('not_found')); return; }
+  // The last `me` of this tab draws the first screen at once; the fresh one re-draws it only when
+  // something changed and the person has not pressed Start yet (the server checks every start anyway).
+  const cached = cachedMe();
+  let drawnKind = null;
+  const kindOf = (me) => {
+    course = cat.courses.find((c) => c.code === code) || null;
+    live = ((me && me.courses) || []).find((c) => c.code === code) || null;
+    if (!course) return { kind: 'not_found' };
+    return preState() || { kind: 'intro' };
+  };
+  const route = (me) => {
+    const k = kindOf(me);
+    drawnKind = k.kind;
+    if (k.kind === 'not_found') { show(() => stateView('not_found')); return; }
+    if (k.kind !== 'intro') { show(() => stateView(k.kind, k)); return; }
+    show(() => introView());
+  };
+  let shown = null;
+  if (cached) {
+    try { cat = await loadCatalog(); shown = cached; route(cached); } catch (e) { shown = null; }
+  }
+  const drawn = current;
   let me;
   try {
     [cat, me] = await Promise.all([loadCatalog(), api.me()]);
-  } catch (e) { show(() => fatal(e, init)); return; }
-  course = cat.courses.find((c) => c.code === code) || null;
-  live = ((me && me.courses) || []).find((c) => c.code === code) || null;
-  if (!course) { show(() => stateView('not_found')); return; }
-  const pre = preState();
-  if (pre) { show(() => stateView(pre.kind, pre)); return; }
-  show(() => introView());
+  } catch (e) { if (!shown) show(() => fatal(e, init)); return; }
+  if (shown && (current !== drawn || began || runner || startRes)) return;
+  // same data and the same screen for it (the server clock is known now: a retake wait may be over)
+  if (shown && sameMe(me, shown) && kindOf(me).kind === drawnKind) return;
+  route(me);
 }
 
 init();

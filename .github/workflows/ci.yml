@@ -43,6 +43,9 @@ jobs:
       - name: backend/dist is up to date
         run: node tools/bundle_backend.mjs --check
 
+      - name: Every page preloads the modules it imports
+        run: node tools/gen_preloads.mjs --check
+
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 

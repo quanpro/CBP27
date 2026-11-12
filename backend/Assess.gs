@@ -154,11 +154,17 @@ function checkpointState_(code, courseCode, userAtts) {
   var last = done.length ? done[done.length - 1] : null;
   var lateUntil = lateUntil_(c);
   var lateMs = dayEnd7(lateUntil);
-  var unlockRows = readTable_('Unlocks').rows.filter(function (u) {
-    return normCode(u.employee_code) === code && normCode(u.course) === courseCode;
-  }).length;
-  var unused = Math.max(0, unlockRows - unlocksUsed(atts, cfg.max_free_attempts, lateMs));
   var nextNo = atts.filter(function (a) { return a.status !== 'open'; }).length + 1;
+  // Unlocks rows matter only for an attempt that needs one (over the free attempts, or after the late
+  // window): the tab is not read for anyone else (one Sheet round trip less on most `me` calls).
+  var mayNeedUnlock = !passedAtt && (nextNo > cfg.max_free_attempts || (!isNaN(lateMs) && now > lateMs));
+  var unused = 0;
+  if (mayNeedUnlock) {
+    var unlockRows = readTable_('Unlocks').rows.filter(function (u) {
+      return normCode(u.employee_code) === code && normCode(u.course) === courseCode;
+    }).length;
+    unused = Math.max(0, unlockRows - unlocksUsed(atts, cfg.max_free_attempts, lateMs));
+  }
   var nextRetakeMs = last && !passedAtt ? last.submitted_ms + cfg.retake_hours * 3600000 : NaN;
   return {
     course: c, attempts: atts, done: done, open: open, passed: !!passedAtt, passed_att: passedAtt,
@@ -235,7 +241,11 @@ function resultFor_(att) {
 // ---------------------------------------------------------------- me
 
 function apiMe_(body) {
-  var s = requireSession_(body, true);
+  return meData_(requireSession_(body, true));
+}
+
+/** The `me` payload for a session {code, user, row} (also sent with a successful login, F31). */
+function meData_(s) {
   var cfg = config_(), now = nowMs_();
   if (staleBl_(s.code).length) withLock_(function () { expireBl_(s.code); });
   var atts = userAttempts_(s.code);
@@ -269,7 +279,7 @@ function apiMe_(body) {
         open_attempt_id: st.open ? st.open.attempt_id : null,
         last_attempt_id: st.last ? st.last.attempt_id : null
       },
-      recall: recallRowsFor_(s.code, c.code).map(function (r) {
+      recall: (st.passed ? recallRowsFor_(s.code, c.code) : []).map(function (r) {
         var status = String(r.status || '').trim().toLowerCase();
         var due = normDate(r.due_date);
         return {
@@ -295,7 +305,8 @@ function apiMe_(body) {
   // streak (D9): submitted attempts, ticked episodes, capstone submissions by this person
   var activity = atts.filter(isDone_).map(function (a) { return a.submitted_ms; });
   watchedRows.forEach(function (w) { if (toBool(w.watched)) activity.push(parseTime(w.updated_at)); });
-  readTable_('Capstone').rows.forEach(function (r) { if (normCode(r.submitted_by) === s.code) activity.push(parseTime(r.submitted_at)); });
+  // only team members submit: the Capstone tab is not read for anyone else
+  if (team) readTable_('Capstone').rows.forEach(function (r) { if (normCode(r.submitted_by) === s.code) activity.push(parseTime(r.submitted_at)); });
 
   return {
     profile: profile_(s.user),
@@ -314,11 +325,15 @@ function apiMe_(body) {
 
 /** The five MAP charter names (BaselineText p2_charter_1 … 5) for My path; only those with a name. */
 function charterNames_() {
-  var text = blText_(), out = [];
+  var out = cacheGet_('charters'); // five short names: `me` does not load the whole BaselineText for them
+  if (out) return out;
+  var text = blText_();
+  out = [];
   ['1', '2', '3', '4', '5'].forEach(function (n) {
     var t = text['p2_charter_' + n];
     if (t && (t.en || t.vi)) out.push({ n: Number(n), en: t.en || t.vi, vi: t.vi || t.en });
   });
+  cachePutAll_({ charters: out });
   return out;
 }
 
@@ -708,11 +723,16 @@ function splitCodes_(s) {
 }
 
 function teams_() {
-  return readTable_('Teams').rows.filter(function (t) {
-    return String(t.team_id || '').trim() && (String(t.active || '').trim() === '' || toBool(t.active));
-  }).map(function (t) {
-    return { team_id: String(t.team_id).trim(), project_title: t.project_title || '', members: splitCodes_(t.members), sponsor_code: normCode(t.sponsor_code) };
-  });
+  var list = cacheGet_('teams');
+  if (!list) {
+    list = readTable_('Teams').rows.filter(function (t) {
+      return String(t.team_id || '').trim() && (String(t.active || '').trim() === '' || toBool(t.active));
+    }).map(function (t) {
+      return { team_id: String(t.team_id).trim(), project_title: t.project_title || '', members: splitCodes_(t.members), sponsor_code: normCode(t.sponsor_code) };
+    });
+    cachePutAll_({ teams: list });
+  }
+  return list;
 }
 
 function teamFor_(code) {

@@ -287,7 +287,7 @@ function blHarness(now, opts = {}) {
   h.scanAll = () => {
     for (const { action, r } of h.seen) {
       // not item fields: the profile's indicative level, the certificate level, the 0–4 self-rating scale
-      const leaks = blLeaks(r, action === 'profile' ? ['$.p3.level'] : action === 'me' ? ['$.certificates.level'] : [/^\$\.scale\[\d+\]\.level$/]);
+      const leaks = blLeaks(r, action === 'profile' ? ['$.p3.level'] : action === 'me' ? ['$.certificates.level'] : action === 'login' ? ['$.me.certificates.level'] : [/^\$\.scale\[\d+\]\.level$/]);
       eq(leaks, [], action + ' response carries no key, step, move, gate, level or charter: ' + leaks.slice(0, 3).join(', '));
       ok(!BL_SECRET_TEXT.test(JSON.stringify(r)), action + ' response carries no explanation text');
     }
@@ -1117,13 +1117,75 @@ section('Log tab never holds PINs, answers or tokens; busy lock; cache eviction'
   eq(h.ok({ action: 'start', token: t3, assessment: 'predict', course: 'A2' }).items.length, 3);
   h.cache.forceEvict = false;
   h.updateWhere('Items', 'item_id', 'FX_A3_PR_01', { active: 'FALSE' });
-  eq(h.ok({ action: 'start', token: t3, assessment: 'predict', course: 'A3' }).items.length, 3, 'cached for 10 min');
+  eq(h.ok({ action: 'start', token: t3, assessment: 'predict', course: 'A3' }).items.length, 3, 'cached until someone edits the tab');
   h.run('menuRefreshCache');
-  eq(h.ok({ action: 'start', token: h.login('T004'), assessment: 'predict', course: 'A3' }).items.length, 2, 'after Refresh cache');
-  h.clock.advance(11 * MIN);
+  eq(h.ok({ action: 'start', token: h.login('T004'), assessment: 'predict', course: 'A3' }).items.length, 2, 'after Refresh the Hub now');
+  // F31: content tabs stay cached for 6 hours…
   h.updateWhere('Items', 'item_id', 'FX_A3_PR_02', { active: 'FALSE' });
-  h.clock.advance(11 * MIN);
-  eq(h.ok({ action: 'start', token: h.login('T005'), assessment: 'predict', course: 'A3' }).items.length, 1, 'cache expires after 10 min');
+  h.clock.advance(5 * 60 * MIN);
+  eq(h.ok({ action: 'start', token: h.login('T005'), assessment: 'predict', course: 'A3' }).items.length, 2, 'still cached after 5 hours');
+  // …and a hand edit of one of them (the onEdit simple trigger) refreshes the Hub at once
+  const editOf = (tab) => ({ range: { getSheet: () => ({ getName: () => tab }) } });
+  h.run('onEdit', editOf('Attempts'));
+  eq(h.ok({ action: 'start', token: h.login('T006'), assessment: 'predict', course: 'A3' }).items.length, 2, 'an edit of a data tab does not drop the cache');
+  h.run('onEdit', editOf('Items'));
+  eq(h.ok({ action: 'start', token: h.login('T007'), assessment: 'predict', course: 'A3' }).items.length, 1, 'an edit of Items starts a new cache generation');
+  // rows removed (no onEdit): the installable change trigger does the same
+  h.updateWhere('Config', 'key', 'retake_hours', { value: '36' });
+  eq(h.run('config_').retake_hours, 24);
+  h.run('onSheetChange', { source: { getActiveSheet: () => ({ getName: () => 'Config' }) } });
+  h.run('resetRequest_');
+  eq(h.run('config_').retake_hours, 36, 'onSheetChange refreshes Config');
+  h.run('onEdit', undefined); h.run('onSheetChange', {}); // malformed events never throw
+  // without any edit, the 6-hour limit of CacheService still ends a generation's values
+  h.updateWhere('Config', 'key', 'retake_hours', { value: '48' });
+  h.clock.advance(6 * 60 * MIN + MIN);
+  h.run('resetRequest_');
+  eq(h.run('config_').retake_hours, 48, 'cache expires after 6 hours');
+});
+
+section('F31 speed: sign-in carries `me`, warm `me` reads three tabs, cached lookups are batched', () => {
+  const h = harness('2027-01-05T09:00:00+07:00');
+  const login = h.ok({ action: 'login', code: 'T009', pin: PIN }); // a learner in no capstone team
+  ok(login.me && login.me.ok === undefined, 'login carries the me payload');
+  const me = h.ok({ action: 'me', token: login.token });
+  const strip = (x) => { const o = Object.assign({}, x); delete o.ok; delete o.server_now; return o; };
+  eq(strip(login.me), strip(me), 'login.me is exactly what `me` returns');
+  eq(login.me.profile.code, 'T009');
+  // a wrong PIN gets no `me`
+  const bad = h.call({ action: 'login', code: 'T009', pin: '000000' });
+  ok(!bad.ok && bad.me === undefined && bad.error.me === undefined);
+  ok(h.ok({ action: 'login', code: 'T030', pin: PIN }).me.profile.must_change_pin, 'before the PIN change `me` rides along too (it is allowed there)');
+  // warm cache: `me` reads Roster, Attempts and Watched only, with two cache round trips
+  const calls = { getAll: 0, get: 0 };
+  const cache = h.ctx.CacheService.getScriptCache();
+  const realGetAll = cache.getAll, realGet = cache.get;
+  cache.getAll = function (k) { calls.getAll++; return realGetAll.call(cache, k); };
+  cache.get = function (k) { if (!calls.inAll) calls.get++; return realGet.call(cache, k); };
+  const wrap = (fn) => function (k) { calls.inAll = true; try { return fn.call(cache, k); } finally { calls.inAll = false; } };
+  cache.getAll = ((orig) => function (k) { calls.getAll++; return wrap(orig)(k); })(realGetAll);
+  const before = h.ss.stats.ranges;
+  h.ok({ action: 'me', token: login.token });
+  eq(h.ss.stats.ranges - before, 3, 'warm me: three tab reads (Roster, Attempts, Watched)');
+  eq(calls.getAll, 2, 'warm me: two cache round trips');
+  eq(calls.get, 0, 'warm me: no single cache lookups');
+  cache.getAll = realGetAll; cache.get = realGet;
+  // the Unlocks tab is read only for a course that may need an unlock; Recall only after a pass
+  const names = [];
+  const ss = h.ss; const realByName = ss.getSheetByName.bind(ss);
+  ss.getSheetByName = (n) => { names.push(n); return realByName(n); };
+  h.ok({ action: 'me', token: login.token });
+  ss.getSheetByName = realByName;
+  eq(names.sort(), ['Attempts', 'Roster', 'Watched']);
+  // a team member's `me` also reads the Capstone tab (their submissions count for the streak)
+  const names2 = [];
+  ss.getSheetByName = (n) => { names2.push(n); return realByName(n); };
+  h.ok({ action: 'me', token: h.login('T001') });
+  ss.getSheetByName = realByName;
+  ok(names2.includes('Capstone') && !names2.includes('Teams') && !names2.includes('Unlocks') && !names2.includes('Recall'), names2.join(','));
+  // setupSheet installs the change trigger once
+  h.run('setupSheet'); h.run('setupSheet');
+  eq(h.triggers.filter((t) => t.getHandlerFunction() === 'onSheetChange').length, 1);
 });
 
 section('hardening: anonymous flooding, secrets cache, save-after-submit race, consent, logout', () => {
@@ -1430,7 +1492,9 @@ section('admin menu: PINs, reset, unlock, void, summaries, dashboards, validate,
   eq(h.table('Summary').length, 0, 'results closed and no closed late window: nothing to publish');
   ok(h.sheet('Summary').getRange(1, 1, 1, 8).getValues()[0].includes('count'));
   h.run('menuInstallTrigger'); h.run('menuInstallTrigger');
-  eq(h.triggers.length, 1); eq(h.triggers[0].getHandlerFunction(), 'buildSummary'); eq(h.triggers[0].everyHours, 1);
+  const sumTrig = h.triggers.filter((t) => t.getHandlerFunction() === 'buildSummary');
+  eq(sumTrig.length, 1); eq(sumTrig[0].everyHours, 1);
+  eq(h.triggers.length, 2, 'the hourly summary and the change trigger from setupSheet');
   h.run('menuSeedEpisodes');
   eq(h.table('Episodes').length, 76);
 

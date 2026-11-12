@@ -24,7 +24,9 @@ ReviewRow { item_id, course, objective, stem_en, stem_vi, your: Option|null, cor
 
 ## Actions
 
-### `login` `{code, pin}` → `{token, expires_at, profile: Profile}`
+### `login` `{code, pin}` → `{token, expires_at, profile: Profile, me?}`
+`me` (F31) is the same object the `me` action returns, without `ok` and `server_now`: the Hub keeps it like any other `me` and draws the dashboard without a second call. It is left out if building it failed (the Hub then calls `me`); the demo does not send it.
+
 Code is trimmed and upper-cased. Errors: `auth_failed` (unknown code, inactive, wrong PIN), `locked {until}`.
 
 ### `change_pin` `{token, old_pin, new_pin}` → `{token, expires_at, profile}`

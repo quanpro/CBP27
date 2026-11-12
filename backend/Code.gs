@@ -41,6 +41,22 @@ function routes_() {
   };
 }
 
+/** Cached values `me` reads (also warmed for login, which carries `me`). */
+var ME_CACHE_KEYS_ = ['config', 'courses', 'episodes', 'sessions', 'charters', 'bl_meta', 'teams'];
+
+/**
+ * Asks CacheService once for what the action will need (generation + token secret, then the cached
+ * values) instead of one round trip per value. login warms its own keys (it needs the PIN pepper and
+ * the failure counter of the code too).
+ */
+function warmCache_(action) {
+  if (action === 'login') return;
+  try {
+    cacheWarmMeta_(action === 'change_pin');
+    cacheWarm_(action === 'me' ? ME_CACHE_KEYS_ : ['config', 'courses']);
+  } catch (e) { /* the cache is optional: every reader falls back to the Sheet */ }
+}
+
 function doPost(e) {
   var out;
   resetRequest_();
@@ -51,6 +67,7 @@ function doPost(e) {
     var handler = Object.prototype.hasOwnProperty.call(routes_(), action) ? routes_()[action] : null;
     if (!handler) throw apiError_('bad_request', 'Unknown action');
     if (LOGGED_ACTIONS_[action]) setLogAction_(action);
+    warmCache_(action);
     var data = handler(body) || {};
     out = okBody_(data);
     writeLogNow_({ ok: true, code: '' });

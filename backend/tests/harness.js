@@ -173,6 +173,11 @@ class FakeSheet {
   }
   getRange(a, b, nr, nc) {
     if (typeof a === 'string') {
+      const colN = (x) => x.split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+      const whole = /^(\d+):(\d+)$/.exec(a); // whole rows, e.g. "1:1"
+      if (whole) { this.ss.stats.ranges++; return new FakeRange(this, +whole[1], 1, +whole[2] - +whole[1] + 1, this.maxCols); }
+      const open = /^([A-Z]+)(\d+):([A-Z]+)$/.exec(a); // to the end of the grid, e.g. "B2:B"
+      if (open) { this.ss.stats.ranges++; return new FakeRange(this, +open[2], colN(open[1]), Math.max(0, this.maxRows - +open[2] + 1), colN(open[3]) - colN(open[1]) + 1); }
       const m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(a.replace(/\$/g, ''));
       if (!m) throw new Error('Unsupported A1 notation in the fake: ' + a);
       const col = (s) => s.split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
@@ -353,6 +358,10 @@ function createHarness(opts = {}) {
       const spec = { fn };
       const make = () => { const id = 'trig' + ++trigId; const t = Object.assign({ getHandlerFunction: () => fn, getUniqueId: () => id }, spec); triggers.push(t); return t; };
       return {
+        forSpreadsheet: () => ({
+          onChange: () => { spec.event = 'change'; return { create: make }; },
+          onEdit: () => { spec.event = 'edit'; return { create: make }; }
+        }),
         timeBased: () => ({
           everyHours: (n) => { spec.everyHours = n; return { create: make }; },
           everyMinutes: (n) => { spec.everyMinutes = n; return { create: make }; },

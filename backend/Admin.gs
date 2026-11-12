@@ -10,7 +10,7 @@ function onOpen() {
     .addItem('Import items from CSV…', 'menuImportCsv')
     .addItem('Validate items / courses', 'menuValidate')
     .addItem('Seed episodes', 'menuSeedEpisodes')
-    .addItem('Refresh cache (after editing Items, Courses or Config)', 'menuRefreshCache')
+    .addItem('Refresh the Hub now (after an import or a change made by another tool)', 'menuRefreshCache')
     .addSeparator()
     .addItem('Issue PINs for new roster rows', 'menuIssuePins')
     .addItem('Reset a PIN…', 'menuResetPin')
@@ -30,6 +30,44 @@ function onOpen() {
     .addItem('Build baseline profiles', 'menuBuildProfiles')
     .addItem('Baseline v2 reports', 'menuBaselineReports')
     .addToUi();
+}
+
+// ---------------------------------------------------------------- hand edits refresh the Hub (F31)
+
+/**
+ * Simple trigger: someone changed a cell by hand. The Hub keeps Config, Courses, Sessions, Episodes,
+ * Teams and the item tabs in its cache for hours (CACHED_TABS_ in Data.gs); an edit of one of them
+ * starts a new cache generation, so the Hub shows the change on its next page load.
+ */
+function onEdit(e) {
+  try {
+    var name = '';
+    try { name = e && e.range ? e.range.getSheet().getName() : ''; } catch (x) { name = ''; }
+    if (!name || CACHED_TABS_[name]) { resetRequest_(); clearCaches_(); }
+  } catch (err) { /* never get in the way of an edit */ }
+}
+
+/**
+ * Installable trigger (setupSheet installs it): rows or columns added or removed, a paste, an undo:
+ * changes that onEdit does not always see.
+ */
+function onSheetChange(e) {
+  try {
+    var name = '';
+    try { name = e && e.source ? e.source.getActiveSheet().getName() : ''; } catch (x) { name = ''; }
+    if (!name || CACHED_TABS_[name]) { resetRequest_(); clearCaches_(); }
+  } catch (err) { /* best effort */ }
+}
+
+function installChangeTrigger_(report) {
+  try {
+    var has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'onSheetChange'; });
+    if (has) return;
+    ScriptApp.newTrigger('onSheetChange').forSpreadsheet(ss_()).onChange().create();
+    report.push('Installed: the Hub refreshes by itself when rows are added or removed in Config, Courses, Sessions and the other content tabs.');
+  } catch (e) {
+    report.push('Could not install the change trigger (' + (e && e.message ? e.message : e) + '). Editing a cell still refreshes the Hub; after deleting rows use 1% Planner ▸ Refresh the Hub now.');
+  }
 }
 
 // ---------------------------------------------------------------- UI helpers
@@ -129,7 +167,7 @@ function ensureTabColumns_(tab, cols, report) {
   if (lastCol + cols.length > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), lastCol + cols.length - sh.getMaxColumns());
   sh.getRange(1, lastCol + 1, sh.getMaxRows(), cols.length).setNumberFormat('@');
   sh.getRange(1, lastCol + 1, 1, cols.length).setValues([cols]);
-  invalidate_(tab);
+  forgetHeaders_(tab);
   report.push(tab + ': kept extra column(s) ' + cols.join(', ') + '.');
 }
 
@@ -173,7 +211,7 @@ function menuSeedEpisodes() {
 function menuRefreshCache() {
   resetRequest_();
   clearCaches_();
-  notify_('Cache', 'Done: the Hub reads Items, Courses, Config, Episodes and the baseline tabs fresh from the Sheet now.');
+  notify_('Refresh the Hub', 'Done: the Hub reads Config, Courses, Sessions, Episodes, Teams and the item tabs fresh from the Sheet now.');
 }
 
 // ---------------------------------------------------------------- PINs

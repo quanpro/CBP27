@@ -8,7 +8,7 @@
 // Charter names come from the private Sheet (me.charters); the demo shows "Charter 1–5".
 import { mountShell, h, icon, chip, codeBadge, render, loading, errorState } from '../ui.js';
 import { t, pick, getLang, onLangChange } from '../i18n.js';
-import { api, isDemo } from '../api.js';
+import { api, isDemo, cachedMe, sameMe } from '../api.js';
 import { loadCatalog, journey, programSessions, courseStatus, stepInfo, nextStep, fmtShortDate, fmtLongDate, todayVN } from '../courses.js';
 import { DOMAINS, STAGES, RECALL, gapDomain } from '../model.js';
 import { guideBox } from '../guide.js';
@@ -185,19 +185,31 @@ function draw() {
     growSection()));
 }
 
+let gapsAsked = false;
+/** IDP gaps (optional here): asked once, as soon as a `me` says the profile is ready. */
+function loadGaps() {
+  const b = S.me && S.me.baseline;
+  if (gapsAsked || !(b && b.results_open && b.profile_ready)) return;
+  gapsAsked = true;
+  api.profile().then((p) => { S.gaps = (p && p.gaps) || []; }).catch(() => { S.gaps = []; }).then(() => draw());
+}
+
 async function load() {
   S.err = null;
-  render(app, loading());
+  // The last `me` of this tab draws the page at once; the fresh one replaces it when it differs.
+  const cached = cachedMe();
+  let shown = null;
+  if (cached) {
+    try { S.cat = await loadCatalog(); S.courses = await journey(cached); S.me = cached; shown = cached; } catch (e) { S.me = null; }
+  }
+  if (shown) { draw(); loadGaps(); } else render(app, loading());
   try {
     const [me, cat] = await Promise.all([api.me(), loadCatalog()]);
-    S.me = me; S.cat = cat; S.courses = await journey(me);
-  } catch (e) { S.err = e; }
+    if (shown && sameMe(me, shown)) return;
+    S.cat = cat; S.courses = await journey(me); S.me = me;
+  } catch (e) { if (shown) return; S.err = e; }
   draw();
-  const b = S.me && S.me.baseline;
-  if (b && b.results_open && b.profile_ready) {
-    try { const p = await api.profile(); S.gaps = (p && p.gaps) || []; } catch (e) { S.gaps = []; /* gaps are optional here */ }
-    draw();
-  }
+  loadGaps();
 }
 
 load();
